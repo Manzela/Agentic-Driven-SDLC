@@ -1,5 +1,7 @@
 # Product Requirements Document — Spec-to-Evidence Coverage Control System (Claude Code Substrate)
 
+> ⚠️ **SUPERSEDED / HISTORICAL.** This PRD is a non-authoritative input retained for provenance. The canonical specification is `.kiro/specs/spec-to-evidence-control/` and the authoritative harness is `verification/formal_verification_merged.py`. **Counts in this document are stale** — the "21/21" figures below reflect the deprecated `formal_verification.py`; the current harness self-counts **34 assertions** (`Result: 34/34 checks passed`, exit 0). Do not cite this document's counts.
+
 **Artifact type:** Canonical, formally-verified PRD — capstone hand-off for an Agentic AI Coding Agent
 **Authoring discipline:** Principal PM (systems engineering) × Formal Verification Engineer
 **Formal-validation status:** Machine-checked with Microsoft Research **Z3 v4.16.0** — **21/21 assertions returned their expected verdict** (harness: `formal_verification.py`, re-runnable; exit 0 = all pass). Original 12 checks reproduced; 9 extended checks added covering gap-closure requirements REQ-EXEC-005, REQ-COV-006, REQ-LOOP-002 refinement, and REQ-SPEC-011 independence.

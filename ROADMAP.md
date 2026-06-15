@@ -11,7 +11,7 @@ Establish the minimum deterministic control loop:
 - [ ] Verifier subagent that collects and records evidence
 - [ ] Git worktrees for isolated execution
 - [ ] GitHub required status check
-- [ ] Playwright MCP for end-to-end verification
+- [ ] Playwright (CLI) for end-to-end behavioral proof
 
 ## Phase 1 — Depth
 
@@ -30,15 +30,16 @@ Establish the minimum deterministic control loop:
 - [ ] OpenTelemetry tracing and Langfuse integration
 - [ ] Requirement-ID propagation via W3C Baggage
 
-## Phase 4 — Orchestration
+## Phase 4 — Property-based test suite
 
-- [ ] Durable workflow execution and crash recovery
+- [ ] Full property-based test suite (all 30 correctness properties) wired as a required CI gate
 
-## Optional phases
+## Optional phases (5–6)
 
-- [ ] Sandboxed execution and secret scanning
-- [ ] Audit-log integrity through hash-chained records
-- [ ] Escalation, human handoff, and predictive routing
+- [ ] Phase 5 — Durable orchestration: durable workflow execution and crash recovery (Temporal/Inngest)
+- [ ] Phase 6 — Predictive routing: advisory next-step routing that never gates a decision
+
+Cross-cutting hardening folds into the required phases above rather than forming separate phases: sandboxed execution of untrusted code and secret scanning (Phase 1), and hash-chained audit-log integrity (Phase 2). Human handoff is a core terminal state enforced from Phase 0.
 
 ## Contributing
 

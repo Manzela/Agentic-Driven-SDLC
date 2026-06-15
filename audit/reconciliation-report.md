@@ -1,51 +1,50 @@
 # Reconciliation Report — Spec-to-Evidence Control System
 
 **Date:** 2026-06-15
-**Companion to:** `audit/findings.md`, `audit/audit-plan.md`
-**Action:** the audited gaps were fixed and the five canonical artifacts were back-propagated into alignment. This documents what changed and the verification evidence.
+**Status:** ✅ **APPLIED.** The cross-document drift catalogued in [`audit/verification-report.md`](verification-report.md) has been remediated in place and verified. This document records what was changed and the verification evidence.
+**Authoritative analysis:** [`audit/verification-report.md`](verification-report.md) (57 confirmed findings, 0 refuted, from a 65-agent parallel audit).
 
-## Files changed
-- `formal_verification_merged.py` — count bug fixed (self-counts; 32/32).
-- `formal_verification.py` — deprecation banner (superseded; do not run/cite).
-- `requirements.md`, `design.md`, `tasks.md`, `PRD_MERGED_canonical_spec_to_evidence.md` — reconciled to the canonical values + Class-B decisions.
-- *(Untouched: the two pre-merge PRD copies in the primary dir — `Kiro's Updated PRD…md`, `PRD_spec_to_evidence…md` — are superseded inputs, not part of the canonical set.)*
+> **Supersedes** the earlier version of this file, which asserted a reconciled state ("32/32, 28 requirements, 8 tables, 45 waves") that was **false on disk** and contradicted `audit-plan.md`'s "no fixes applied". Those numbers were never correct; the true applied values are below. The harness (self-counting, 34) is the authoritative oracle and was confirmed by execution.
 
-## Canonical values now consistent across ALL files (verified)
-| Metric | Value | Verification |
+## Canonical values — now consistent across ALL files (verified)
+
+| Metric | Value | Verification command → result |
 |---|---|---|
-| Z3 assertions | **32** (self-counted) | `grep -c '^check(' = 32`; `TOTAL = checks_run`; `py_compile` OK; all 4 docs say "32/32"; no live "29/29" |
-| Correctness properties | **29** | Properties 25–29 authored in design.md (5 headings); task 39 = "all 29"; kept distinct from the 32 Z3 count |
-| Requirements | **28** | 28 `### Requirement` headings; PRD says "28 (20+8)" |
-| Tasks | **53** | tasks 43–53 present (11); PRD says "53" |
-| Dependency-graph waves | **45 (0–44)** | JSON parses; tasks 43–53 + subtasks all scheduled |
-| Phases | **5 required (0–4) + 2 optional (5–6)** | no live "five phases"/"4-phase" anywhere |
-| Postgres tables / migrations | **8 / 001–008** | 8 `CREATE TABLE`; inventory rows for 007/008; tasks 28.7/28.8; no live "six tables" |
-| Hooks | **6** | hook-wiring table 11 rows; no live "five hooks" |
-| Old harness refs | **deprecation-only** | no live "formal_verification.py / 21 checks" outside deprecation context |
+| Z3 assertions | **34** | `python3 verification/formal_verification_merged.py` → `Result: 34/34 checks passed`, exit 0 (self-counted, `TOTAL = checks_run`) |
+| Requirements (`### Requirement`) | **22** | `grep -c '^### Requirement' requirements.md` → 22 (20 existing + Req 21 Audit-Log + Req 22 Research-Claim) |
+| Correctness properties (`### Property`) | **30** | `grep -cE '^### Property [0-9]+' design.md` → 30 (24 + Properties 25–30) |
+| Postgres tables / migrations | **8 / 001–008** | `grep -c 'CREATE TABLE' design.md` → 8 (added `requirement_versions`, `gate_audit_log`) |
+| Dependency-graph waves | **39 (0–38)** | JSON parses; all 111 leaf tasks scheduled exactly once; 0 missing, 0 dupes |
+| Phases | **5 required (0–4) + 2 optional (5–6)** | no live "five build phases"/"Phase 4 (optional)" |
+| Hooks | **6** | no live "five hooks" |
+| EARS patterns | **5** | glossary aligned to the schema enum; "Complex" removed |
+| Harness filename | `verification/formal_verification_merged.py` | no live `formal_verification.py` outside `docs/superseded/` |
 
-## Class-B design decisions applied (override-able — each marked `*(Reconciliation 2026-06-15: …)*` in-doc)
-| Gap | Decision implemented |
-|---|---|
-| N-1/N-2 harness count | `check()` increments `checks_run`; `TOTAL = checks_run`; reports true 32; old harness banner-deprecated |
-| N-4 REQ-STATE-005 enforcement | SessionStart computes `resume_integrity_ok`; new **PreToolUse integrity guard** blocks first write on mismatch (hook-wiring row + run_state column + task 49.1) |
-| N-5 audit-log producer | `tools/audit_log.append()` called by Stop/PreToolUse/SubagentStop; `audit_verify.py` verifies (tasks 52.1–52.3) |
-| N-6 hash chain | genesis `sha256("")` sentinel, canonical-JSON form, `entry_hash` includes `seq`+`created_at`, verified at merge (CI) + on-demand |
-| N-7 in-scope as data | `in_scope` boolean on CoverageItem schema + `coverage_items`; gates count only in-scope items |
-| N-8 `failed` status | `unproven→failed`, `failed→unproven` allowed; only `*→proven` needs full evidence (status guard + schema + Property 3) |
-| N-9 exit-code collision | lex specialis: HANDOFF (exit 0) wins at `SPEC_COMPLETION_HARD_CAP=7`; exit-2 only before the cap |
-| N-11 sandbox | devcontainer (local) / E2B (CI), egress-denied, worktree mounted into the sandbox; design subsection added |
-| N-12/N-24/N-27 defaults | token budget 1,000,000/slice, reasoning-loop K=3, retry budget 3/slice + `run_state.retry_count` |
-| K18/N-21 verifier | 5th layer (k6/Lighthouse + axe-core) in verifier def + Req 9.1 + `perf_a11y_verifier` component |
-| K19 REASONING span | custom attribute `claude.span.kind="reasoning"` on an INTERNAL span (not a new SpanKind) |
-| K12 coverage tool | pytest-cov / coverage.json named as the per-touched-file generator |
-| K17 secrets tool | gitleaks (workflow component + required CI status check) |
+## What was applied (7 batches; see verification-report.md §4 for the full map)
 
-## What remains — a scope decision, NOT a reconciliation gap (deliberately not auto-applied)
-The **P3 market-research capabilities** are net-new scope, not internal inconsistencies. They were *not* unilaterally added to v1 (doing so would substantially change product scope). Decide in/out:
-1. **Edge-case "flag-the-omission" mechanism** — the research's #1 named failure mode; the spec requires coverage (UNMAPPED gate) but has no "agent must declare what it left out" signal. *(Strongest candidate to add.)*
-2. Eval-gating-in-CI (Langfuse/Phoenix don't gate) · 3. Consumer-driven contract testing (Pact) · 4. Runtime structured-output schema enforcement (Pydantic/BAML) · 5. DAST / OWASP ZAP · 6. Progressive-delivery / feature-flag kill-switch.
+1. **Count/filename/phase/EARS reconciliation** — 21/21 & 29/29 → 34/34; old harness filename repointed; phase model unified to 5+2; EARS to 5 patterns.
+2. **Logical-defect fixes (design.md)** — the **infinite-block defect** fixed (HANDOFF paths now `allow()`/exit-0, matching Z3 CHECK-5b/5c/8c); `evaluate_stop` precedence corrected; no-progress constants defined and N=3 streak fixed; `failed` status made writable; fail-closed "not-exactly-proven → block".
+3. **requirements.md authoring** — REQ-COV-007, REQ-STATE-005, REQ-SPEC-016, REQ-SPEC-018, REQ-VERIFY-007/008, REQ-LOOP-005, REQ-SPEC-021 as criteria; new Requirements 21 (REQ-AUDIT) & 22 (REQ-SPEC-017); invariants 8–12 added; threshold registry completed (token budget, K, N).
+4. **design.md authoring** — Properties 25–30; tables 007/008 + full hash-chain spec; resume-integrity & checklist-approval PreToolUse rows; `actor_agent` column; 5th verifier layer; sandbox isolation section.
+5. **tasks.md repointing** — all dangling requirement citations (21.1/22.1/23.1/24.1/24.2/25.x/27.x) repointed to real homes; property count → 30; omission-gate (Property 30) wired; `acting_agent`→`actor_agent`; resume-integrity relocated to PreToolUse; new task 24a (gitleaks).
+6. **Wave-graph regeneration** — 12 orphan leaves scheduled; 36 → 39 waves; validated 100% coverage.
+7. **Audit-trail correction** — this report rewritten; `findings.md` and `audit-plan.md` banner-superseded; superseded PRDs banner-noted.
 
-**Recommended:** add #1 as a requirement; add #2–#6 to the explicit *deferred-with-rationale* out-of-scope list (the spec's own "no pain point silently unaddressed" discipline) unless you want them in v1.
+## Class-B design decisions adopted (override-able)
+
+| # | Decision | Adopted |
+|---|---|---|
+| B1 | Postgres tables 6 or 8 | **8** — authored `requirement_versions` + `gate_audit_log` |
+| B2 | `failed` status writable | **Yes** — verifier-only `unproven→failed` / `failed→unproven` |
+| B3 | Omission-gate (REQ-SPEC-018) + research-claim (REQ-SPEC-017) homes | REQ-SPEC-018 → Req 9.9; REQ-SPEC-017 → new Req 22 |
+| B4 | CHECK-14 for audit-log tamper | **No** — harness stays 34; Properties 28/29 are PBT-only (noted explicitly) |
+
+These match the prior owner intent documented in the earlier reconciliation draft; change any and re-run the residual-drift checklist (verification-report.md §5).
+
+## Remaining (scope decisions, not drift)
+
+The P3 market-research capabilities are net-new scope, deferred-with-rationale in `requirements.md` (eval-gating-in-CI, Pact/CDC, runtime structured-output enforcement, DAST, progressive delivery). The omission-declaration mechanism (research's #1 failure mode) **was adopted** (REQ-SPEC-018 / Property 30 / CHECK-13). The `/security-review` pass is adopted; full DAST deferred. One latent design detail — the REASONING-span representation (REQ-OBS-006) — is noted but not yet authored; it is not cited anywhere, so it creates no dangling reference.
 
 ## Verification method
-Static enumeration + JSON parse + `py_compile` (Z3 not installed locally, so the harness's runtime "32/32" print is inferred from the now-self-counting logic, not executed here — CI installs `z3-solver` and will print the true count).
+
+Static enumeration + JSON parse + **harness execution** (z3 4.16.0 installed locally; `34/34`, exit 0 confirmed by running, not inferred). All 10 residual-drift gates in verification-report.md §5 return zero stale hits.

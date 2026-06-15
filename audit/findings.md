@@ -1,5 +1,8 @@
 # Spec-to-Evidence Control System — Forensic Audit Findings
 
+> ⚠️ **SUPERSEDED (2026-06-15) by [`audit/verification-report.md`](verification-report.md).** This earlier audit was performed against a larger "canonical merged" copy (`PRD_MERGED_canonical_spec_to_evidence.md`) that **does not exist** in this repository; many of its line citations point beyond the actual file EOFs and its harness count (32/29) undercounts the live self-counting harness (**34**). It is retained for provenance only. For the authoritative, applied analysis against the live files, see `verification-report.md` and `reconciliation-report.md`.
+
+
 **Date:** 2026-06-15
 **Auditor:** independent cross-document forensic pass (Claude) + 37-agent verification workflow (2.77M tokens), cross-checked against direct file reads.
 **Scope:** `requirements.md`, `design.md`, `tasks.md`, `PRD_MERGED_canonical_spec_to_evidence.md`, `formal_verification_merged.py`, `formal_verification.py`, against `Agentic-Driven SDLC.md` (reference architecture) and `AI_SDLC_Market_Research.pdf`.
