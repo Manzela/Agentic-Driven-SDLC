@@ -323,8 +323,8 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
   - Wire the captures into CI as the binding oracle for LOOP-03's three concurrent goals.
 
 - [ ] **T-LOOP-16** — Implement the per-state tool layer and reduced-motion static map  (→ LOOP-17)
-  - Add a Rive `tool` layer per state so each stage surfaces its named Tier-1 tool only while active; build the reduced-motion static node → tool mapping as DOM text.
-  - Visual-regression at each named state asserts the correct tool label (and no concurrent parade); reduced-motion test asserts the full mapping is present.
+  - Add a Rive `tool` layer over the six canonical stages in their fixed order intent→decompose→implement→verify→prove→gate (gate is the last node; there is no seventh "Spec" node) so each stage surfaces its named tool label only while active, and annotate the Implement node with the PreToolUse/PostToolUse hooks and the Gate node with the Stop/SubagentStop hooks; build the reduced-motion static node → tool mapping as DOM text carrying the same six named tool labels.
+  - Visual-regression at each named state asserts the six stages render in canonical order with gate last (no "Spec" node), that each stage's named tool label is present and shown alone (no concurrent parade), and that the six official Claude Code hook names (PreToolUse, PostToolUse, UserPromptSubmit, SubagentStop, Stop, SessionStart) appear on the Implement and Gate nodes; the reduced-motion test asserts the full static map is present and names each stage's tool label.
 
 ---
 
@@ -373,6 +373,7 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-CONTENT-11** — Author the numbered manifesto MDX with verbatim invariant  (→ CONTENT-11)
   - Write /manifesto as numbered MDX sections; store the governing invariant as a shared constant.
   - Verify: section-presence test for the five spine elements; byte-for-byte invariant match.
+  - Verify: a presence check that the enforcement layer is described — the six official Claude Code hooks are named (PreToolUse, PostToolUse, UserPromptSubmit, SubagentStop, Stop, SessionStart), command hooks are characterized as fail-closed with the honest limit stated (a hook can block a tool call but cannot by itself prove the work is correct) — and that the proof-of-execution versus proof-of-correctness distinction is drawn explicitly.
 
 - [ ] **T-CONTENT-12** — Generate per-page metadata from on-page claims  (→ CONTENT-12)
   - Build the metadata generation step deriving title/description/OG/JSON-LD from ledger claims.
@@ -381,6 +382,7 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-CONTENT-13** — Author terminology/style sheet, consistency linter, and gate-verdict copy  (→ CONTENT-13)
   - Author terminology.json (brand/casing/token format + canonical gate-verdict copy) and the consistency linter.
   - Verify: linter fails on a disallowed synonym; all verdict strings resolve from the single style sheet.
+  - Verify: the linter asserts the canonical six-stage order intent→decompose→implement→verify→prove→gate (gate last) and the single canonical gate caption ("Stop hook holds locally; OPA/Conftest zero-evidence policy at merge; GitHub ruleset makes both required") across HOME, LOOP, and PAGE surfaces, so a regression that places gate before verify — or that drifts the gate caption (as LOOP-17 could) — fails the build.
 
 - [ ] **T-CONTENT-14** — Implement Who-it's-for module with anti-fabrication assertion  (→ CONTENT-14)
   - Render audience/role/industry framing from data; gate any numeric social proof through the ledger.
@@ -399,8 +401,8 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
   - Verify: copy-lint asserts thesis present in both locations and zero displacement-phrase matches site-wide.
 
 - [ ] **T-CONTENT-18** — Implement the <PoweredBy> machine-artifact module  (→ CONTENT-18)
-  - Build <PoweredBy> reading the committed PRD stack manifest, rendering each tool as a mono [data-artifact] entry.
-  - Verify: membership assertion passes for every listed tool; DOM/numeric scan confirms no logo <img> and no stat strings.
+  - Build <PoweredBy> reading the committed PRD stack manifest, rendering each entry as a mono [data-artifact] node that shows the tool name, the B-block ID it serves, and a one-line pain-point tie.
+  - Verify: every manifest entry exposes tool name + B-block ID + one-line pain-point tie as labeled [data-artifact] text; membership-by-name assertion passes for the six official Claude Code hooks (PreToolUse, PostToolUse, UserPromptSubmit, SubagentStop, Stop, SessionStart), the four subagents (initializer, implementer, verifier, and the gate/orchestrator subagent), OWASP ZAP, DeepEval, OpenFeature/flagd, gitleaks, and Hypothesis; DOM/numeric scan confirms zero logo <img> and zero numeric stat strings.
 
 - [ ] **T-CONTENT-19** — Author the vendor-neutral / no-lock-in content block  (→ CONTENT-19)
   - Author the shared no-lock-in block (feature_list.json, EvidenceRecord, requirement-ID Baggage, "opinionated defaults, not a cage") on /how-it-works and the manifesto; register the claim in the ledger.
@@ -425,6 +427,7 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-PAGE-04** — Implement six-stage loop explainer on /how-it-works  (→ PAGE-01, PAGE-12)
   - Render six ordered stages from a typed manifest with plain-language, mechanism, and `[data-artifact]` artifact; pull gate framing from CONTENT-13.
   - Assert exactly six ordered stage nodes and gate copy equals the CONTENT-13 verdict string (no error-toned wording).
+  - Assert a build check that the stages appear in canonical order intent→decompose→implement→verify→prove→gate (gate last) and that each of the six stages names at least one controlled-vocabulary mechanism — intent: EARS→SMT spec compiler; decompose: initializer subagent + feature_list.json; implement: implementer subagent + worktree + PreToolUse gates; verify: verifier subagent + SubagentStop; prove: Evidence_Record + audit log + Z3; gate: Stop hook + OPA/Conftest + GitHub ruleset — and that the strict gate sequencing (gate evaluates last, after prove) is named.
 
 - [ ] **T-PAGE-05** — Implement B01-B19 capability taxonomy  (→ PAGE-02)
   - Render 19 blocks grouped into named clusters with label, one-line description, and `[data-artifact]` mono block ID.
@@ -433,6 +436,7 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-PAGE-06** — Build /proof information spine  (→ PAGE-03, PAGE-08)
   - Render the four ordered titled sections and the exact four-field evidence schema on `[data-artifact]` nodes.
   - Assert section order by ordinal and that the denylist regex matches zero times.
+  - Assert a presence check that the enforcement layer is named — the six official Claude Code hooks (PreToolUse, PostToolUse, UserPromptSubmit, SubagentStop, Stop, SessionStart), with command hooks framed as fail-closed and the honest limit stated (a hook can block a step but cannot by itself establish correctness) — and that the proof-of-execution versus proof-of-correctness distinction is present on the page.
 
 - [ ] **T-PAGE-07** — Implement EvidenceTrace state machine and sample dataset  (→ PAGE-04, PAGE-12)
   - Build the hash-chained, requirement-ID-tagged trace with per-row unproven → evidence-attached → proven and a terminal gate evaluation bound to `data-state`.

@@ -336,9 +336,10 @@ bound to live harness output).
 **EARS:** WHEN the homepage finishes its first contentful paint, the Hero section SHALL render the brand wordmark, a single oversized display headline asserting the product thesis (delivery that proves itself), a one-line subhead, the soft primary action (See how it works), and a mount-point for the closed-loop centerpiece; WHILE the centerpiece asset is still loading, the Hero SHALL render a legible static labeled diagram of the loop (intent -> decompose -> implement -> verify -> prove -> gate); IF the centerpiece asset fails to load or is unsupported, THEN the Hero SHALL retain the static labeled diagram as the permanent fallback and SHALL NOT show a broken-asset or error state.
 **Acceptance criteria:**
 1. In server-rendered HTML (JS disabled), the Hero DOM contains: a wordmark node, exactly one `h1` display headline, a subhead element, an anchor whose text is "See how it works" resolving to `/how-it-works` (route per IA-03), and a centerpiece mount-point element.
-2. The static labeled loop diagram is present in the DOM at load and contains the six ordered stage labels: intent, decompose, implement, verify, prove, gate.
+2. The static labeled loop diagram is present in the DOM at load and contains the six ordered stage labels in canonical order: intent, decompose, implement, verify, prove, gate (gate last); a build assertion verifies the order reads intent → decompose → implement → verify → prove → gate and that no stage places the gate before verify.
 3. Simulating centerpiece load failure (asset 404 / unsupported) leaves the static diagram visible and produces no element with role="alert", no "error"/"failed" text, and no broken-image node.
 4. The hero accent (--proven / --accent) occupies ≤3–5% of first-viewport pixels; all monospace text is confined to `[data-artifact]` nodes.
+5. WHERE the hero copy enumerates the powering stack, it names Claude Code, Neon, Langfuse, Playwright, and Semgrep as the in-scope tools and references Temporal only as an OPTIONAL / roadmap (Phase-5) durable-execution substrate, never as a wired-in spine member.
 **Depends on:** DS-01, DS-07, DS-08, IA-03, LOOP-05
 
 ### HOME-02 — Ordered named beat sequence with stable ids and ordinals  ·  P0  ·  EARS: event
@@ -357,8 +358,9 @@ bound to live harness output).
 **Acceptance criteria:**
 1. The tile set is rendered from the content corpus and is present as static DOM text (tile labels assertable with JS disabled).
 2. Each consolidation step maps to a discrete scroll-progress value; replaying the same progress value yields the identical visual/DOM state (deterministic, no time/random dependence), verified via a runtime motion-integrity assertion exposed on `[data-motion-integrity]`.
-3. At progress = 1.0 the grid has resolved to a single consolidated engine element; on pin release, document flow resumes with measured CLS ≤ 0.1 and no overlapping/trapped-scroll condition.
+3. At progress = 1.0 the grid has resolved to a single consolidated engine element that carries a visible label naming the real spine — "the gate-chain + coverage-model spine (Stop hook + OPA/Conftest + GitHub ruleset over a default-unproven feature_list.json)" — and on pin release, document flow resumes with measured CLS ≤ 0.1 and no overlapping/trapped-scroll condition.
 4. Scrubbing progress backward reverses the state machine through the same discrete steps in reverse order.
+5. The consolidated engine element's spine label is present as static DOM text and names the Stop hook, OPA/Conftest, the GitHub ruleset, and the default-unproven feature_list.json (string assertion).
 **Depends on:** DS-08, DS-09
 
 ### HOME-04 — Human-as-infrastructure replace-table with static two-column baseline  ·  P0  ·  EARS: event
@@ -373,12 +375,13 @@ bound to live harness output).
 
 ### HOME-05 — Closed-loop-explained beat with synchronized captions and gate-holds-the-line  ·  P0  ·  EARS: state
 **User story:** As a visitor, I want the shared loop to advance stage-by-stage with captions and to show the gate rejecting an unproven item as a positive event, so that I read fail-closed as the feature, not a failure.
-**EARS:** WHILE the Closed-loop-explained section is the active beat, the Homepage SHALL advance the shared loop centerpiece through its stages (intent, decompose, implement, verify, prove, fail-closed gate) in lockstep with scroll progress and SHALL display a synchronized per-stage caption; WHEN scroll progress reaches the fail-closed-gate stage, the section SHALL present the gate holding the line on an unproven item as a system-correct event (gate glows the accent, the unproven item dims to faint/pending, copy frames the rejection as the feature); IF the centerpiece is in reduced-motion or static mode, THEN the section SHALL present the same six stages and the gate-holds-the-line beat as a captioned static sequence.
+**EARS:** WHILE the Closed-loop-explained section is the active beat, the Homepage SHALL advance the shared loop centerpiece through its stages in canonical order (intent, decompose, implement, verify, prove, fail-closed gate — gate last) in lockstep with scroll progress and SHALL display a synchronized per-stage caption; WHEN scroll progress reaches the fail-closed-gate stage, the section SHALL present the gate holding the line on an unproven item as a system-correct event (gate glows the accent, the unproven item dims to faint/pending, copy frames the rejection as the feature) and SHALL render the canonical gate-stage caption verbatim from CONTENT-13; IF the centerpiece is in reduced-motion or static mode, THEN the section SHALL present the same six stages in canonical order and the gate-holds-the-line beat as a captioned static sequence.
 **Acceptance criteria:**
-1. The six stage captions exist in static DOM and are sourced from the content layer; the gate-verdict copy is imported from CONTENT-13 and not re-declared in HOME.
+1. The six stage captions exist in static DOM in canonical order (gate last) and are sourced from the content layer; the gate-verdict copy and the canonical gate-stage caption are imported verbatim from CONTENT-13 and not re-declared in HOME.
 2. The gate-glow state uses the single reserved accent token (--proven / --accent from DS-01); the dimmed unproven item uses --text-faint (decorative/disabled-only) and never the canonical --error token.
 3. With reduced-motion active, all six stages and the gate-holds beat render in their final/resolved captioned form (reduced-motion final-state assertion passes).
 4. No alarm-red / --error styling appears on the gate verdict in any state.
+5. The rendered gate-stage caption equals the canonical CONTENT-13 string ("The Stop hook holds the line locally; OPA/Conftest runs a zero-evidence policy at merge; a GitHub ruleset makes both required.") byte-for-byte (no inline literal in HOME).
 **Depends on:** DS-01, DS-08, LOOP-05, CONTENT-13
 
 ### HOME-06 — Proof-model beat with live evidence record and no aggregate count  ·  P0  ·  EARS: event
@@ -389,6 +392,7 @@ bound to live harness output).
 2. The evidence record renders inside `[data-artifact]` nodes (the only place monospace is permitted) and is labeled/marked as illustrative sample data.
 3. No homepage text matches the value-agnostic denylist regex `\b\d+\s*/\s*\d+\s+(formally\s+)?(verified|checked)\b` (claims firewall, CONTENT-06).
 4. The pending->proven illumination applies the accent only when the four evidence fields are all present; with reduced-motion the record renders in its resolved (proven, illuminated) final state.
+5. The section states the independent-verifier principle in qualitative terms — "the verifier has no write access to implementation and never grades its own output" — present as static DOM text (string assertion).
 **Depends on:** DS-01, PAGE-03, LOOP-05, CONTENT-06
 
 ### HOME-07 — The-leap beat: removes recede, guarantees resolve  ·  P1  ·  EARS: event
@@ -408,6 +412,8 @@ bound to live harness output).
 1. Static DOM contains the editorial audience copy (sourced from CONTENT-06) and the named domains aerospace, medical, finance, defense.
 2. The section contains no pricing text, no "demo"/"book"/"contact sales" CTA, no `<form>` lead-gen element, no logo-wall image grid, and no link to any sibling-product subdomain.
 3. Any customer/logo claim is gated behind the claims firewall and absent until evidence-backed; the value-agnostic verification-count denylist regex finds no match in the section.
+4. The section contains one qualitative sentence tying the regulated audiences to the substrate they need — "tamper-evident proof of what an agent did, for which requirement, with what outcome — a hash-chained gate-decision audit log, SLSA provenance, and bidirectional requirement-to-evidence traceability." — present as static DOM text (string assertion).
+5. The section makes no EU AI Act / regulatory-conformity claim; a denylist asserts zero occurrences of regulatory-conformity phrasing (e.g. 'EU AI Act compliant', 'AI Act conformity', 'regulation compliant') in the section.
 **Depends on:** CONTENT-06, IA-03
 
 ### HOME-09 — Soft-close with manifesto link and fully-stated Get-notified affordance  ·  P1  ·  EARS: optional
@@ -577,10 +583,11 @@ bound to live harness output).
 
 ### LOOP-13 — Fixture-backed artifacts, no unbacked aggregate count  ·  P0  ·  EARS: unwanted
 **User story:** As a visitor, I want artifacts drawn from a committed illustrative fixture modeled on the real schema and never an unbacked "N/N verified" headline, so that the centerpiece shows the mechanism instead of an unverifiable claim.
-**EARS:** The ClosedLoop and EvidenceTrace SHALL render only artifacts drawn from a committed fixture modeled on the product's real evidence schema and SHALL NOT display any aggregate verified/formally-verified count; WHERE a numeric proof statistic would otherwise appear, the centerpiece SHALL instead show the per-requirement evidence mechanism (the four-field record and the gate verdict).
+**EARS:** The ClosedLoop and EvidenceTrace SHALL render only artifacts drawn from a committed fixture modeled on the product's real evidence schema and SHALL NOT display any aggregate verified/formally-verified count; WHERE a numeric proof statistic would otherwise appear, the centerpiece SHALL instead show the per-requirement evidence mechanism (the four-field record and the gate verdict). WHERE the centerpiece characterizes what the proof establishes, it SHALL clarify qualitatively that the hash-chained log is tamper-evident proof that execution happened as recorded (proof of execution) — distinct from proof that generated code is correct (proof of correctness), which is out of scope — and that the Z3 logic model checks the requirement logic model, not generated code.
 **Acceptance criteria:**
 1. All rendered IDs, hashes, and records resolve to entries in the committed fixture; claims copy is sourced from content/claims-registry.json, with no count computed or hardcoded in the component.
 2. The rendered output and source pass a value-agnostic denylist regex `\b\d+\s*/\s*\d+\s+(formally\s+)?(verified|checked)\b` (zero matches); the centerpiece presents the four-field record + gate verdict in place of any headline number.
+3. Where the centerpiece characterizes the proof, it states qualitatively that the hash-chained log is proof of execution (tamper-evident proof that execution happened as recorded), distinct from proof of correctness (out of scope), and that Z3 checks the requirement logic model rather than generated code; string/presence assertion.
 **Depends on:** LOOP-05, CONTENT-06
 
 ### LOOP-14 — Lazy-load Rive, reserved box, off-critical-path  ·  P0  ·  EARS: unwanted
@@ -608,12 +615,14 @@ bound to live harness output).
 **Depends on:** LOOP-05, LOOP-08
 
 ### LOOP-17 — Stage reveals its named Tier-1 tool, motion-bound-to-state  ·  P0  ·  EARS: event
-**User story:** As a visitor, I want each stage to surface the actual Tier-1 tool that runs it only while that stage is active, so that I see a verifiable tool-to-stage mapping rather than a logo parade.
-**EARS:** WHEN a loop stage activates, the ClosedLoop SHALL reveal that stage's named Tier-1 tool — Intent → the human brief; Spec → Claude Code; Decompose → Claude Code subagents + worktrees; Implement → Claude Code; Gate → Claude Code hooks · OPA/Conftest · GitHub rulesets; Verify → Playwright · Semgrep/CodeQL · Hypothesis · k6/Lighthouse · axe-core + the independent verifier; Prove → SLSA · hash-chained audit log · Z3 (surfaced via Langfuse/OTel); substrate Neon · Langfuse/OTel · Temporal — as motion bound to state (a tool surfaces only while its stage runs), not a logo parade; and WHERE prefers-reduced-motion: reduce, the ClosedLoop SHALL show the static node → tool mapping.
+**User story:** As a visitor, I want each of the six canonical stages to surface the actual Tier-1 tool that runs it only while that stage is active, so that I see a verifiable stage-to-tool mapping in the correct order — with the gate last — rather than a logo parade.
+**EARS:** WHEN a loop stage activates, the ClosedLoop SHALL reveal that stage's named Tier-1 tool across the canonical six stages in order — Intent → the human brief; Decompose → the Claude Code initializer subagent (Spec Compiler + Coverage Builder, with spec-compilation folded into decompose) over git worktrees; Implement → the Claude Code implementer subagent (one slice per worktree) with PreToolUse prevention and PostToolUse feedback; Verify → Playwright · Semgrep/CodeQL · Hypothesis · k6/Lighthouse · axe-core plus the independent verifier subagent (no write access, never grades its own output); Prove → the four-field Evidence_Record plus a hash-chained audit log plus the Z3 logic model (surfaced via Langfuse/OTel); Gate (last) → the Claude Code Stop hook · OPA/Conftest zero-evidence policy · GitHub ruleset — as motion bound to state (a tool surfaces only while its stage runs), not a logo parade; the runtime substrate SHALL be named as Neon and Langfuse/OTel, with Temporal marked OPTIONAL (durable-execution roadmap, not a wired-in spine member); and WHERE prefers-reduced-motion: reduce, the ClosedLoop SHALL show the static node → tool mapping for all six stages in canonical order. Where the gate-stage caption is shown it SHALL reuse the canonical gate-stage caption verbatim from CONTENT-13. Claude Code hooks are command-type and fail closed; PostToolUse cannot undo an executed action; the hook roster is emerging/version-gated.
 **Acceptance criteria:**
-1. A tool label is present and revealed only while its owning stage is the active state; visual-regression at each named state asserts the correct tool label appears and that other stages' tool labels are not concurrently surfaced (no logo parade).
-2. Under prefers-reduced-motion: reduce, the static node → tool mapping renders the complete stage-to-tool correspondence as DOM text, and a reduced-motion assertion verifies the full mapping is present.
-**Depends on:** LOOP-01, DS-08
+1. A tool label is present and revealed only while its owning stage is the active state; visual-regression at each named state asserts the correct tool label appears, that the canonical six-stage order reads intent → decompose → implement → verify → prove → gate with the gate last, and that other stages' tool labels are not concurrently surfaced (no logo parade).
+2. Under prefers-reduced-motion: reduce, the static node → tool mapping renders the complete six-stage-to-tool correspondence as DOM text in canonical order (gate last), and a reduced-motion assertion verifies the full mapping is present.
+3. Temporal, wherever it appears in the substrate label, is marked OPTIONAL / roadmap and never presented as a wired-in spine member; Neon and Langfuse/OTel are named as the in-scope substrate.
+4. The gate-stage caption text equals the canonical gate-stage caption imported from CONTENT-13 (no inline literal), and the hook honest-limit note (command-type, fail-closed, PostToolUse cannot undo an executed action, roster emerging/version-gated) is present as qualitative copy wherever Claude Code hooks are named.
+**Depends on:** LOOP-01, DS-08, CONTENT-13
 
 ---
 
@@ -637,18 +646,21 @@ bound to live harness output).
 
 ### CONTENT-03 — 'What it replaces' six canonical rows  ·  P0  ·  EARS: ubiquitous
 **User story:** As a visitor, I want the six corpus-grounded role-to-substitute rows, so that I see precisely what the closed loop displaces.
-**EARS:** The site SHALL render a 'What it replaces' module containing exactly the six role-to-substitute rows (human-as-memory -> requirement-ID-tagged durable state; human-as-verifier -> fail-closed coverage model; human-as-scope-enforcer -> bounded task decomposition; human-as-auditor -> tamper-evident execution trace; human-as-integration-lead -> proactive domain-baseline discovery; human-as-tool-selector -> pre-integrated opinionated stack), with machine artifacts rendered in the monospace family.
+**EARS:** The site SHALL render a 'What it replaces' module containing exactly the six role-to-substitute rows (human-as-memory -> requirement-ID-tagged durable state; human-as-verifier -> fail-closed coverage model; human-as-scope-enforcer -> bounded task decomposition; human-as-auditor -> tamper-evident execution trace; human-as-integration-lead -> proactive domain-baseline discovery; human-as-tool-selector -> pre-integrated opinionated stack), with machine artifacts rendered in the monospace family. The human-as-verifier and human-as-auditor substitute cells SHALL name "per-edit prevention before a write lands" via PreToolUse plus the Stop hook (qualitative; never any latency or timing figure), and the human-as-scope-enforcer substitute cell SHALL name git worktrees plus the scope-sequencing gate. Where Claude Code hooks are named, the module SHALL co-state the hook honest-limit: Claude Code hooks are command-type and fail closed; PostToolUse cannot undo an executed action; the hook roster is emerging/version-gated.
 **Acceptance criteria:**
 1. The module renders exactly six rows whose label pairs equal the six canonical strings (set-equality assertion); any extra, missing, or altered row fails the build.
 2. Every machine-artifact token in the module (e.g. requirement IDs) carries a [data-artifact] attribute and resolves to the monospace token; non-artifact prose does not use mono.
+3. The human-as-verifier and human-as-auditor substitute cells name "per-edit prevention before a write lands" via PreToolUse + the Stop hook (qualitative, no latency/timing figure), and the human-as-scope-enforcer cell names git worktrees + the scope-sequencing gate; string/presence assertion.
+4. Wherever Claude Code hooks are named, the hook honest-limit note (command-type, fail-closed, PostToolUse cannot undo an executed action, roster emerging/version-gated) renders as qualitative copy.
 **Depends on:** DS-07
 
 ### CONTENT-04 — 'The leap' two-group bullet module  ·  P0  ·  EARS: ubiquitous
 **User story:** As a visitor, I want eliminations and guarantees as two grouped noun-phrase bullet sets, so that the leap is scannable and free of unproven numbers.
-**EARS:** The site SHALL render 'The leap' as two grouped bullet sets — (a) eliminations: zero tool-selection, zero context-management, zero micro-steering, zero manual traceability; (b) guarantees: evidence-backed, coverage-verified, proof-traced — where each bullet is a noun phrase and contains no quantified claim.
+**EARS:** The site SHALL render 'The leap' as two grouped bullet sets — (a) eliminations: zero tool-selection, zero context-management, zero micro-steering, zero manual traceability; (b) guarantees: evidence-backed, coverage-verified, proof-traced — where each bullet is a noun phrase and contains no quantified claim. The module's source annotation SHALL clarify (non-rendered, or as qualitative supporting copy) that "zero context-management" means durable-state offloading (PreCompact/SessionStart + Postgres), NOT predictive context (which is roadmap), so the elimination is not read as an overclaim.
 **Acceptance criteria:**
 1. Each bullet matches a no-verb / noun-phrase shape check and the claims-ledger numeric scan finds zero digits in the module.
 2. The two groups render exactly the four elimination bullets and three guarantee bullets from the canonical list (exact-match assertion).
+3. The "zero context-management" bullet carries a source annotation (or qualitative supporting copy) scoping it to durable-state offloading (PreCompact/SessionStart + Postgres) and explicitly excluding predictive context (roadmap); a presence assertion confirms the scoping note and the numeric scan still finds zero digits.
 **Depends on:** none
 
 ### CONTENT-05 — Corpus-to-module mapping registry  ·  P0  ·  EARS: complex
@@ -701,10 +713,12 @@ bound to live harness output).
 
 ### CONTENT-11 — Manifesto MDX with verbatim invariant  ·  P1  ·  EARS: ubiquitous
 **User story:** As a reader, I want the manifesto authored as numbered MDX sections quoting the governing invariant precisely, so that the argument is structured and the invariant is exact.
-**EARS:** The /manifesto content SHALL be authored in MDX as numbered sections opening with the category thesis, proceeding through the fragmented-stack problem, human-as-infrastructure, the closed loop, and the proof wedge, and closing without a hard sell, and WHERE it states the governing invariant it SHALL quote it precisely: deterministic gates decide completeness from verifiable facts only; model self-assessment informs, never gates.
+**EARS:** The /manifesto content SHALL be authored in MDX as numbered sections opening with the category thesis, proceeding through the fragmented-stack problem, human-as-infrastructure, the closed loop, and the proof wedge, and closing without a hard sell, and WHERE it states the governing invariant it SHALL quote it precisely: deterministic gates decide completeness from verifiable facts only; model self-assessment informs, never gates. WHERE the closed-loop section names the enforcement layer, it SHALL name it concretely — "The only thing that can halt or redirect a running agent is a deterministic Claude Code command hook (PreToolUse, PostToolUse, Stop, SubagentStop, PreCompact, SessionStart) — not a prompt, not CLAUDE.md — and command hooks fail closed." — and SHALL name the four bounded subagents (initializer, implementer, verifier, research). It SHALL also state the bounded-execution and self-correction note: iteration/token/no-progress caps route to HANDOFF (a terminal state distinct from COMPLETE), and the team found and fixed its own HANDOFF infinite-block defect (a self-audit trust signal). Claude Code hooks are command-type and fail closed; PostToolUse cannot undo an executed action; the hook roster is emerging/version-gated.
 **Acceptance criteria:**
 1. The MDX renders as sequentially numbered sections covering the five required spine elements (presence assertion per section id).
 2. The verbatim governing-invariant string is present exactly once and matches the canonical text byte-for-byte (exact-match assertion).
+3. The closed-loop section names the enforcement layer concretely — the deterministic Claude Code command hook (PreToolUse, PostToolUse, Stop, SubagentStop, PreCompact, SessionStart), stated as the only thing that can halt or redirect a running agent (not a prompt, not CLAUDE.md), with the fail-closed note — and names the four bounded subagents (initializer, implementer, verifier, research); string/presence assertion.
+4. The bounded-execution and self-correction note is present: iteration/token/no-progress caps routing to HANDOFF (terminal, distinct from COMPLETE), and the self-audit reference to finding and fixing the HANDOFF infinite-block defect; the hook honest-limit note (command-type, fail-closed, PostToolUse cannot undo an executed action, roster emerging/version-gated) renders as qualitative copy.
 **Depends on:** CONTENT-05
 
 ### CONTENT-12 — Per-page metadata derived from on-page claims  ·  P1  ·  EARS: state
@@ -717,10 +731,12 @@ bound to live harness output).
 
 ### CONTENT-13 — Canonical terminology, style sheet, and gate-verdict copy  ·  P1  ·  EARS: ubiquitous
 **User story:** As a content maintainer, I want a single canonical terminology/style sheet that also owns gate-verdict copy, so that casing, brand usage, and verdict wording never drift.
-**EARS:** The content system SHALL maintain the canonical terminology and style sheet (brand 'Autonomous Agent'; category 'the Autonomous SDLC Platform'; casing of fail-closed, closed loop, evidence record, governing invariant; machine-artifact token format) and SHALL own the canonical gate-verdict copy, and all pages SHALL use these consistently without diluting synonyms.
+**EARS:** The content system SHALL maintain the canonical terminology and style sheet (brand 'Autonomous Agent'; category 'the Autonomous SDLC Platform'; casing of fail-closed, closed loop, evidence record, governing invariant; machine-artifact token format) and SHALL own the canonical gate-verdict copy, including the single canonical gate-stage caption string — "The Stop hook holds the line locally; OPA/Conftest runs a zero-evidence policy at merge; a GitHub ruleset makes both required." — and all pages SHALL use these consistently without diluting synonyms; HOME-05, LOOP-17, and PAGE-01 SHALL reuse the canonical gate-stage caption verbatim from this source of truth. This style sheet SHALL also record the canonical six-stage loop order — intent → decompose → implement → verify → prove → gate (gate last) — as the authoritative ordering referenced by loop-rendering requirements.
 **Acceptance criteria:**
 1. A terminology-consistency linter fails the build on any disallowed synonym or casing variant of a governed term across all routes.
 2. All gate-verdict strings render from this single style sheet (single-source assertion); no route hardcodes a verdict string outside it.
+3. The canonical gate-stage caption string "The Stop hook holds the line locally; OPA/Conftest runs a zero-evidence policy at merge; a GitHub ruleset makes both required." is defined exactly once here, and HOME-05, LOOP-17, and PAGE-01 are asserted to render it byte-for-byte from this source (no inline literal in those requirements' components).
+4. The style sheet records the canonical six-stage order intent → decompose → implement → verify → prove → gate (gate last); a build assertion fails if any consuming requirement renders the gate before verify or reorders the six stages.
 **Depends on:** DS-07
 
 ### CONTENT-14 — 'Who it's for' module with anti-fabrication rule  ·  P1  ·  EARS: unwanted
@@ -749,18 +765,22 @@ bound to live harness output).
 
 ### CONTENT-17 — Integrator thesis present, displacement language absent  ·  P0  ·  EARS: ubiquitous
 **User story:** As a visitor, I want the hero and manifesto to carry the integrator thesis and avoid 'replaces the tools' framing, so that the position is honest about standing on proven Tier-1 tools.
-**EARS:** The hero and manifesto SHALL carry the integrator thesis — "Every one of these problems is already solved — by Claude Code, Neon, Temporal, Langfuse, Playwright, Semgrep, and a dozen other proven Tier-1 tools. What no one has done is wire them all together, gate them correctly, and ship it as a product." — and SHALL contain no competitor-displacement or "replaces the tools" language.
+**EARS:** The hero and manifesto SHALL carry the integrator thesis — "Every one of these problems is already solved — by Claude Code, Neon, Langfuse, Playwright, Semgrep, and a dozen other proven Tier-1 tools. What no one has done is wire them all together, gate them correctly, and ship it as a product." — framed as a design intent (the integrated product is not presented as production-proven), and SHALL contain no competitor-displacement or "replaces the tools" language. The in-scope wired-together stack named here SHALL be Claude Code, Neon, Langfuse, Playwright, and Semgrep; Temporal SHALL be named only as an OPTIONAL durable-execution substrate on the roadmap (Phase-5) and SHALL NOT be listed among the wired-together in-scope tools.
 **Acceptance criteria:**
-1. A copy-lint asserts the integrator thesis string is present in the hero copy deck and manifesto §1 (exact-match presence).
+1. A copy-lint asserts the integrator thesis string is present in the hero copy deck and manifesto §1 (exact-match presence), with the in-scope stack listing Claude Code, Neon, Langfuse, Playwright, and Semgrep.
 2. The displacement-phrase denylist (e.g. 'replaces the tools', 'replaces Claude Code', 'kills <tool>', 'better than <tool>') matches zero occurrences across all routes.
+3. Temporal is referenced only as an OPTIONAL / roadmap (Phase-5) durable-execution substrate and is not enumerated among the wired-together in-scope tools; the framing presents the integrated product as a design intent, not a production-proven claim.
 **Depends on:** CONTENT-01, CONTENT-11
 
 ### CONTENT-18 — 'Powered by' module as machine artifacts  ·  P1  ·  EARS: ubiquitous
 **User story:** As a visitor, I want a 'Powered by' module listing the proven in-production stack as machine artifacts, so that I see credibility without fabricated logos or stats.
-**EARS:** The site SHALL render a "Powered by — built on proven, in-production solutions" module presenting the stack as machine artifacts (no customer logos, no unverifiable stats) as the claims-integrity-safe substitute for a logo-wall.
+**EARS:** The site SHALL render a "Powered by — built on proven, in-production solutions" module presenting the stack as machine artifacts (no customer logos, no unverifiable stats) as the claims-integrity-safe substitute for a logo-wall, and each manifest entry SHALL render the tool name (mono `[data-artifact]`) together with its B-block ID and a one-line qualitative pain-point tie-in drawn from the claims registry. Where Claude Code hooks are named, the module SHALL co-state the hook honest-limit: Claude Code hooks are command-type and fail closed; PostToolUse cannot undo an executed action; the hook roster is emerging/version-gated.
 **Acceptance criteria:**
 1. The <PoweredBy> module renders each tool as a mono [data-artifact] entry sourced from the committed PRD stack manifest; every listed tool is asserted to be a member of that manifest.
 2. The module contains zero logo <img> nodes and zero numeric stat strings (DOM and numeric-scan assertion).
+3. Each manifest entry renders three parts: the tool name in a mono `[data-artifact]` node, its B-block ID, and a one-line qualitative pain-point tie-in sourced from the claims registry (assertion that all three are present per entry, with no numeric stat in the tie-in).
+4. The required manifest membership names the six official Claude Code hooks (PreToolUse, PostToolUse, Stop, SubagentStop, PreCompact, SessionStart); the four subagents (initializer, implementer, verifier, research); OWASP ZAP; DeepEval; OpenFeature/flagd; gitleaks; and Hypothesis — each asserted present as a manifest member.
+5. Wherever Claude Code hooks are named, the hook honest-limit note (command-type, fail-closed, PostToolUse cannot undo an executed action, roster emerging/version-gated) renders as qualitative copy; the module carries zero logos and zero numeric stats.
 **Depends on:** CONTENT-06, DS-07
 
 ### CONTENT-19 — Vendor-neutral schema and no-lock-in promise  ·  P1  ·  EARS: ubiquitous
@@ -777,30 +797,34 @@ bound to live harness output).
 
 ### PAGE-01 — Closed delivery loop on /how-it-works  ·  P0  ·  EARS: event
 **User story:** As a prospective reader, I want the /how-it-works page to explain the delivery loop as an ordered, named sequence of stages, so that I understand how intent becomes proven, gated delivery.
-**EARS:** The /how-it-works page SHALL present the closed delivery loop as an ordered, named sequence of stages — intent, decompose, implement, verify, prove, fail-closed gate — each with a one-paragraph plain-language explanation, the deterministic mechanism behind it, and the machine artifact it produces; WHEN a visitor reaches the gate stage, the page SHALL frame the fail-closed rejection as the system holding the line (succeeding), not as an error.
+**EARS:** The /how-it-works page SHALL present the closed delivery loop as an ordered, named sequence of stages in canonical order — intent, decompose, implement, verify, prove, fail-closed gate (gate last) — each with a one-paragraph plain-language explanation, the deterministic mechanism behind it (naming ≥1 concrete mechanism from the controlled vocabulary below), and the machine artifact it produces; WHEN a visitor reaches the gate stage, the page SHALL frame the fail-closed rejection as the system holding the line (succeeding), not as an error. The controlled mechanism vocabulary per stage is — intent → EARS → SMT spec compiler + spec_validator; decompose → the initializer subagent + a default-unproven feature_list.json (spec-compilation folds into decompose); implement → the implementer subagent + a git worktree + the ordered PreToolUse plan/scope gates; verify → the verifier subagent (five layers) + the SubagentStop evidence gate; prove → the four-field Evidence_Record + a hash-chained audit log + the Z3 logic model; gate → the Stop hook + OPA/Conftest + a GitHub ruleset. The page SHALL also name the STRICT SEQUENCING — the ordered PreToolUse gate chain, and that the Stop hook evaluates HANDOFF triggers BEFORE the unproven-items gate. Where the gate-stage caption is shown it SHALL reuse the canonical gate-stage caption verbatim from CONTENT-13. Claude Code hooks are command-type and fail closed; PostToolUse cannot undo an executed action; the hook roster is emerging/version-gated.
 **Acceptance criteria:**
-1. The page DOM contains exactly six ordered stage nodes whose accessible names match `intent`, `decompose`, `implement`, `verify`, `prove`, and a gate stage, in that document order.
+1. The page DOM contains exactly six ordered stage nodes whose accessible names match `intent`, `decompose`, `implement`, `verify`, `prove`, and a gate stage, in that canonical document order (gate last; a build assertion fails if any stage places the gate before verify).
 2. Each stage node contains a non-empty plain-language paragraph, a mechanism description, and a machine-artifact reference rendered with monospace styling only on a `[data-artifact]` node.
-3. The gate-stage copy contains the fail-closed framing string sourced from CONTENT-13 (no inline literal) and contains no error/failure-toned wording asserted by text-equality against the approved CONTENT-13 verdict copy.
-4. axe-core reports zero critical OR serious violations for the rendered stage sequence.
+3. A build assertion verifies that each of the six stages names ≥1 mechanism from its controlled-vocabulary set (intent → EARS/SMT spec compiler + spec_validator; decompose → initializer subagent + default-unproven feature_list.json; implement → implementer subagent + git worktree + ordered PreToolUse plan/scope gates; verify → verifier subagent (five layers) + SubagentStop evidence gate; prove → four-field Evidence_Record + hash-chained audit log + Z3 logic model; gate → Stop hook + OPA/Conftest + GitHub ruleset); the page also names the strict sequencing (the ordered PreToolUse gate chain, and that the Stop hook evaluates HANDOFF triggers before the unproven-items gate).
+4. The gate-stage copy contains the canonical gate-stage caption sourced verbatim from CONTENT-13 (no inline literal) and contains no error/failure-toned wording asserted by text-equality against the approved CONTENT-13 verdict copy; wherever Claude Code hooks are named, the hook honest-limit note (command-type, fail-closed, PostToolUse cannot undo an executed action, roster emerging/version-gated) renders as qualitative copy.
+5. axe-core reports zero critical OR serious violations for the rendered stage sequence.
 **Depends on:** DS-08, CONTENT-13, PAGE-13
 
 ### PAGE-02 — Capability taxonomy B01-B19  ·  P1  ·  EARS: state
 **User story:** As a reader, I want the 19 capability blocks grouped into clusters, so that I can grasp the platform's capability surface at a glance.
-**EARS:** WHERE the capability taxonomy is present, the /how-it-works page SHALL render the 19 capability blocks (B01-B19) grouped into a small set of capability clusters (specify, cover, execute, verify, prove, observe), each block carrying a short label, a one-line description, and its block ID as a monospace artifact.
+**EARS:** WHERE the capability taxonomy is present, the /how-it-works page SHALL render the 19 capability blocks (B01-B19) grouped into a small set of capability clusters (specify, cover, execute, verify, prove, observe), each block carrying a short label, a one-line description that names its signature mechanism, and its block ID as a monospace artifact. Each block's one-line description SHALL name its signature mechanism qualitatively — e.g. B09 = "fail-closed completion gate: Stop hook + OPA/Conftest + GitHub ruleset"; B12 = "mid-flight steering: PreToolUse prevention + PostToolUse feedback"; B13 = "anti-loopmaxxing: iteration/token/no-progress caps routing to HANDOFF"; B16 = "security/control: SAST + secrets + SLSA + DAST + kill-switch". Where Claude Code hooks are named, the taxonomy SHALL co-state the hook honest-limit: Claude Code hooks are command-type and fail closed; PostToolUse cannot undo an executed action; the hook roster is emerging/version-gated.
 **Acceptance criteria:**
 1. The page renders exactly 19 block nodes whose IDs text-match `B01` through `B19` with no gaps or duplicates.
 2. Each block ID is the only monospace-rendered text in its block and sits on a `[data-artifact]` node; assert no other descendant uses the mono font.
 3. Every block is assigned to exactly one of the named clusters; assert each block node has a non-empty cluster ancestor and no block is orphaned.
+4. Each block's one-line description names its signature mechanism (build assertion that the description is non-empty and mechanism-bearing); B09, B12, B13, and B16 match their canonical signature-mechanism strings (fail-closed completion gate: Stop hook + OPA/Conftest + GitHub ruleset; mid-flight steering: PreToolUse prevention + PostToolUse feedback; anti-loopmaxxing: iteration/token/no-progress caps routing to HANDOFF; security/control: SAST + secrets + SLSA + DAST + kill-switch).
+5. Wherever Claude Code hooks are named in a block description, the hook honest-limit note (command-type, fail-closed, PostToolUse cannot undo an executed action, roster emerging/version-gated) renders as qualitative copy.
 **Depends on:** PAGE-01
 
 ### PAGE-03 — /proof information spine  ·  P0  ·  EARS: ubiquitous
 **User story:** As a skeptical reader, I want the /proof page to lay out the governing invariant, evidence schema, verifier principle, and auditor test, so that I can evaluate the proof claim on its mechanism.
-**EARS:** The /proof page SHALL present, in order, the governing invariant (deterministic gates decide completeness from verifiable facts only; model self-assessment informs but never gates), the four-field evidence schema (test_file, test_name, output_hash, collected_at), the independent-verifier principle (the verifier has no write access and never grades its own output), and the auditor test (the north-star question), each as a distinct titled section.
+**EARS:** The /proof page SHALL present, in order, the governing invariant (deterministic gates decide completeness from verifiable facts only; model self-assessment informs but never gates), the four-field evidence schema (test_file, test_name, output_hash, collected_at), the independent-verifier principle (the verifier has no write access and never grades its own output), and the auditor test (the north-star question), each as a distinct titled section. The page SHALL clarify qualitatively that the hash-chained log is tamper-evident proof that execution happened as recorded (proof of execution) — distinct from proof that generated code is correct (proof of correctness), which is out of scope — and that the Z3 logic model checks the requirement logic model, not generated code.
 **Acceptance criteria:**
 1. The page DOM contains four distinct titled sections in the specified document order; assert by heading text and ordinal position.
 2. The evidence-schema section lists exactly the four field names `test_file`, `test_name`, `output_hash`, `collected_at`, each on a `[data-artifact]` mono node and no other field present.
 3. The page text contains no hardcoded verification count; the denylist regex `\b\d+\s*/\s*\d+\s+(formally\s+)?(verified|checked)\b` matches zero times against rendered text.
+4. The page states qualitatively that the hash-chained log is proof of execution (tamper-evident proof that execution happened as recorded), distinct from proof of correctness (that generated code is correct, which is out of scope), and that Z3 checks the requirement logic model rather than generated code; string/presence assertion.
 **Depends on:** DS-01, CONTENT-06
 
 ### PAGE-04 — Interactive sample audit-trace  ·  P0  ·  EARS: event
