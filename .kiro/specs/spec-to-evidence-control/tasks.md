@@ -2,7 +2,7 @@
 
 ## Overview
 
-Build the autonomous agentic software-delivery control plane on the Claude Code substrate in four required phases (0–3) plus Phase 4 (PBT suite), with two optional phases: Phase 5 (Temporal/Inngest durable outer loop) and Phase 6 (predictive routing). Phase 0 (spine) is the hard prerequisite for all subsequent phases: every spine component must be coded, wired, and smoke-tested before any Phase 1 task begins. Implementation language is Python throughout.
+Build the autonomous agentic software-delivery control plane on the Claude Code substrate in five required phases (0–4) — Phase 4 being the property-based-test suite — with two optional phases: Phase 5 (Temporal/Inngest durable outer loop) and Phase 6 (predictive routing). Phase 0 (spine) is the hard prerequisite for all subsequent phases: every spine component must be coded, wired, and smoke-tested before any Phase 1 task begins. Implementation language is Python throughout.
 
 ---
 
@@ -88,7 +88,7 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
     - `# Feature: spec-to-evidence-control, Property 17: Vague-Adjective Rejection`
 
   - [ ]* 4.5 Write unit tests for `spec_validator.py`
-    - Reproduce all 29 formal-verification checks from `formal_verification_merged.py` as unit assertions
+    - Reproduce all 34 formal-verification checks from `verification/formal_verification_merged.py` as unit assertions
     - Test timeout path: mock Z3 solver to raise `TimeoutError`; assert return value has `violation_count == -1`
     - _Requirements: 4.1, 4.2_
 
@@ -109,13 +109,13 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
 
   - [ ]* 5.3 Write property test for no-progress → HANDOFF only
     - **Property 8: No-Progress → HANDOFF Only**
-    - **Validates: Requirements 14.2, 21.1**
+    - **Validates: Requirements 14.2, 14.5**
     - Generate run states with arbitrary `no_progress_n` values and slice histories using N=3 (DEFAULT, fixed — not arbitrary N); assert that when both conditions (zero proven, zero commits) hold for N=3 consecutive slices, `status` transitions to `handoff` never `complete`, AND the Stop hook exits 0 (allow termination), never exits 2 (which would force-continue — the infinite-block defect)
     - `# Feature: spec-to-evidence-control, Property 8: No-Progress → HANDOFF Only`
 
   - [ ]* 5.4 Write property test for cap and budget → HANDOFF only
     - **Property 9: Cap and Budget → HANDOFF Only**
-    - **Validates: Requirements 14.1, 14.2, 21.1**
+    - **Validates: Requirements 14.1, 14.2, 14.5**
     - Generate run states at or beyond the iteration cap (DEFAULT 25) or cost budget; assert terminal status is always `handoff`; assert `complete` and `handoff` are never simultaneously true; assert the Stop hook returns exit 0 (allow termination) not exit 2 (which would force-continue) — Z3 CHECK-5b/5c verified
     - `# Feature: spec-to-evidence-control, Property 9: Cap and Budget → HANDOFF Only`
 
@@ -175,9 +175,10 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
     - Parse subagent result from stdin (JSON); locate `evidence` field(s) within result
     - Call `validate_evidence_record()` from `evidence_collector.py` on each evidence record
     - If any field missing or empty: exit 2 with enumerated missing fields (fail closed)
-    - If all records valid: exit 0
+    - Reject the result if the `omission_declaration` field is null or absent (the subagent must explicitly declare what it did NOT implement/cover): exit 2 naming `omission_declaration` (REQ-SPEC-018, Property 30, Z3 CHECK-13a/13b)
+    - If all records valid and `omission_declaration` present: exit 0
     - Wrap in `try/except`; exit 2 on unhandled exception
-    - _Requirements: 9.5_
+    - _Requirements: 9.5, 9.9_
 
   - [ ]* 8.2 Write unit tests for `subagent_stop_hook.py`
     - Test: subagent result with complete Evidence_Record → exits 0
@@ -213,7 +214,7 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
     - Include: performance/accessibility layer — k6/Lighthouse for `performance` NFR items (p95 latency, Core Web Vitals thresholds) and axe-core for `accessibility` NFR items (zero WCAG-A/AA violations on covered screens) as per REQ-VERIFY-007; UI-screen completeness checks (empty/loading/error states) as per REQ-VERIFY-008
     - Coverage tool: use `coverage.py` (`python -m pytest --cov --cov-report=json`) to generate per-file line coverage; read JSON report to check each touched file ≥ 85%
     - Assemble Evidence_Record via `evidence_collector.py`, flip `unproven → proven` only when all checks pass, coverage ≥ 85% on all touched files, and acting agent identity is `verifier.md` (not `implementer.md`)
-    - _Requirements: 9.1, 9.2, 9.3, 9.6, 25.1, 25.2, 25.3_
+    - _Requirements: 9.1, 9.2, 9.3, 9.6, 9.7, 9.8_
 
   - [ ] 10.4 Write `.claude/agents/research.md` — Domain-Baseline Checklist Sourcer
     - Define role, permissions (read/write to `baselines/`; no access to `src/`, `tests/`, or CI), and key behaviors
@@ -249,13 +250,13 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
 - [ ] 13. Wire `formal_verification_merged.py` as CI check
   - [ ] 13.1 Create `.github/workflows/formal-verification.yml`
     - Trigger on `push` and `pull_request`
-    - Install `z3-solver` via pip in a venv; run `python3 formal_verification_merged.py` (supersedes `formal_verification.py`)
+    - Install `z3-solver` via pip in a venv; run `python3 verification/formal_verification_merged.py` (supersedes the deprecated `docs/superseded/formal_verification.py`)
     - Fail workflow if exit code is non-zero (any assertion failure)
     - Register as a required status check in GitHub repository ruleset
     - _Requirements: 4.1_
 
   - [ ]* 13.2 Smoke-test: verify `formal_verification_merged.py` currently exits 0
-    - Run `python3 formal_verification_merged.py` in CI; assert exit 0 (all 29 checks pass)
+    - Run `python3 verification/formal_verification_merged.py` in CI; assert exit 0 (all 34 checks pass)
     - _Requirements: 4.1_
 
 - [ ] 14. GitHub Actions coverage gate (OPA/Conftest stub for Phase 0)
@@ -298,7 +299,7 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
     - Call `session_start_hook.py`; assert exit 0 and stdout JSON contains `git_status`, `unproven_count`, `proven_count`
     - Call `subagent_stop_hook.py` with a complete 4-field Evidence_Record; assert exit 0
     - Call `subagent_stop_hook.py` with `output_hash` missing; assert exit 2 and error names `output_hash`
-    - Run `python3 formal_verification_merged.py`; assert exit 0 (all 29 checks pass)
+    - Run `python3 verification/formal_verification_merged.py`; assert exit 0 (all 34 checks pass)
     - _Requirements: 4.2, 5.5, 7.4, 7.5, 9.5, 10.2, 11.3, 13.5_
 
 ---
@@ -387,6 +388,13 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
     - Test rules against synthetic fixtures in `tests/fixtures/semgrep/`
     - _Requirements: 8.1, 8.2_
 
+- [ ] 24a. gitleaks secret-scan CI gate (REQ-SEC-002)
+  - [ ] 24a.1 Create `.github/workflows/secrets-scan.yml`
+    - Run `gitleaks detect` on the diff for every `push` and `pull_request`
+    - Fail (block merge) on any detected secret, credential, or token
+    - Register as a required status check in the GitHub repository ruleset
+    - _Requirements: 17.2_
+
 - [ ] 25. `pre_compact_hook.py` — PreCompact Checkpoint
   - [ ] 25.1 Implement `.claude/hooks/pre_compact_hook.py`
     - Before context compaction: append current progress summary (item IDs, status counts) to `claude-progress.txt`
@@ -448,19 +456,19 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
   - [ ] 28.7 Write migration `db/migrations/007_requirement_versions.sql`
     - `requirement_versions` table: `id SERIAL`, `requirement_id TEXT REFERENCES requirements(id)`, `version INTEGER NOT NULL`, `prior_text TEXT`, `new_text TEXT NOT NULL`, `author TEXT NOT NULL`, `rationale TEXT NOT NULL`, `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`, `UNIQUE (requirement_id, version)`
     - On amendment: insert version row AND reset `coverage_items.status` to `unproven` (trigger or app-level enforcement)
-    - _Requirements: 22.1, 16.1_
+    - _Requirements: 5.7, 16.1_
 
   - [ ] 28.8 Write migration `db/migrations/008_gate_audit_log.sql`
     - `gate_audit_log` table: `seq BIGSERIAL PRIMARY KEY`, `event_name TEXT NOT NULL`, `tool_name TEXT`, `decision TEXT NOT NULL CHECK (decision IN ('allow','block'))`, `reason TEXT`, `requirement_id TEXT`, `actor_agent TEXT NOT NULL`, `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`, `prev_hash TEXT NOT NULL`, `entry_hash TEXT NOT NULL`
     - Hash chain: `entry_hash = sha256(canonical_row_json || prev_hash)`. First row's `prev_hash` = sha256("genesis")
-    - _Requirements: 27.1, 27.2, 16.1_
+    - _Requirements: 21.1, 21.2, 16.1_
 
   - [ ]* 28.9 Write integration tests for Postgres schema
     - Run all 8 migrations (001–008) on a test Neon branch; assert all tables created
     - Test `evidence_complete` CHECK rejects incomplete records
     - Test `requirement_versions` UNIQUE constraint rejects duplicate (requirement_id, version) pairs
     - Test `gate_audit_log` hash chain: insert two rows; verify `entry_hash` of row 2 = sha256(canonical_json(row2) || row1.entry_hash)
-    - _Requirements: 5.6, 16.1, 22.1, 27.1_
+    - _Requirements: 5.6, 16.1, 5.7, 21.1_
 
 - [ ] 29. Traceability link writer — commit trailer parser
   - [ ] 29.1 Write `tools/traceability_writer.py`
@@ -501,16 +509,15 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
 
 - [ ] 32a. `state_integrity.py` — Resumed-State Hash Checker (REQ-STATE-005)
   - [ ] 32a.1 Implement `tools/state_integrity.py`
-    - On `SessionStart`, read current `feature_list.json` + `claude-progress.txt` and compute SHA-256 hash
-    - Compare against `state_hash` stored in `run_state` Postgres table (or `claude-progress.txt` if DB unavailable)
-    - If mismatch: exit 2 with message "Session resume blocked: state hash mismatch. Run operator reconciliation." (fail closed)
+    - At `SessionStart`, compute the SHA-256 of `feature_list.json` + `claude-progress.txt` and store it for the resume-integrity guard (SessionStart is informational and CANNOT block)
+    - Enforcement is in the PreToolUse resume-integrity guard: recompute and compare against `state_hash` in `run_state` (or `claude-progress.txt` if DB unavailable); on the FIRST write of a resumed session, exit 2 with "Session resume blocked: state hash mismatch. Run operator reconciliation." (fail closed)
     - If match or first session: compute and store hash; proceed
-    - Wire into `session_start_hook.py` by calling `state_integrity.check()` before context injection
-    - _Requirements: 23.1_
+    - Wire the compute step into `session_start_hook.py`; wire the enforcing check into `pre_tool_use_hook.py` (an additional PreToolUse check)
+    - _Requirements: 11.5_
 
   - [ ]* 32a.2 Write property test for resumed-state integrity (Property 26)
     - **Property 26: Resumed-State Integrity**
-    - **Validates: Requirements 23.1** — Z3 CHECK-11a/11b
+    - **Validates: Requirements 11.5** — Z3 CHECK-11a/11b
     - Generate (session_state_hash, durable_store_hash) pairs; assert `runProceeds=False` whenever hashes differ; assert `runProceeds=True` only when they match
     - `# Feature: spec-to-evidence-control, Property 26: Resumed-State Integrity`
 
@@ -518,17 +525,17 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
   - [ ] 32b.1 Implement `tools/audit_log.py`
     - Implement `append_gate_decision(event_name, tool_name, decision, reason, requirement_id, actor_agent)`: read last row's `entry_hash` from `gate_audit_log`; compute `entry_hash = sha256(canonical_json || prev_hash)`; insert row
     - First row: `prev_hash = sha256("genesis")`
-    - Wire into all five hooks: each hook's decision return path calls `audit_log.append_gate_decision()` before returning
-    - _Requirements: 27.1_
+    - Wire into all six hooks: each hook's decision return path calls `audit_log.append_gate_decision()` before returning (gate-deciding hooks — Stop, PreToolUse, SubagentStop — log allow/block; PostToolUse, SessionStart, PreCompact log their informational outcome)
+    - _Requirements: 21.1_
 
   - [ ] 32b.2 Implement `tools/audit_verify.py`
     - Implement `verify_chain(start_seq=1) -> VerifyResult`: read all rows ordered by `seq`; recompute each `entry_hash` from `(canonical_json(row), prev_row.entry_hash)`; return list of broken links
     - Trigger: run on every `SessionStart` (informational, non-blocking) and as a required CI check at merge (blocking on any broken link)
-    - _Requirements: 27.2, 27.3_
+    - _Requirements: 21.2, 21.3_
 
   - [ ]* 32b.3 Write property test for audit log tamper detection (Property 28)
     - **Property 28: Audit-Log Tamper Detection**
-    - **Validates: Requirements 27.1, 27.2**
+    - **Validates: Requirements 21.1, 21.2**
     - Generate audit log sequences; mutate one entry's fields; assert `verify_chain()` fails with the mutated seq in broken links; assert unmodified chains always verify
     - `# Feature: spec-to-evidence-control, Property 28: Audit-Log Tamper Detection`
 
@@ -537,12 +544,12 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
     - Triggered when the Initializer agent attempts to use a domain-baseline checklist for discovery (tool call targeting `baselines/` read with discovery intent)
     - Read `domain_baseline_checklists` table; check `approved_at IS NOT NULL` for the checklist version being used
     - If `approved_at IS NULL` (DRAFT): exit 2 with "PreToolUse blocked: checklist is DRAFT. Present for human review before use."
-    - Chain this as a fifth check function after existing four checks in `pre_tool_use_hook.py`
-    - _Requirements: 24.1_
+    - Chain this as an additional check function after the existing checks in `pre_tool_use_hook.py`
+    - _Requirements: 3.4_
 
   - [ ]* 32c.2 Write property test for checklist-approval-before-use (Property 27)
     - **Property 27: Checklist-Approval Before Use**
-    - **Validates: Requirements 24.1** — Z3 CHECK-12a/12b
+    - **Validates: Requirements 3.4** — Z3 CHECK-12a/12b
     - Generate (checklist_state: DRAFT|APPROVED, usage_attempted: bool) pairs; assert discovery is blocked whenever checklist is DRAFT; assert it is allowed only when APPROVED
     - `# Feature: spec-to-evidence-control, Property 27: Checklist-Approval Before Use`
 
@@ -586,7 +593,7 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
     - `# Feature: spec-to-evidence-control, Property 12: W3C Baggage Requirement ID Propagation`
 
 - [ ] 36. Hook decision event forwarding to OTLP
-  - [ ] 36.1 Extend all five hooks to emit OTel gate-decision events
+  - [ ] 36.1 Extend all six hooks to emit OTel gate-decision events
     - In each hook's decision return path, call `telemetry.get_tracer().start_as_current_span("hook.decision")` and set attributes: `hook.event`, `tool.name`, `decision` (allow/block), `reason`, `requirement.id`
     - Emit via the same OTLP endpoint as agent spans
     - _Requirements: 12.3_
@@ -616,7 +623,7 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
 
 ### Phase 4 — Property-Based Tests (Full Suite)
 
-- [ ] 39. Complete PBT suite — all 29 correctness properties
+- [ ] 39. Complete PBT suite — all 30 correctness properties
   - [ ] 39.1 Write `tests/property/test_coverage_model.py`
     - Property 1: Coverage Item Schema Invariant (`test_coverage_item_schema_invariant`)
     - Property 2: Evidence Schema Enforcement (`test_evidence_schema_enforcement`)
@@ -638,7 +645,8 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
     - Property 8: No-Progress → HANDOFF Only (`test_no_progress_handoff`)
     - Property 9: Cap and Budget → HANDOFF Only (`test_cap_budget_handoff`)
     - Property 21: Hook Exit-Code Contract (`test_hook_exit_code_contract`)
-    - _Requirements: 5.5, 7.4, 7.5, 10.2, 13.5, 14.1, 14.2, 18.1_
+    - Property 30: Omission-Declaration Gate (`test_omission_declaration_gate`) — SubagentStop rejects null/absent `omission_declaration`; Z3 CHECK-13a/13b
+    - _Requirements: 5.5, 7.4, 7.5, 9.9, 10.2, 13.5, 14.1, 14.2, 18.1_
 
   - [ ]* 39.4 Write property test for hook exit-code contract
     - **Property 21: Hook Exit-Code Contract**
@@ -702,7 +710,7 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
   - [ ]* 39.13 Write property test for subagent role separation
     - **Property 24: Subagent Role Separation (Implementer Cannot Self-Verify)**
     - **Validates: Requirements 9.2**
-    - Generate evidence chains with arbitrary `acting_agent` identities; assert any Evidence_Record where `acting_agent == "implementer.md"` is rejected; assert only evidence from `verifier.md` is accepted
+    - Generate evidence chains with arbitrary `actor_agent` identities; assert any Evidence_Record where `actor_agent == "implementer.md"` is rejected; assert only evidence from `verifier.md` is accepted
     - `# Feature: spec-to-evidence-control, Property 24: Subagent Role Separation`
 
   - [ ] 39.14 Write `tests/property/test_completion_gate.py`
@@ -715,15 +723,15 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
     - Property 25: Amendment Monotonicity (`test_amendment_monotonicity`) — amended-not-reproven requirement cannot be COMPLETE; Z3 CHECK-10a/10b
     - Property 26: Resumed-State Integrity (`test_resumed_state_integrity`) — hash mismatch blocks proceed; Z3 CHECK-11a/11b
     - Property 27: Checklist-Approval Before Use (`test_checklist_approval_before_use`) — DRAFT checklist cannot be used; Z3 CHECK-12a/12b
-    - _Requirements: 22.1, 23.1, 24.1_
+    - _Requirements: 5.7, 11.5, 3.4_
 
   - [ ]* 39.16 Write property test for research-claim authority labeling (Property 29)
     - **Property 29: Research-Claim Authority Labeling + Fact-Check**
-    - **Validates: Requirements 24.2**
+    - **Validates: Requirements 22.1**
     - Generate Research_Sub_Agent output drafts with arbitrary claim lists; assert every external claim has a non-empty `source_url`; assert every source has a non-empty `authority_tier` from {primary, standard, peer-reviewed, blog, vendor, social}; assert any claim with only blog/vendor/social tier sources is flagged for human review
     - `# Feature: spec-to-evidence-control, Property 29: Research-Claim Authority Labeling`
 
-- [ ] 40. Integrate `formal_verification_merged.py` as required CI check (Phase 4 hardening)
+- [ ] 40. Integrate `verification/formal_verification_merged.py` as required CI check (Phase 4 hardening)
   - [ ] 40.1 Update `.github/workflows/formal-verification.yml`
     - Add `hypothesis` PBT run step: `python -m pytest tests/property/ -v`
     - Gate PR merge on this workflow in the GitHub repository ruleset
@@ -741,7 +749,7 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
   - [ ] 42.1 Run the full property-based test suite locally and fix any failures
     - Execute `python -m pytest tests/property/ --hypothesis-seed=0 -v` and resolve any property failures
     - For each failing property: identify the invariant violation, trace it to the relevant requirement, fix the implementation (not the test)
-    - Confirm all 24 properties pass with `--hypothesis-seed=0` (deterministic seed for CI reproducibility)
+    - Confirm all 30 properties pass with `--hypothesis-seed=0` (deterministic seed for CI reproducibility)
     - _Requirements: 1.2, 1.4, 2.2, 3.3, 4.1, 4.3, 5.1, 5.2, 5.3, 5.5, 5.6, 6.2, 6.3, 6.4, 7.4, 7.5, 8.1, 9.2, 9.6, 10.1, 10.2, 10.3, 13.5, 13.6, 14.1, 14.2, 16.2, 17.5, 19.2_
 
 ---
@@ -755,7 +763,7 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
 - The `stop_hook_active` reentrancy guard is critical to prevent cascade blocking; implement it in task 5 before testing
 - Postgres is the durable source of truth (Phase 2), but all Phase 0–1 gates must work correctly with file-only fallback
 - Property tests use `hypothesis` with `@settings(max_examples=100)` and the tag comment `# Feature: spec-to-evidence-control, Property N: <text>`
-- The 24 correctness properties in Phase 4 are seeded throughout earlier phases (2, 3, 4, 5, 6, 8, 11) — the Phase 4 task consolidates and completes the full suite
+- The 30 correctness properties in Phase 4 are seeded throughout earlier phases — the Phase 4 task consolidates and completes the full suite
 
 ---
 
@@ -766,147 +774,309 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
   "waves": [
     {
       "id": 0,
-      "tasks": ["1"]
+      "tasks": [
+        "1"
+      ]
     },
     {
       "id": 1,
-      "tasks": ["1.1", "2.1", "12.1"]
+      "tasks": [
+        "1.1",
+        "2.1",
+        "12.1"
+      ]
     },
     {
       "id": 2,
-      "tasks": ["2.2", "2.3", "3.1", "12.2"]
+      "tasks": [
+        "2.2",
+        "2.3",
+        "3.1",
+        "12.2"
+      ]
     },
     {
       "id": 3,
-      "tasks": ["3.2", "3.3", "4.1"]
+      "tasks": [
+        "3.2",
+        "3.3",
+        "4.1"
+      ]
     },
     {
       "id": 4,
-      "tasks": ["4.2", "4.3", "4.4", "4.5", "5.1"]
+      "tasks": [
+        "4.2",
+        "4.3",
+        "4.4",
+        "4.5",
+        "5.1"
+      ]
     },
     {
       "id": 5,
-      "tasks": ["5.2", "5.3", "5.4", "5.5", "6.1"]
+      "tasks": [
+        "5.2",
+        "5.3",
+        "5.4",
+        "5.5",
+        "6.1"
+      ]
     },
     {
       "id": 6,
-      "tasks": ["6.2", "6.3", "6.4", "6.5", "7.1"]
+      "tasks": [
+        "6.2",
+        "6.3",
+        "6.4",
+        "6.5",
+        "7.1"
+      ]
     },
     {
       "id": 7,
-      "tasks": ["7.2", "8.1"]
+      "tasks": [
+        "7.2",
+        "8.1"
+      ]
     },
     {
       "id": 8,
-      "tasks": ["8.2", "9.1"]
+      "tasks": [
+        "8.2",
+        "9.1"
+      ]
     },
     {
       "id": 9,
-      "tasks": ["9.2", "10.1", "10.2", "10.3", "10.4", "11.1"]
+      "tasks": [
+        "9.2",
+        "10.1",
+        "10.2",
+        "10.3",
+        "10.4",
+        "11.1"
+      ]
     },
     {
       "id": 10,
-      "tasks": ["11.2", "13.1"]
+      "tasks": [
+        "11.2",
+        "13.1"
+      ]
     },
     {
       "id": 11,
-      "tasks": ["13.2", "14.1", "15.1"]
+      "tasks": [
+        "13.2",
+        "14.1",
+        "15.1"
+      ]
     },
     {
       "id": 12,
-      "tasks": ["14.2", "16.1"]
+      "tasks": [
+        "14.2",
+        "16.1"
+      ]
     },
     {
       "id": 13,
-      "tasks": ["17.1"]
+      "tasks": [
+        "17.1"
+      ]
     },
     {
       "id": 14,
-      "tasks": ["18.1", "19.1", "20.1"]
+      "tasks": [
+        "18.1",
+        "19.1",
+        "20.1"
+      ]
     },
     {
       "id": 15,
-      "tasks": ["18.2", "19.2", "20.2", "21.1"]
+      "tasks": [
+        "18.2",
+        "19.2",
+        "20.2",
+        "21.1"
+      ]
     },
     {
       "id": 16,
-      "tasks": ["21.2", "21.3", "22.1", "23.1", "24.1"]
+      "tasks": [
+        "21.2",
+        "21.3",
+        "22.1",
+        "23.1",
+        "24.1",
+        "24a.1"
+      ]
     },
     {
       "id": 17,
-      "tasks": ["25.1"]
+      "tasks": [
+        "25.1"
+      ]
     },
     {
       "id": 18,
-      "tasks": ["25.2", "26.1"]
+      "tasks": [
+        "25.2",
+        "26.1"
+      ]
     },
     {
       "id": 19,
-      "tasks": ["27.1"]
+      "tasks": [
+        "27.1"
+      ]
     },
     {
       "id": 20,
-      "tasks": ["28.1", "28.2", "28.3", "28.4", "28.5", "28.6"]
+      "tasks": [
+        "28.1",
+        "28.2",
+        "28.3",
+        "28.4",
+        "28.5",
+        "28.6"
+      ]
     },
     {
       "id": 21,
-      "tasks": ["28.7", "29.1"]
+      "tasks": [
+        "28.7",
+        "29.1",
+        "28.8"
+      ]
     },
     {
       "id": 22,
-      "tasks": ["29.2", "30.1"]
+      "tasks": [
+        "29.2",
+        "30.1",
+        "28.9"
+      ]
     },
     {
       "id": 23,
-      "tasks": ["30.2", "31.1"]
+      "tasks": [
+        "30.2",
+        "31.1"
+      ]
     },
     {
       "id": 24,
-      "tasks": ["32.1"]
+      "tasks": [
+        "32.1"
+      ]
     },
     {
       "id": 25,
-      "tasks": ["33.1"]
+      "tasks": [
+        "32a.1",
+        "32b.1",
+        "32c.1"
+      ]
     },
     {
       "id": 26,
-      "tasks": ["34.1"]
+      "tasks": [
+        "32a.2",
+        "32b.2",
+        "32c.2"
+      ]
     },
     {
       "id": 27,
-      "tasks": ["34.2", "35.1"]
+      "tasks": [
+        "32b.3"
+      ]
     },
     {
       "id": 28,
-      "tasks": ["35.2", "36.1"]
+      "tasks": [
+        "33.1"
+      ]
     },
     {
       "id": 29,
-      "tasks": ["37.1", "37.2"]
+      "tasks": [
+        "34.1"
+      ]
     },
     {
       "id": 30,
-      "tasks": ["38.1"]
+      "tasks": [
+        "34.2",
+        "35.1"
+      ]
     },
     {
       "id": 31,
-      "tasks": ["39.1", "39.3", "39.5", "39.7", "39.10", "39.14"]
+      "tasks": [
+        "35.2",
+        "36.1"
+      ]
     },
     {
       "id": 32,
-      "tasks": ["39.2", "39.4", "39.6", "39.8", "39.9", "39.11", "39.12", "39.13"]
+      "tasks": [
+        "37.1",
+        "37.2"
+      ]
     },
     {
       "id": 33,
-      "tasks": ["40.1"]
+      "tasks": [
+        "38.1"
+      ]
     },
     {
       "id": 34,
-      "tasks": ["41.1"]
+      "tasks": [
+        "39.1",
+        "39.3",
+        "39.5",
+        "39.7",
+        "39.10",
+        "39.14",
+        "39.15"
+      ]
     },
     {
       "id": 35,
-      "tasks": ["42.1"]
+      "tasks": [
+        "39.2",
+        "39.4",
+        "39.6",
+        "39.8",
+        "39.9",
+        "39.11",
+        "39.12",
+        "39.13",
+        "39.16"
+      ]
+    },
+    {
+      "id": 36,
+      "tasks": [
+        "40.1"
+      ]
+    },
+    {
+      "id": 37,
+      "tasks": [
+        "41.1"
+      ]
+    },
+    {
+      "id": 38,
+      "tasks": [
+        "42.1"
+      ]
     }
   ]
 }

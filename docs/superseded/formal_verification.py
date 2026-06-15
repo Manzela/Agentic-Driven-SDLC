@@ -2,7 +2,7 @@
 formal_verification.py
 
 ╔══════════════════════════════════════════════════════════════════════════╗
-║  DEPRECATED — SUPERSEDED BY formal_verification_merged.py (32 assertions).  ║
+║  DEPRECATED — SUPERSEDED BY formal_verification_merged.py (34 assertions).  ║
 ║  Do NOT run this in CI or cite its count. This predecessor executes 23      ║
 ║  check() calls but hardcodes total=21 (the same count bug fixed upstream).  ║
 ║  Retained for history only. The canonical harness is the merged file.      ║
