@@ -1,0 +1,52 @@
+# Project metadata and tool configuration for the Spec-to-Evidence Coverage Control plane.
+#
+# Packaging fields (build-system, [project.scripts], wheel targets) and the Python
+# source package are added by the first implementation task, when there is code to
+# package. See .kiro/specs/spec-to-evidence-control/tasks.md. Until then this file
+# carries project metadata, the pinned verification dependency, and shared tool config.
+
+[project]
+name = "spec-to-evidence-control"
+version = "0.0.0"
+description = "A Claude Code control plane that gates autonomous software delivery on deterministic, verifiable evidence."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+authors = [{ name = "Daniel Manzela" }]
+keywords = [
+    "claude-code", "agentic", "sdlc", "formal-verification", "z3",
+    "coverage", "evidence", "governance", "hooks",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "z3-solver==4.16.0.0",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "ANN", "S", "B", "A", "COM", "C4", "PT", "RET", "SIM"]
+ignore = ["ANN401", "S101", "COM812", "S105", "S324", "B008", "B039"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN", "PT011", "PT012", "B017"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
