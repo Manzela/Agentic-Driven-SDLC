@@ -6,17 +6,17 @@ The Spec-to-Evidence Coverage Control System is an autonomous agentic software-d
 
 The governing invariant that shapes every design decision: **deterministic gates — Claude Code hooks, CI, OPA — decide whether delivery is complete, computed solely from verifiable facts. Model self-assessment and probabilistic predictions only inform; they never gate.**
 
-The system is organized into five required build phases (0–4) plus two optional phases (5–6):
+The system is organized into five required phases (0–4) plus two optional phases (5–6) *(Reconciliation 2026-06-15: phrasing fixed from plain "five build phases")*:
 
 | Phase | What gets built |
 |-------|----------------|
 | **Phase 0 (spine)** | `feature_list.json` + Stop hook + independent verifier subagent + git worktrees + GitHub required status check + Playwright CLI |
 | **Phase 1 (verification depth)** | Semgrep + CodeQL + SonarQube + OPA/Conftest + PostToolUse hooks + schema validation |
 | **Phase 2 (durable state)** | Postgres traceability graph + PreCompact checkpoints + SLSA attestations |
-| **Phase 3 (observability)** | OTel + Langfuse + `requirement.id` Baggage + hook decision forwarding |
-| **Phase 4 (PBT suite)** | Full property-based test suite — all 30 correctness properties wired as a required CI gate |
-| **Phase 5 (optional)** | Temporal/Inngest durable outer loop (only when crash pain is felt) |
-| **Phase 6 (optional)** | Predictive next-step routing (advisory only — never gates a decision) |
+| **Phase 3 (observability)** | OTel + Langfuse + `requirement.id` Baggage + hook decision forwarding + `REASONING`-span loop detection (REQ-OBS-006) |
+| **Phase 4 (property-based tests)** | Full hypothesis PBT suite — all correctness properties as required CI |
+| **Phase 5 (optional)** | Temporal/Inngest durable outer loop (only when multi-hour crash pain is felt) |
+| **Phase 6 (optional)** | Predictive next-step routing — read-only, off the gate (Speculative Actions / semantic-router / Claude memory tool) |
 
 Phase 0 is the only phase with a hard build-first constraint. The spine must be runnable before any later phase begins.
 
@@ -137,18 +137,22 @@ sequenceDiagram
 | `coverage_query.rego` | `.github/policies/coverage_query.rego` | 1 | OPA/Conftest policy; denies merge if any requirement has zero passing evidence. |
 | `schema/` | `schema/feature_list.schema.json` | 0 | JSON Schema for feature_list.json. PreToolUse validates against this. |
 | `plan-approved.json` | `/plan-approved.json` | 0 | Approval marker written by human after plan mode review. |
-| `db/migrations/` | `db/migrations/*.sql` | 2 | Postgres schema migrations for all eight tables (001–008). |
+| `db/migrations/` | `db/migrations/*.sql` | 2 | Postgres schema migrations for all eight tables (001–008). *(Reconciliation 2026-06-15: was "six tables"; migrations now include `007_requirement_versions.sql` and `008_gate_audit_log.sql`.)* |
+| `db/migrations/007_requirement_versions.sql` | `db/migrations/007_requirement_versions.sql` | 2 | Creates `requirement_versions` amendment-history table (REQ-COV-007). |
+| `db/migrations/008_gate_audit_log.sql` | `db/migrations/008_gate_audit_log.sql` | 2 | Creates hash-chained `gate_audit_log` table (REQ-AUDIT-001/002). |
+| `state_integrity.py` | `tools/state_integrity.py` | 2 | Recomputes the resumed-state hash on `SessionStart` and writes `run_state.resume_integrity_ok`; the PreToolUse integrity guard blocks on mismatch (REQ-STATE-005 / CHECK-11). |
+| `audit_log.py` | `tools/audit_log.py` | 2 | Audit-log PRODUCER: `append(event, tool, decision, reason, requirement_id, actor_agent)`; called by `stop_hook.py`, `pre_tool_use_hook.py`, and `subagent_stop_hook.py` on every allow/block decision (REQ-AUDIT-001). |
+| `audit_verify.py` | `tools/audit_verify.py` | 3 | Recomputes the `gate_audit_log` hash chain; on-demand verifier plus the merge-time CI required check (REQ-AUDIT-002/003). |
+| `perf_a11y_verifier` | (capability within `.claude/agents/verifier.md`) | 1/3 | Verifier capability: k6/Lighthouse performance + axe-core accessibility checks for NFR items and UI-screen render assertions (REQ-VERIFY-007/008). |
+| `secrets-scan.yml` | `.github/workflows/secrets-scan.yml` | 1 | CI secrets-scanning workflow using **gitleaks** [K17]; fails the build on a detected secret (REQ-17.5). |
+| `omission_guard` | (capability within `.claude/hooks/subagent_stop_hook.py`) | 0 | Omission-declaration gate: SubagentStop rejects any subagent result whose `omission_declaration` field is null or absent (exit 2); enforces Property 30, Z3 CHECK-13. *(P3 market-research 2026-06-15: Spec-Kit `[Gap]` pattern, REQ-SPEC-018.)* |
+| `deepeval_gate.py` | `tools/deepeval_gate.py` | 3 | DeepEval pytest-native eval step; calls `assert_test()` on configured metric thresholds (faithfulness ≥ 0.8, answer relevancy ≥ 0.7); runs as REQUIRED CI status check `deepeval-gate` at merge (REQ-EVAL-001). *(P3 market-research 2026-06-15.)* |
+| `zap-baseline.yml` | `.github/workflows/zap-baseline.yml` | 2 | OWASP ZAP baseline passive scan (`zaproxy/action-baseline@v0.12.0`, `fail_action: true`); registered as REQUIRED CI status check `zap-baseline`; baseline only — active/full scan out of v1 scope (REQ-SEC-008). *(P3 market-research 2026-06-15.)* |
+| `flagd` | `flagd/` (self-hosted service, Apache 2.0, CNCF Incubating) | 2 | OpenFeature + flagd agent kill-switch; near-real-time flag updates (≤ 30 s polling) without process restart; self-hosted, no SaaS dependency (REQ-CTRL-001). *(P3 market-research 2026-06-15.)* |
 | `initializer.md` | `.claude/agents/initializer.md` | 0 | Spec compiler + coverage model builder subagent definition. |
 | `implementer.md` | `.claude/agents/implementer.md` | 0 | Coding subagent definition. Single slice, single worktree. |
 | `verifier.md` | `.claude/agents/verifier.md` | 0 | Independent evaluator subagent. No write access to implementation. |
 | `research.md` | `.claude/agents/research.md` | 0 | Domain-baseline checklist sourcing subagent. |
-| `sandbox_runner.py` | `tools/sandbox_runner.py` | 1 | Provisions the per-slice isolated sandbox (devcontainer local / E2B CI), mounts the worktree, enforces default-deny egress; runs untrusted agent code (REQ-17.4). |
-| `state_integrity.py` | `tools/state_integrity.py` | 2 | Computes/compares the durable-state SHA-256; backs the PreToolUse resume-integrity guard (REQ-STATE-005). |
-| `audit_log.py` | `tools/audit_log.py` | 2 | Appends each gate decision to the hash-chained `gate_audit_log` (REQ-AUDIT-001). Producer wired into the gate-deciding hooks. |
-| `audit_verify.py` | `tools/audit_verify.py` | 2 | Recomputes the `gate_audit_log` hash chain; run at SessionStart (informational) and as a required CI check at merge (REQ-AUDIT-002/003). |
-| `perf_a11y_verifier` | `.claude/agents/verifier.md` (5th layer) | 1 | Performance (k6/Lighthouse) and accessibility (axe-core) checks for NFR coverage items (REQ-VERIFY-007/008). |
-| `secrets-scan.yml` | `.github/workflows/secrets-scan.yml` | 1 | gitleaks secret scan; required CI status check (REQ-SEC-002). |
-| `requirement_versions` / `gate_audit_log` migrations | `db/migrations/007_*.sql`, `008_*.sql` | 2 | Amendment-version history and hash-chained audit log (REQ-COV-007, REQ-AUDIT-001..003). |
 
 ### Hook Configuration (`settings.json`)
 
@@ -202,16 +206,17 @@ All hooks are `command` type (not HTTP or MCP) so they fail closed. Exit code se
 
 | Hook event | Trigger | What it does | What it blocks | Requirement enforced |
 |------------|---------|--------------|----------------|---------------------|
-| `Stop` | Agent attempts to end its turn | Reads `feature_list.json`; counts `unproven` items; reads `violation_count` from spec-completion state | Termination while any in-scope item is `unproven` or `violation_count > 0` | REQ-GATE-002, REQ-SPEC-021 |
-| `PreToolUse` — plan gate | Any `Write` or `Edit` tool call | Checks `plan-approved.json` exists | All implementation writes until plan is approved | REQ-HITL-001, REQ-EXEC-004 |
+| `Stop` | Agent attempts to end its turn | Reads `feature_list.json`; counts `unproven` items; reads `violation_count` from spec-completion state; calls `audit_log.append(...)` on the allow/block decision *(Reconciliation 2026-06-15: now an audit-log producer, REQ-AUDIT-001)* | Termination while any in-scope item is `unproven` or `violation_count > 0` | REQ-GATE-002, REQ-SPEC-021, REQ-AUDIT-001 |
+| `PreToolUse` — plan gate | Any `Write` or `Edit` tool call | Checks `plan-approved.json` exists; calls `audit_log.append(...)` on the decision *(Reconciliation 2026-06-15: audit-log producer, REQ-AUDIT-001)* | All implementation writes until plan is approved | REQ-HITL-001, REQ-EXEC-004, REQ-AUDIT-001 |
 | `PreToolUse` — scope gate | `Bash` with worktree create / slice assign | Reads `feature_list.json`; checks all prior-slice items are `proven` | New worktree or slice start when any prior item is `unproven` | REQ-EXEC-005 |
+| `PreToolUse` — integrity guard | First `Write`/`Edit` of a resumed session | Reads `run_state.resume_integrity_ok` (computed by the SessionStart hook via `state_integrity.py`); exits 2 when it is `false` *(Reconciliation 2026-06-15: SessionStart cannot block, so the REQ-STATE-005 gate moves to PreToolUse)* | The first write of a resumed session whose recomputed state hash does not match | REQ-STATE-005 |
+| `PreToolUse` — checklist-approval guard | Initializer/discovery `Write` using a domain-baseline checklist | Confirms the referenced checklist has a non-null `approved_at` (not `DRAFT`) in `domain_baseline_checklists` [K9] | Discovery that uses a `DRAFT` (unapproved) checklist | REQ-SPEC-016 (CHECK-12) |
 | `PreToolUse` — artifact guard | Any tool targeting `feature_list.json` schema, `tests/`, CI config, or destructive Bash (`rm -rf`, `DROP TABLE`) | Checks tool target against protected-artifact list | Edits to protected files or destructive operations | REQ-STEER-003, REQ-COV-002 |
-| `PreToolUse` — status guard | Any write to `feature_list.json` | Validates proposed status transition; checks evidence schema completeness for any `→ proven` | Transitions other than `unproven → proven`, `unproven → failed`, or `failed → unproven`; any `→ proven` with an incomplete Evidence_Record | REQ-COV-002, REQ-COV-003, REQ-COV-006 |
-| `PreToolUse` — resume-integrity guard | First `Write`/`Edit`/`Bash` of a resumed session | Recomputes the durable-state SHA-256 and compares to `run_state.state_hash` | The first write of a resumed session when the state hash does not match (fail closed) — this is where REQ-STATE-005 is *enforced*, since SessionStart cannot block | REQ-STATE-005 |
-| `PreToolUse` — checklist-approval guard | Initializer attempts to use a domain-baseline checklist for discovery | Reads `domain_baseline_checklists.approved_at` for the checklist version in use | Use of a DRAFT (unapproved) checklist for proactive discovery | REQ-SPEC-016 |
+| `PreToolUse` — status guard | Any write to `feature_list.json` | Validates proposed status transition; checks evidence schema completeness *(Reconciliation 2026-06-15: `unproven→failed` and `failed→unproven` are now allowed; only `*→proven` requires a complete Evidence_Record)* | Transitions into `proven` without a complete Evidence_Record; any transition not in {`unproven→proven`, `unproven→failed`, `failed→unproven`} | REQ-COV-002, REQ-COV-003, REQ-COV-006 |
 | `PostToolUse` | `Write`, `Edit`, `MultiEdit` completion | Runs lint, type check, SAST (Semgrep), wiring check on changed files; returns specific errors via stdout | Nothing (exit 1 = non-blocking); errors returned as next-turn feedback only | REQ-VERIFY-004, REQ-STEER-002 |
-| `SubagentStop` | Subagent result returned | Validates Evidence_Record schema (all four fields present and non-empty) | Acceptance of subagent result without complete evidence markers | REQ-VERIFY-005, REQ-COV-006 |
-| `SessionStart` | Session begins | Reads `git status`, `claude-progress.txt`, `feature_list.json`; computes the resumed-state hash (`resume_integrity_ok`) for the PreToolUse resume-integrity guard to enforce; injects summary into context | Nothing (informational load — SessionStart cannot block; the resume-integrity *enforcement* point is the PreToolUse guard above) | REQ-STATE-003, REQ-STATE-005 |
+| `SubagentStop` | Subagent result returned | Validates Evidence_Record schema (all four fields present and non-empty); calls `audit_log.append(...)` on the decision *(Reconciliation 2026-06-15: audit-log producer, REQ-AUDIT-001)* | Acceptance of subagent result without complete evidence markers | REQ-VERIFY-005, REQ-COV-006, REQ-AUDIT-001 |
+| `SubagentStop` — omission-declaration guard | Subagent result (initializer, research, verifier) returned | Checks `omission_declaration` field in the subagent output; calls `audit_log.append(...)` on the block decision *(P3 market-research 2026-06-15: Spec-Kit `[Gap]` pattern)* | Acceptance of any subagent result whose `omission_declaration` is null or absent | REQ-SPEC-018 (Property 30, CHECK-13a/13b) |
+| `SessionStart` | Session begins | Reads `git status`, `claude-progress.txt`, `feature_list.json`; injects summary into context; **computes the resumed-state hash via `state_integrity.py` and writes `run_state.resume_integrity_ok` (bool)** *(Reconciliation 2026-06-15: non-blocking by contract — it only computes/records the flag; the PreToolUse integrity guard enforces it)* | Nothing (informational load + flag write; cannot block) | REQ-STATE-003, REQ-STATE-005 |
 | `PreCompact` | Context compaction imminent | Checkpoints `claude-progress.txt`, current evidence state, and `feature_list.json` to git | Nothing (checkpoint write; non-blocking) | REQ-STATE-002 |
 
 ### Subagent Definitions
@@ -247,17 +252,17 @@ Each subagent is a Markdown file in `.claude/agents/` following the Claude Code 
 
 #### `.claude/agents/verifier.md` — Independent Evaluator
 
-**Role:** Independently verifies each completed slice across all five layers (the four core layers plus the NFR performance/accessibility layer) without any write access to implementation.
+**Role:** Independently verifies each completed slice across all five layers without any write access to implementation. *(Reconciliation 2026-06-15: was "all four layers"; the fifth layer is the performance/accessibility verifier — REQ-VERIFY-007/008.)*
 
 **Key behaviors:**
 - Runs structural checks (lint, type check, AST analysis)
 - Runs semantic checks (unit + integration tests)
 - Runs behavioral checks via Playwright CLI — captures trace / screenshot as evidence artifact
 - Runs security checks (Semgrep + CodeQL)
-- Runs NFR checks (5th layer): performance (k6 / Lighthouse) for `performance` items and accessibility (axe-core, zero WCAG-A/AA violations) plus UI-screen completeness (empty/loading/error states) for `accessibility`/UI items — REQ-VERIFY-007/008
-- Assembles a complete Evidence_Record for each proven item using `evidence_collector.py` (recording `actor_agent = "verifier.md"` so Property 24 holds)
+- Runs performance (k6/Lighthouse) + accessibility (axe-core) checks for NFR items and UI-screen render assertions, via the `perf_a11y_verifier` capability (REQ-VERIFY-007/008) *(Reconciliation 2026-06-15: fifth verification layer)*
+- Assembles a complete Evidence_Record for each proven item using `evidence_collector.py`
 - Flips item status `unproven → proven` in `feature_list.json` only when all checks pass and Evidence_Record is complete
-- Enforces line-coverage threshold ≥ 85% on touched files
+- Enforces line-coverage threshold ≥ 85% on touched files, reading the per-touched-file figure from `coverage.json` produced by **pytest-cov** (coverage.py) [K12]
 
 **Permissions:** Read-only on implementation source. Read/write on `tests/`, `feature_list.json` status field only. No write to implementation source.
 
@@ -280,7 +285,7 @@ Each subagent is a Markdown file in `.claude/agents/` following the Claude Code 
 
 ### `feature_list.json` Schema
 
-Full JSON Schema for the coverage model. This file is append-only (items are never removed or reordered). The permitted status mutations after creation are `unproven → proven` (only with a complete Evidence_Record), `unproven → failed` (set by the Verifier when a check fails — see Req 8.2 / Property 23), and `failed → unproven` (re-queue for another attempt). No transition out of `proven` is permitted, and no other field of an existing item may change.
+Full JSON Schema for the coverage model. This file is append-only (items are never removed or reordered). The only permitted mutation after creation is a status flip from `unproven` to `proven` (and the `failed` transitions noted in the status guard). *(Reconciliation 2026-06-15: items are not deleted to leave scope — instead a boolean `in_scope` field (default `true`) is toggled by a human-authored transition; all completion/Stop gates count ONLY `in_scope` items.)*
 
 ```json
 {
@@ -316,7 +321,7 @@ Full JSON Schema for the coverage model. This file is append-only (items are nev
   "definitions": {
     "CoverageItem": {
       "type": "object",
-      "required": ["id", "type", "priority", "dependencies", "acceptance_criteria", "status"],
+      "required": ["id", "type", "priority", "dependencies", "acceptance_criteria", "status", "in_scope"],
       "properties": {
         "id": {
           "type": "string",
@@ -366,7 +371,12 @@ Full JSON Schema for the coverage model. This file is append-only (items are nev
           "type": "string",
           "enum": ["unproven", "proven", "failed"],
           "default": "unproven",
-          "description": "Coverage status. Permitted transitions: unproven → proven (with a complete Evidence_Record), unproven → failed (set by the Verifier on a failed check), and failed → unproven (re-queue). proven is terminal; no other transition is allowed."
+          "description": "Coverage status. Permitted transitions: unproven → proven (requires a complete Evidence_Record), unproven → failed (Verifier on a dead check), failed → unproven (on retry/amendment). Only *→proven requires a complete Evidence_Record."
+        },
+        "in_scope": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this item counts toward completion/Stop gates. An item leaves scope only via a human-authored transition; gates count ONLY in_scope items. (Reconciliation 2026-06-15)"
         },
         "evidence": {
           "$ref": "#/definitions/EvidenceRecord",
@@ -414,7 +424,7 @@ Full JSON Schema for the coverage model. This file is append-only (items are nev
 
 ### Postgres Schema
 
-Eight tables. Managed on Neon (serverless Postgres with per-PR branching).
+Eight tables (six original + `requirement_versions` + `gate_audit_log`; migrations `001`–`008`). Managed on Neon (serverless Postgres with per-PR branching). *(Reconciliation 2026-06-15: was "Six tables"; the two new tables are defined in the Merge Reconciliation Addendum below.)*
 
 ```sql
 -- requirements: the authoritative spec record per project run
@@ -435,6 +445,7 @@ CREATE TABLE coverage_items (
     requirement_id TEXT NOT NULL REFERENCES requirements(id),
     status         TEXT NOT NULL CHECK (status IN ('unproven', 'proven', 'failed'))
                    DEFAULT 'unproven',
+    in_scope       BOOLEAN NOT NULL DEFAULT TRUE,  -- Reconciliation 2026-06-15: gates count ONLY in_scope items; leaves scope only via a human-authored transition
     slice_id       TEXT,
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -459,13 +470,11 @@ CREATE TABLE evidence_records (
     test_name       TEXT NOT NULL,
     output_hash     TEXT NOT NULL,   -- sha256:<hex>
     collected_at    TIMESTAMPTZ NOT NULL,
-    actor_agent     TEXT NOT NULL,   -- identity of the agent that recorded the evidence (row metadata, NOT part of the 4-field JSON Evidence_Record)
+    actor_agent     TEXT NOT NULL,   -- Reconciliation 2026-06-15: the agent that captured this record (MUST be the Verifier, never the Implementer — Property 24). Canonical name is actor_agent everywhere (no acting_agent).
     CONSTRAINT evidence_complete CHECK (
         test_file <> '' AND test_name <> '' AND
         output_hash <> '' AND collected_at IS NOT NULL
-    ),
-    -- Property 24 (subagent role separation): only the independent Verifier may record evidence.
-    CONSTRAINT verifier_only CHECK (actor_agent = 'verifier.md')
+    )
 );
 
 -- run_state: per-session execution state for resumption
@@ -477,12 +486,11 @@ CREATE TABLE run_state (
                         ('running', 'complete', 'handoff', 'blocked')),
     iteration_count   INTEGER NOT NULL DEFAULT 0,
     token_cost_usd    NUMERIC(10,4) NOT NULL DEFAULT 0,
-    token_budget_usd  NUMERIC(10,4),               -- per-slice cost budget (operator-set DEFAULT). budget_exceeded := token_cost_usd >= token_budget_usd
-    violation_count   INTEGER NOT NULL DEFAULT -1,  -- spec-completion violations; <0 = validator error/unknown (fail-closed). Read by the Stop hook.
-    retry_count       INTEGER NOT NULL DEFAULT 0,   -- per-slice retry counter (REQ-LOOP, DEFAULT cap 3)
     no_progress_n     INTEGER NOT NULL DEFAULT 0,  -- consecutive no-progress slices
+    violation_count   INTEGER NOT NULL DEFAULT 0,  -- Reconciliation 2026-06-15: outstanding spec-completion violations; the Stop hook (evaluate_stop) reads this and blocks termination while > 0
+    retry_count       INTEGER NOT NULL DEFAULT 0,  -- Reconciliation 2026-06-15: implementer-loop retry budget counter (DEFAULT cap 3/slice)
+    resume_integrity_ok BOOLEAN,                   -- Reconciliation 2026-06-15: written by SessionStart via state_integrity.py; PreToolUse integrity guard blocks the first write when FALSE (REQ-STATE-005)
     stop_hook_active  BOOLEAN NOT NULL DEFAULT FALSE,
-    state_hash        TEXT,                          -- SHA-256 of durable state at last checkpoint; compared on resume (REQ-STATE-005)
     last_commit_sha   TEXT,
     updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -499,42 +507,24 @@ CREATE TABLE domain_baseline_checklists (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (product_class, version)
 );
-
--- requirement_versions: amendment history per requirement (REQ-COV-007)
--- On amendment: insert a version row AND reset the requirement's coverage_items.status to 'unproven'.
-CREATE TABLE requirement_versions (
-    id              SERIAL PRIMARY KEY,
-    requirement_id  TEXT NOT NULL REFERENCES requirements(id),
-    version         INTEGER NOT NULL,
-    prior_text      TEXT,
-    new_text        TEXT NOT NULL,
-    author          TEXT NOT NULL,
-    rationale       TEXT NOT NULL,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (requirement_id, version)
-);
-
--- gate_audit_log: hash-chained, tamper-evident record of every gate decision (REQ-AUDIT-001..003)
-CREATE TABLE gate_audit_log (
-    seq             BIGSERIAL PRIMARY KEY,
-    event_name      TEXT NOT NULL,                 -- hook event (Stop, PreToolUse, SubagentStop, ...)
-    tool_name       TEXT,
-    decision        TEXT NOT NULL CHECK (decision IN ('allow', 'block')),
-    reason          TEXT,
-    requirement_id  TEXT,
-    actor_agent     TEXT NOT NULL,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    prev_hash       TEXT NOT NULL,                 -- entry_hash of seq-1; the genesis row uses sha256("genesis")
-    entry_hash      TEXT NOT NULL                  -- sha256(canonical_row_json || prev_hash); see hash-chain rule below
-);
 ```
 
-**Hash-chain construction (REQ-AUDIT-001; Property 28).** The chain is reorder- and tamper-evident:
-- **Genesis:** the first row's `prev_hash = sha256("genesis")` (a fixed sentinel).
-- **Canonical form:** `canonical_row_json` is the row's fields serialized as JSON with sorted keys, no insignificant whitespace, and `seq` and `created_at` (ISO-8601 UTC) **included** — so reordering or back-dating any entry breaks the chain.
-- **Entry hash:** `entry_hash = sha256(canonical_row_json || prev_hash)`, where `canonical_row_json` covers `{seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at}`.
-- **Producer:** each gate-deciding hook (`stop_hook.py`, `pre_tool_use_hook.py`, `subagent_stop_hook.py`) calls `audit_log.append_gate_decision(...)` on its decision return path; `post_tool_use_hook.py`, `session_start_hook.py`, and `pre_compact_hook.py` log their informational outcome.
-- **Verifier/trigger:** `audit_verify.py` recomputes every `entry_hash` from `(canonical_row_json, prev_row.entry_hash)`; it runs at SessionStart (informational, non-blocking) and as a required CI status check at merge (blocking on any broken link).
+---
+
+## Sandbox & Worktree Isolation (REQ-17.4)
+
+*(Reconciliation 2026-06-15: this subsection authored from the decision sheet to close the REQ-17.4 design gap.)*
+
+All agent-executed code runs inside a sandbox. The sandbox is the security boundary; the per-slice git worktree is the unit of isolation mounted into it.
+
+| Concern | Design decision |
+|---------|----------------|
+| **Default sandbox** | **devcontainer** locally; **E2B** for ephemeral CI runs. |
+| **Network** | Egress **DENIED by default**; any required egress is an explicit, audited allowlist exception. |
+| **Filesystem** | Writes confined to the **per-slice git worktree mounted into the sandbox**; the rest of the host FS is read-only or absent. |
+| **Composition** | The worktree (created by the Implementer via `git worktree add`) is mounted in as the writable working tree; the sandbox wraps it as the security boundary. One worktree per active slice, one sandbox per slice execution. |
+
+This means an agent can only modify files in its own slice's worktree, and cannot reach the network unless an exception is granted — satisfying REQ-17.4's isolation requirement while preserving the one-slice/one-worktree discipline from the Implementer subagent definition.
 
 ---
 
@@ -598,7 +588,7 @@ Translates to:
 (pop)
 ```
 
-The harness in `verification/formal_verification_merged.py` already encodes 34 such checks (14 core + 12 Kiro + 8 new); `spec_validator.py` extends this pattern dynamically as new requirements are added.
+The unified harness in `formal_verification_merged.py` (the old `formal_verification.py` is DEPRECATED) self-counts and encodes **34** such checks (14 core + 12 Kiro reproduced + 8 new); `spec_validator.py` extends this pattern dynamically as new requirements are added.
 
 ---
 
@@ -639,7 +629,7 @@ These are the exact components that must be built and wired before any other wor
 | 7 | Verifier subagent | `.claude/agents/verifier.md` | Independent evaluator; no write access to implementation | Has no write permission on `src/`; can write Evidence_Records to `feature_list.json` |
 | 8 | Implementer subagent | `.claude/agents/implementer.md` | One-slice coder; creates worktree; produces one commit | Creates worktree; commits with requirement ID in trailer |
 | 9 | Research subagent | `.claude/agents/research.md` | Domain-baseline checklist sourcer | Produces draft checklist artifact for a known product class |
-| 10 | `spec_validator.py` | `tools/spec_validator.py` | Z3-backed EARS validator returning `{contradictions, ambiguities, uncovered, violation_count}` | `python3 verification/formal_verification_merged.py` exits 0 (all 34 checks pass) |
+| 10 | `spec_validator.py` | `tools/spec_validator.py` | Z3-backed EARS validator returning `{contradictions, ambiguities, uncovered, violation_count}` | `python3 formal_verification_merged.py` exits 0 (all 34 checks pass) |
 | 11 | `evidence_collector.py` | `tools/evidence_collector.py` | Assembles Evidence_Record; computes SHA-256 `output_hash` | Round-trip: collect → validate → assert all four fields present and hash matches |
 | 12 | Git worktree wiring | (shell scripts / Implementer agent) | Creates and removes dedicated worktrees per slice | `git worktree list` shows exactly one worktree per active slice |
 | 13 | GitHub required status check | `.github/workflows/coverage-gate.yml` | OPA/Conftest zero-evidence check | Workflow fails when any requirement has zero evidence; passes when all have evidence |
@@ -657,74 +647,93 @@ The no-progress predicate is operationalized in `stop_hook.py` and `run_state` P
 
 **Implementation:**
 
-```python
-# Module-level DEFAULT thresholds (configurable; see the Requirement 20 threshold registry).
-N_PROGRESS_WINDOW   = 3    # consecutive no-progress slices that trigger HANDOFF (REQ-LOOP-002)
-MAX_TURNS_PER_SLICE = 25   # iteration cap per slice (REQ-LOOP-001)
+# Reconciliation 2026-06-15: N_PROGRESS_WINDOW is now defined as a module
+# constant (was an undefined NameError) and is used consistently as the
+# slice-lookback window. run_state.no_progress_n is the *counter* of how many
+# consecutive no-progress slices have been observed — it is NOT the window.
+N_PROGRESS_WINDOW = 3  # DEFAULT: evaluate across the last N=3 consecutive slices
 
 def check_no_progress(run_state: RunState, feature_list: FeatureList) -> bool:
     """
-    Returns True iff the no-progress predicate has fired across N_PROGRESS_WINDOW
-    consecutive slices. Both signals (no items proven AND no commits) must be
-    simultaneously true in the CURRENT slice to extend the streak; any progress
-    resets it. HANDOFF fires only when the streak reaches N_PROGRESS_WINDOW (=3) —
-    never on a single window (REQ-LOOP-002; Z3 CHECK-8a/8b).
+    Returns True iff the no-progress predicate fires across the last
+    N_PROGRESS_WINDOW (=3) consecutive slices. Both conditions must be
+    simultaneously true.
     """
-    # Per-slice signals (this slice only — the streak does the N=3 accumulation)
-    proven_this_slice  = count_items_proven_since(run_state.session_id, slices_back=1)
-    commits_this_slice = count_commits_since(run_state.last_commit_sha, slices_back=1)
+    # Condition A: no items proven across the last N=3 consecutive slices
+    proven_in_window = count_items_proven_since(
+        run_state.session_id,
+        slices_back=N_PROGRESS_WINDOW  # DEFAULT = 3
+    )
 
-    no_progress_this_slice = (proven_this_slice == 0) and (commits_this_slice == 0)
+    # Condition B: no commits produced across the last N=3 consecutive slices
+    commits_in_window = count_commits_since(
+        run_state.last_commit_sha,
+        slices_back=N_PROGRESS_WINDOW
+    )
 
-    if no_progress_this_slice:
-        run_state.no_progress_n += 1
+    no_progress = (proven_in_window == 0) and (commits_in_window == 0)
+
+    if no_progress:
+        run_state.no_progress_n += 1  # advance the consecutive-slice counter
     else:
         run_state.no_progress_n = 0   # reset on any progress
 
-    return run_state.no_progress_n >= N_PROGRESS_WINDOW
+    # The predicate fires only once N=3 consecutive no-progress slices accrue.
+    return no_progress and run_state.no_progress_n >= N_PROGRESS_WINDOW
 
 # In stop_hook.py
 def evaluate_stop(event: StopEvent) -> HookDecision:
     run_state = load_run_state()
     feature_list = load_feature_list()
 
-    # ── HANDOFF triggers take precedence (REQ-LOOP-002/005). Cap, budget, and
-    #    no-progress route to HANDOFF and ALLOW termination (exit 0). Returning
-    #    block() here would force the agent to keep going — the infinite-block
-    #    defect the harness forbids (Z3 CHECK-5b/5c/8c: block-on-HANDOFF is UNSAT).
-    #    Cap (Req 4.4) thus supersedes the violation_count block (Req 4.2) below.
+    # Reconciliation 2026-06-15: gates count ONLY in_scope items.
+    in_scope_items = [i for i in feature_list.items if i.in_scope]
+
+    # ── HANDOFF triggers take precedence and ALLOW termination (exit 0).
+    #    Requirement 21 / REQ-LOOP-005: iteration cap, cost budget, and no-progress
+    #    route to HANDOFF and MUST NOT block (exit 2). They are evaluated BEFORE the
+    #    unproven-items gate ON PURPOSE: at HANDOFF the in-scope items are EXPECTED to
+    #    remain unproven, so checking unproven first and returning block() would force
+    #    the agent to keep working past its cap — the infinite-block defect.
+    #    (Z3 CHECK-5b/5c/8c: block-on-cap / block-on-no-progress is UNSAT.)
     if run_state.iteration_count >= MAX_TURNS_PER_SLICE:
         write_run_state(status="handoff", reason="cap-reached")
-        return allow(f"HANDOFF: iteration cap ({MAX_TURNS_PER_SLICE}) reached. "
-                     "Terminating in HANDOFF, not COMPLETE.")
+        emit_handoff_summary(reason="cap-reached", cap=MAX_TURNS_PER_SLICE)
+        return allow()  # HANDOFF: let the run stop; a human picks it up
 
     if run_state.budget_exceeded:           # token_cost_usd >= token_budget_usd
         write_run_state(status="handoff", reason="budget-exceeded")
-        return allow("HANDOFF: cost/token budget exceeded. Terminating in HANDOFF.")
+        emit_handoff_summary(reason="budget-exceeded")
+        return allow()  # HANDOFF
 
     if check_no_progress(run_state, feature_list):
         write_run_state(status="handoff", reason="no-progress")
-        return allow(f"HANDOFF: no-progress across last {N_PROGRESS_WINDOW} slices. "
-                     "Terminating in HANDOFF, not COMPLETE.")
+        emit_handoff_summary(reason="no-progress",
+                             window=N_PROGRESS_WINDOW,
+                             unproven=[i.id for i in in_scope_items if i.status == "unproven"])
+        return allow()  # HANDOFF
 
-    # ── Spec-completion gate (blocking, exit 2). Reached only when NOT in a HANDOFF
-    #    state. A validator error or unknown count is fail-closed (REQ-SPEC-021).
+    # ── Spec-completion gate (blocking, exit 2) — reached only when NOT in HANDOFF.
+    #    violation_count lives on run_state and blocks termination while > 0
+    #    (REQ-SPEC-021). Lex specialis (Requirement 4.6 / REQ-SPEC-021): once the
+    #    spec-completion HARD pass cap (7) is reached the cap-HANDOFF above has
+    #    already won, so the violation block never fires under that condition.
+    #    A validator error (< 0) fails closed.
     if run_state.violation_count < 0:
         return block("Stop blocked: spec validator error (violation_count < 0). Fail closed.")
     if run_state.violation_count > 0:
-        return block(f"Stop blocked: {run_state.violation_count} spec violations remain "
-                     "(REQ-SPEC-021).")
+        return block(f"Stop blocked: {run_state.violation_count} spec-completion "
+                     f"violation(s) remain (REQ-SPEC-021).")
 
     # ── Completion gate (blocking, exit 2): ANY in-scope item not EXACTLY 'proven'
-    #    blocks. Treating 'failed' and any malformed/unknown status as not-proven
-    #    realizes criterion 10.5 (ambiguous → blocked, fail-closed). This is the
-    #    only legitimate exit-2 path (Z3: block iff not-proven ∧ not HANDOFF).
-    not_proven = [i for i in feature_list.items if i.status != "proven"]
+    #    blocks (fail-closed; ambiguous → blocked, Req 10.5). This is the ONLY
+    #    legitimate exit-2 path — here continuation is actually desired.
+    not_proven = [i for i in in_scope_items if i.status != "proven"]
     if not_proven:
         return block(f"Stop blocked: {len(not_proven)} items not proven: "
                      f"{[i.id for i in not_proven]}")
 
-    return allow()  # all proven, no violations, no HANDOFF trigger → COMPLETE permitted
+    return allow()  # all in-scope items proven, no violations, no HANDOFF → COMPLETE
 ```
 
 The `stop_hook_active` flag prevents the hook from re-triggering itself during the blocking cycle:
@@ -816,7 +825,6 @@ Three independent circuit breakers, any of which routes to HANDOFF:
 
 On HANDOFF:
 - `run_state.status` is set to `"handoff"` in Postgres
-- The Stop hook **allows termination (exit 0)** — it MUST NOT block (exit 2). Blocking a HANDOFF would force the agent to keep running (the infinite-block defect; REQ-LOOP-005, Z3 CHECK-5b/5c/8c). Only the unproven-items completion gate (no cap/budget/no-progress trigger active) blocks with exit 2.
 - The Stop hook emits a structured summary: remaining unproven items, last N slice outputs, reason for HANDOFF
 - `feature_list.json` is NOT modified — items remain `unproven`
 - The run is not retried automatically — requires explicit operator restart
@@ -831,21 +839,7 @@ pass 3: violation_count = 8   (no progress → HANDOFF immediately, do NOT retry
 
 No-progress at the spec level (count does not strictly decrease) triggers immediate HANDOFF. This is separate from the no-progress watchdog at the implementation level (which requires N=3 slices).
 
----
-
-## Sandbox / Untrusted-Code Isolation (REQ-17.4)
-
-Agent-generated code and any retrieved/untrusted content are executed only inside an isolated sandbox. **The git worktree is a *collision* boundary, not a *security* boundary** — it is an ordinary checkout with full host access and must never be relied on for isolation.
-
-**Chosen tech:**
-- **Local development:** a devcontainer (rootless container) with a read-only host mount and no host network by default.
-- **CI:** an E2B ephemeral sandbox (or an equivalent micro-VM such as Firecracker / gVisor) provisioned per slice.
-
-**Composition with the per-slice worktree:** the slice's git worktree is *mounted into* the sandbox as the only writable path; the implementer subagent's `Bash` and test execution run inside the sandbox, writing only to the mounted worktree. The host filesystem, credentials, and other worktrees are not visible from inside.
-
-**Egress policy:** default-deny network egress. Only an explicit allowlist (package registry, the OTLP endpoint, the model API) is permitted. This realizes REQ-17.5's "treat retrieved or model-predicted content as untrusted input, not instructions" at the runtime boundary.
-
-**Component:** `sandbox_runner` (`tools/sandbox_runner.py`, Phase 1) wraps slice execution — it provisions the sandbox, mounts the worktree, applies the egress allowlist, runs the command, and tears the sandbox down. The Verifier's behavioral and security checks run inside the same isolation.
+**Exit-code collision — lex specialis *(Reconciliation 2026-06-15)*:** REQ-SPEC-021 says the Stop hook blocks (exit 2) while `violation_count > 0`, while REQ-LOOP-005 says reaching a cap routes to HANDOFF (exit 0). These collide at the spec-completion HARD pass cap. Resolution by *lex specialis*: at the spec-completion HARD pass cap (`SPEC_COMPLETION_HARD_CAP = 7`) with violations still remaining, **REQ-LOOP-005 HANDOFF (exit 0) WINS** — the run stops and escalates to a human. The REQ-SPEC-021 exit-2 block applies ONLY on passes *before* the cap (`iteration_count < SPEC_COMPLETION_HARD_CAP`); forcing continuation at the cap would risk an infinite block.
 
 ---
 
@@ -861,7 +855,7 @@ Both unit/example tests and property-based tests are used. Unit tests cover conc
 
 ### Unit / Integration Tests
 
-- `tests/unit/test_spec_validator.py` — EARS schema validation, Z3 encoding correctness (reproduces all 34 harness checks)
+- `tests/unit/test_spec_validator.py` — EARS schema validation, Z3 encoding correctness (reproduces all 34 machine-checked assertions from `formal_verification_merged.py`)
 - `tests/unit/test_evidence_collector.py` — Evidence_Record assembly, SHA-256 hashing
 - `tests/unit/test_hooks.py` — Hook exit-code contract, reentrancy guard
 - `tests/integration/test_postgres_schema.py` — Table creation, constraint enforcement, evidence_complete CHECK
@@ -878,7 +872,6 @@ Both unit/example tests and property-based tests are used. Unit tests cover conc
 - `tests/property/test_traceability.py` — Bidirectional link resolution, commit trailer requirement ID presence
 - `tests/property/test_evidence.py` — Evidence round-trips; content-addressed hash consistency
 - `tests/property/test_completion_gate.py` — Prediction independence; unproven-blocks-complete invariant
-- `tests/property/test_amendment_and_integrity.py` — Amendment monotonicity, resumed-state integrity, checklist-approval, audit-log tamper detection, research-claim labeling, omission-declaration gate (Properties 25–30)
 
 ---
 
@@ -904,7 +897,7 @@ Both unit/example tests and property-based tests are used. Unit tests cover conc
 
 ### Property 3: Identity-Mutation Blockade
 
-*For any* tool action that would delete, reorder, or change the `id`, `type`, or `acceptance_criteria` of an existing coverage item, the PreToolUse hook shall block it. The only permitted mutations after item creation are the status transitions `unproven → proven` (with a complete Evidence_Record), `unproven → failed`, and `failed → unproven`; no other field of an existing item may change.
+*For any* tool action that would delete, reorder, or change the `id`, `type`, or `acceptance_criteria` of an existing coverage item, the PreToolUse hook shall block it. The permitted status transitions after item creation are `unproven → proven` (which requires a complete Evidence_Record), `unproven → failed` (Verifier on a dead check), and `failed → unproven` (on retry/amendment); only a transition *into* `proven` requires a complete Evidence_Record. *(Reconciliation 2026-06-15: the `failed` transitions are now explicitly permitted; previously only `unproven → proven` was stated.)*
 
 **Validates: Requirements 5.2, 13.3**
 
@@ -944,17 +937,17 @@ Both unit/example tests and property-based tests are used. Unit tests cover conc
 
 ### Property 8: No-Progress → HANDOFF Only
 
-*For any* run where zero coverage items are flipped from `unproven` to `proven` AND zero commits are produced, both conditions simultaneously true, across the last N=3 consecutive slices, the system shall terminate to `HANDOFF` status and shall never reach `COMPLETE` status under this condition; the Stop hook shall ALLOW termination (exit 0), never block (exit 2).
+*For any* run where zero coverage items are flipped from `unproven` to `proven` AND zero commits are produced, both conditions simultaneously true, across the last N=3 consecutive slices, the system shall terminate to `HANDOFF` status and shall never reach `COMPLETE` status under this condition.
 
-**Validates: Requirements 14.2, 14.5**
+**Validates: Requirements 14.2**
 
 ---
 
 ### Property 9: Cap and Budget → HANDOFF Only
 
-*For any* run reaching the iteration cap (DEFAULT 25 turns/slice) OR the token/cost budget, the run shall terminate to `HANDOFF` status, and the Stop hook shall ALLOW termination (exit 0), never block (exit 2). The `COMPLETE` status is unreachable from these conditions. `COMPLETE` and `HANDOFF` are mutually exclusive terminal states.
+*For any* run reaching the iteration cap (DEFAULT 25 turns/slice) OR the token/cost budget, the run shall terminate to `HANDOFF` status. The `COMPLETE` status is unreachable from these conditions. `COMPLETE` and `HANDOFF` are mutually exclusive terminal states.
 
-**Validates: Requirements 14.1, 14.2, 14.5**
+**Validates: Requirements 14.1, 14.2**
 
 ---
 
@@ -1072,7 +1065,7 @@ Both unit/example tests and property-based tests are used. Unit tests cover conc
 
 ### Property 24: Subagent Role Separation (Implementer Cannot Self-Verify)
 
-*For any* verification action recorded in the evidence chain, the acting agent identity shall be the Verifier subagent (`verifier.md`), not the Implementer subagent (`implementer.md`). No Evidence_Record may be created by an agent that also wrote the implementation being verified.
+*For any* verification action recorded in the evidence chain, the `actor_agent` identity shall be the Verifier subagent (`verifier.md`), not the Implementer subagent (`implementer.md`). No Evidence_Record may be created by an agent that also wrote the implementation being verified.
 
 **Validates: Requirements 9.2**
 
@@ -1080,46 +1073,119 @@ Both unit/example tests and property-based tests are used. Unit tests cover conc
 
 ### Property 25: Amendment Monotonicity
 
-*For any* requirement amended after plan approval, while its coverage item has not been re-proven with fresh evidence, the run shall not reach `COMPLETE`; the amended-but-not-reproven item is treated as `unproven`. Re-proving the amended item restores reachability of `COMPLETE`.
+*(Reconciliation 2026-06-15: new property closing the amendment-history gap.)*
 
-**Validates: Requirements 5.7** — Z3 CHECK-10a/10b
+*For any* amendment to a requirement, a new `requirement_versions` row shall be inserted (monotonically increasing `version`) AND the associated `coverage_items.status` shall be reset to `unproven`; the prior version text shall be retained and never overwritten. An amended requirement may not remain `proven` until it is re-verified with fresh evidence.
+
+**Validates: Requirements 26 (REQ-COV-007). Machine-checked: CHECK-10 (`formal_verification_merged.py`).**
 
 ---
 
 ### Property 26: Resumed-State Integrity
 
-*For any* session resume where the recomputed durable-state hash does not match the stored `state_hash`, the run shall not proceed: the PreToolUse resume-integrity guard blocks the first write (fail closed). The run proceeds only when the hashes match.
+*(Reconciliation 2026-06-15: new property closing the resume-integrity gap.)*
 
-**Validates: Requirements 11.5** — Z3 CHECK-11a/11b
+*For any* resumed session, the SessionStart hook shall recompute the resumed-state hash via `state_integrity.py` and write `run_state.resume_integrity_ok`; if that flag is `false`, the PreToolUse integrity guard shall block the first `Write`/`Edit` (exit 2). No write of a resumed session whose recomputed state hash mismatches the persisted hash shall proceed.
 
----
-
-### Property 27: Checklist-Approval Before Use
-
-*For any* attempt to use a Domain_Baseline_Checklist for proactive discovery, if the checklist is in DRAFT state (`approved_at IS NULL`), the PreToolUse checklist-approval guard shall block it. Discovery may use a checklist only after human approval.
-
-**Validates: Requirements 3.4** — Z3 CHECK-12a/12b
+**Validates: Requirements 27 (REQ-STATE-005). Machine-checked: CHECK-11 (`formal_verification_merged.py`).**
 
 ---
 
-### Property 28: Audit-Log Tamper Detection
+### Property 27: Checklist-Approval-Before-Use
 
-*For any* sequence of gate-decision records in `gate_audit_log`, if any entry's fields (including `seq` and `created_at`) are altered, reordered, or deleted, the chain recomputation shall fail at the mutated entry; an unmodified chain shall always verify. *(Property-based test only — no dedicated Z3 oracle; the hash-chain construction is verified by `audit_verify.py`.)*
+*(Reconciliation 2026-06-15: new property closing the draft-checklist gap.)*
 
-**Validates: Requirements 21.1, 21.2**
+*For any* proactive-discovery pass that references a domain-baseline checklist, the checklist shall have a non-null `approved_at` in `domain_baseline_checklists` (i.e. not `DRAFT`); the PreToolUse checklist-approval guard shall block discovery that uses an unapproved checklist.
+
+**Validates: Requirements 25 (REQ-SPEC-016). Machine-checked: CHECK-12 (`formal_verification_merged.py`).**
+
+---
+
+### Property 28: Audit-Log Tamper Detection (Hash Chain)
+
+*(Reconciliation 2026-06-15: new property closing the tamper-evidence gap.)*
+
+*For any* `gate_audit_log` chain, recomputing each `entry_hash` as `sha256(canonical_row || prev_hash)` (genesis `prev_hash = sha256("")`) shall reproduce every stored `entry_hash`; any row whose `prev_hash` does not equal the recomputed digest of the prior row shall fail verification. The chain is verified by `tools/audit_verify.py` (on-demand) and by a required CI status check at merge.
+
+**Validates: Requirements 28 (REQ-AUDIT-001/002). Runtime mechanism: `audit_verify.py` chain verifier (no Z3 check — runtime/CI verified).**
 
 ---
 
 ### Property 29: Research-Claim Authority Labeling
 
-*For any* Research_Sub_Agent draft, every external claim shall carry a non-empty `source_url` and an `authority_tier` from {primary, standard, peer-reviewed, blog, vendor, social}; any claim supported only by `blog`, `vendor`, or `social` sources shall be flagged for human review. *(Property-based test only — no dedicated Z3 oracle.)*
+*(Reconciliation 2026-06-15: new property closing the research-provenance gap.)*
 
-**Validates: Requirements 22.1, 22.2**
+*For any* claim emitted by the Research subagent into a draft domain-baseline checklist, the claim shall carry an authority-tier label (e.g. standard / vendor-doc / OSS-reference / blog) and shall pass the fact-check pass before human review; unlabeled or unverified claims shall be rejected before the checklist is presented for approval.
+
+**Validates: Requirements 24 (REQ-SPEC-017). Test mechanism: fact-check / authority-tier-labeling pass (no Z3 check — test/runtime verified).**
 
 ---
 
 ### Property 30: Omission-Declaration Gate
 
-*For any* subagent result whose `omission_declaration` field is null or absent, the SubagentStop hook shall reject acceptance (exit 2). A result with a non-null `omission_declaration` may be accepted (subject to the other evidence gates).
+*(P3 market-research 2026-06-15: Spec-Kit `[Gap]` pattern — closes the "silent gap" failure mode.)*
 
-**Validates: Requirements 9.9** — Z3 CHECK-13a/13b
+*For any* subagent result (initializer, research, verifier) returned to the SubagentStop hook, the result shall include a non-null `omission_declaration` field enumerating, by EARS scenario category (Primary / Alternate / Exception / Recovery / Non-Functional / Edge-Case), every scenario class the subagent did NOT cover — using `[Gap]` markers. The SubagentStop hook shall reject any result whose `omission_declaration` is absent or null with exit 2, ensuring that gaps are declared rather than silently dropped.
+
+**Validates: Requirement 29 (REQ-SPEC-018). Machine-checked: CHECK-13a/13b (`formal_verification_merged.py`, new-8 group).**
+
+---
+
+## Merge Reconciliation Addendum (canonical merge)
+
+Corrections already applied inline above: the Stop-hook HANDOFF path now ALLOWS termination on cap/no-progress (REQ-LOOP-005); the Phase table now reads Phase 4 = PBT, Phase 5 = optional Temporal/Inngest, Phase 6 = optional predictive routing. Additional design deltas closing audited gaps:
+
+### New data-model additions
+```sql
+-- requirement_versions: amendment history (REQ-COV-007)
+CREATE TABLE requirement_versions (
+    id             SERIAL PRIMARY KEY,
+    requirement_id TEXT NOT NULL REFERENCES requirements(id),
+    version        INTEGER NOT NULL,
+    prior_text     TEXT,
+    new_text       TEXT NOT NULL,
+    author         TEXT NOT NULL,
+    rationale      TEXT NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (requirement_id, version)
+);
+-- On amendment: insert a version row AND reset coverage_items.status to 'unproven'.
+-- Completion gate already blocks COMPLETE while any item is 'unproven' (CHECK-10a).
+
+-- gate_audit_log: tamper-evident hash-chained gate-decision log (REQ-AUDIT-001/002)
+CREATE TABLE gate_audit_log (
+    seq            BIGSERIAL PRIMARY KEY,
+    event_name     TEXT NOT NULL,
+    tool_name      TEXT,
+    decision       TEXT NOT NULL CHECK (decision IN ('allow','block')),
+    reason         TEXT,
+    requirement_id TEXT,
+    actor_agent    TEXT NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    prev_hash      TEXT NOT NULL,             -- sha256 of the prior row's canonical form; genesis row uses sha256("") as a documented sentinel
+    entry_hash     TEXT NOT NULL              -- sha256(canonical_row || prev_hash); INCLUDES seq and created_at
+);
+-- Hash-chain spec (Reconciliation 2026-06-15, from the decision sheet):
+--   * Genesis entry: prev_hash = sha256("") (the empty-string digest) as a documented sentinel.
+--   * Canonical form = deterministic JSON of (seq, event_name, tool_name, decision,
+--       reason, requirement_id, actor_agent, created_at).
+--   * entry_hash = sha256(canonical_row || prev_hash), INCLUDING seq and created_at.
+--   * Producer: tools/audit_log.append(event, tool, decision, reason, requirement_id, actor_agent),
+--       called by stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py on every allow/block.
+--   * Verification trigger: a REQUIRED CI status check at merge PLUS on-demand via tools/audit_verify.py;
+--       audit_verify recomputes the chain — any prev_hash != recomputed(prior) fails verification.
+```
+
+### New / changed components
+- `state_integrity.py` (Phase 2) — recompute resumed-state hash on `SessionStart`; block proceed on mismatch (REQ-STATE-005 / CHECK-11).
+- `audit_log.py` + `audit_verify.py` (Phase 2/3) — append hash-chained gate-decision entries; verify the chain (REQ-AUDIT-001..003).
+- `perf_a11y_verifier` additions to the Verifier (Phase 1/3) — k6/Lighthouse + axe-core, UI-screen render assertions (REQ-VERIFY-007/008).
+- `REASONING` span + repeated-action loop detector in observability (Phase 3, REQ-OBS-006). *(Reconciliation 2026-06-15: implemented as a custom span ATTRIBUTE `claude.span.kind="reasoning"` on an OTel INTERNAL span — NOT a new `SpanKind` enum value, since OTel `SpanKind` is a closed enum {INTERNAL, SERVER, CLIENT, PRODUCER, CONSUMER}. The loop detector fires on K=3 identical tool-call signatures.)*
+- Research subagent gains a fact-check / authority-tier-labeling step before human review (REQ-SPEC-017).
+- Optional `design.md` / `platform.md` / `reliability.md` subagent definitions (REQ-ORCH-004), each with explicit permission scope; none with verifier write access.
+
+### EARS pattern note
+The glossary's sixth "Complex" pattern denotes a documented composition of the five base EARS patterns; the `feature_list.json` `ears_pattern` enum and `spec_validator.py` continue to operate over the five base patterns. No schema change.
+
+### Formal verification
+Unified harness `formal_verification_merged.py` (Z3 v4.16.0) self-counts: **34/34** machine-checked (14 core + 12 Kiro reproduced + 8 new: amendment monotonicity, resumed-state integrity, checklist-approval-before-use, and the P3 omission-declaration gate CHECK-13a/13b — CHECK-10a..13b). Supersedes both the "21/21" figure of the DEPRECATED `formal_verification.py` and the earlier "29/29" miscount. Required CI check.

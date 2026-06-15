@@ -5,6 +5,8 @@
 **Result:** **77 raw findings → 58 verified → 57 confirmed, 0 refuted (zero false positives), 19 P2/P3.** Severity: 21 P0 · 35 P1 · 1 P2.
 **Verdict:** The spec artifact set is **NOT complete and NOT internally consistent.** `audit/reconciliation-report.md` is an abandoned/false completion claim. The Z3 harness (34, self-counting) + `README.md` are the only current layer; the spec triad and audit trail have drifted.
 
+> **Status update (2026-06-15) — this analysis was acted upon, then the spec advanced.** The remediation prescribed below was applied (see `audit/reconciliation-report.md`), after which the specification was further expanded by a Merge-Reconciliation + P3 Market-Research addendum. **The canonical targets in §2 below (22 requirements, 39 waves) are HISTORICAL — the current live state is 32 requirements, 30 properties, 8 tables, 34 Z3 checks, 49 waves, 57 tasks, 6 hooks, 7 phases (0–6).** The §5 residual-drift checklist's requirement-count gate (`-eq 22`) is therefore superseded by `-eq 32`. **EARS: this report's "drop Complex → 5" recommendation (§2 row, P1-6) was NOT adopted — the live glossary keeps the longer 6-pattern list (5 base + Complex composition; the operative enum uses the 5 base patterns), and 6 is canonical.** See `audit/meta-analysis-harness-and-audit-trail.md` for the current-state analysis and the final reconciliation pass.
+
 > This report supersedes the stale `audit/findings.md` and `audit/reconciliation-report.md`, which were written against a larger "canonical merged" copy (`PRD_MERGED_canonical_spec_to_evidence.md`) that **does not exist** anywhere in this repo or its siblings, and which cite line numbers beyond the actual file EOFs.
 
 ---
