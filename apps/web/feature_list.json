@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "product_class": "public-marketing-website",
+  "checklist_ref": {
+    "path": "baselines/public-marketing-website.json",
+    "version": "0.1.0",
+    "sha": ""
+  },
+  "items": [
+    {
+      "id": "HOME-RND-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Home route renders the thesis + wordmark",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "GET / returns HTTP 200 and the document contains the brand wordmark 'Autonomous Agent' and the thesis 'Software delivery that proves itself.'"
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "evidence": {
+        "test_file": "apps/web/tests/e2e/home.spec.ts",
+        "test_name": "home route renders the thesis and wordmark",
+        "output_hash": "sha256:dc6b9b99c958ff548dd69e66898366a0b6d6e3ac53f02253df4ae9d2204f0571",
+        "collected_at": "2026-06-16T04:42:27.790139+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-verifier-1",
+        "implementer_session_id": "sess-implementer-1",
+        "evidence_kind": "behavioral"
+      }
+    }
+  ]
+}
