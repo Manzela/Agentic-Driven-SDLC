@@ -36,8 +36,12 @@ def _save_seen(s):
 _seen = _load_seen()
 
 def verify(sig, raw):
-    if not SECRET:   # no secret configured -> accept (dev only) but warn
-        return True
+    # FAIL-CLOSED: an unsigned/misconfigured receiver must NOT accept arbitrary payloads
+    # (those payloads enqueue agent_dispatch jobs the dispatcher will act on). When no
+    # secret is configured we reject — UNLESS the operator explicitly opts into the
+    # insecure dev path via ASCP_DEV_ALLOW_UNSIGNED=1.
+    if not SECRET:
+        return os.environ.get("ASCP_DEV_ALLOW_UNSIGNED") == "1"
     if not sig: return False
     expected = hmac.new(SECRET.encode(), raw, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, sig)
@@ -99,7 +103,11 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 if __name__ == "__main__":
-    if not SECRET:
-        print("WARN: WEBHOOK_SECRET not set — signature verification DISABLED (dev only)")
+    if not SECRET and os.environ.get("ASCP_DEV_ALLOW_UNSIGNED") == "1":
+        print("WARN: WEBHOOK_SECRET not set and ASCP_DEV_ALLOW_UNSIGNED=1 — "
+              "signatures NOT verified (dev only, INSECURE)")
+    elif not SECRET:
+        print("WARN: WEBHOOK_SECRET not set — receiver is FAIL-CLOSED (all POSTs rejected). "
+              "Set WEBHOOK_SECRET, or ASCP_DEV_ALLOW_UNSIGNED=1 for insecure local dev.")
     print(f"webhook_handler listening on :{PORT}  (queue -> {QUEUE.name})")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
