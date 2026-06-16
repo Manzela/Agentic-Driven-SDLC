@@ -1,0 +1,13 @@
+{
+  "//": "Project-scoped MCP server: lets Claude Code read+write the live Plane board directly.",
+  "//instructions": "Copy to .mcp.json (gitignored), then set PLANE_CREDS_FILE to the absolute path of your gitignored plane-selfhost/credentials.env (or export PLANE_API_BASE / PLANE_WORKSPACE_SLUG / PLANE_PROJECT_ID / PLANE_API_KEY directly). The token is NEVER stored here. See plane-integration/README-mcp.md.",
+  "mcpServers": {
+    "plane-ascp": {
+      "command": "python3",
+      "args": ["plane-integration/plane_mcp_server.py"],
+      "env": {
+        "PLANE_CREDS_FILE": "${PLANE_CREDS_FILE}"
+      }
+    }
+  }
+}

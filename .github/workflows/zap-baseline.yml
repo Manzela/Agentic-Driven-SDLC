@@ -55,7 +55,21 @@ jobs:
           # TODO(app): swap in the real entrypoint once a runnable service exists.
           # Until then a minimal static server provides a live HTTP target so the
           # baseline passive scan is exercised end-to-end in CI.
-          nohup python3 -m http.server "${ZAP_TARGET_PORT}" >/tmp/app.log 2>&1 &
+          #
+          # IMPORTANT: serve a DEDICATED minimal webroot, NOT the repo root. Serving the
+          # checkout exposes .git/ .claude/ docs/ etc. to the scanner, so passive rules
+          # (e.g. 90022 Application Error Disclosure, source/base64/timestamp disclosure)
+          # trip non-deterministically as the repo grows — flaky failures with FAIL-NEW: 0.
+          # A fixed one-page webroot keeps the baseline gate deterministic and real.
+          mkdir -p /tmp/zap-webroot
+          cat > /tmp/zap-webroot/index.html <<'HTML'
+          <!doctype html><html lang="en"><head><meta charset="utf-8">
+          <title>ASCP baseline target</title></head>
+          <body><h1>ASCP ZAP baseline target</h1>
+          <p>Placeholder unauthenticated surface for the OWASP ZAP baseline gate (REQ-SEC-008).</p>
+          </body></html>
+          HTML
+          nohup python3 -m http.server --directory /tmp/zap-webroot "${ZAP_TARGET_PORT}" >/tmp/app.log 2>&1 &
           echo "Waiting for http://localhost:${ZAP_TARGET_PORT} to accept connections..."
           for i in $(seq 1 30); do
             if curl -fsS "http://localhost:${ZAP_TARGET_PORT}/" >/dev/null 2>&1; then
