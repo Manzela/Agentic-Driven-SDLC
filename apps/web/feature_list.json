@@ -294,8 +294,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md IA-01 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "ubiquitous"
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "IA-NAV-001",
+        "output_hash": "sha256:19ce3ec9312d29b2c207176e1a9201c4224e3a8c12ac9aff3cfd687c72793393",
+        "collected_at": "2026-06-16T05:28:10.386831+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "IA-NAV-002",
@@ -402,8 +412,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md IA-08 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "unwanted"
+      "status": "proven",
+      "ears_pattern": "unwanted",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "IA-NAV-008",
+        "output_hash": "sha256:4c7553d6be251f444e9c93799d12d0de8ef67f19ee5924f787d34f630882e266",
+        "collected_at": "2026-06-16T05:28:10.387038+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "IA-NAV-009",
@@ -482,8 +502,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md IA-13 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "event-driven"
+      "status": "proven",
+      "ears_pattern": "event-driven",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "IA-NAV-013",
+        "output_hash": "sha256:f4b668ce6d771000e3d63862a6211c49b4aa20e85d69bdf2f91a7eeb76e1d2ec",
+        "collected_at": "2026-06-16T05:28:10.387072+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "IA-NAV-014",
@@ -1150,8 +1180,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md CONTENT-11 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "ubiquitous"
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "CONTENT-CNT-011",
+        "output_hash": "sha256:ef0253946305249279613ffba31becc49b8807e91aae3fbacebc1b73ca4a2f4e",
+        "collected_at": "2026-06-16T05:28:10.387265+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "CONTENT-CNT-012",
@@ -1275,8 +1315,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md PAGE-01 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "event-driven"
+      "status": "proven",
+      "ears_pattern": "event-driven",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "PAGE-PAG-001",
+        "output_hash": "sha256:5a6acd5ff8b1b63465f7917f6eabc9cd4d99aa367334caeeed5eae68e328d73b",
+        "collected_at": "2026-06-16T05:28:10.387164+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "PAGE-PAG-002",
@@ -1303,8 +1353,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md PAGE-03 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "ubiquitous"
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "PAGE-PAG-003",
+        "output_hash": "sha256:b8c91221c5572b5464fe3109714bf8254c4787d64551c8b93aad7f64a2b2a0cc",
+        "collected_at": "2026-06-16T05:28:10.387200+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "PAGE-PAG-004",
@@ -1345,8 +1405,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md PAGE-06 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "ubiquitous"
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "PAGE-PAG-006",
+        "output_hash": "sha256:ef0253946305249279613ffba31becc49b8807e91aae3fbacebc1b73ca4a2f4e",
+        "collected_at": "2026-06-16T05:28:10.387233+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "PAGE-PAG-007",
@@ -1512,7 +1582,17 @@
         "See docs/website/autonomous-agent.dev/requirements.md TECH-01 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven"
+      "status": "proven",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "TECH-TEC-001",
+        "output_hash": "sha256:5a6acd5ff8b1b63465f7917f6eabc9cd4d99aa367334caeeed5eae68e328d73b",
+        "collected_at": "2026-06-16T05:28:10.387123+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "TECH-TEC-002",
@@ -2927,7 +3007,17 @@
         "Full security-header matrix (HSTS preload, Referrer-Policy, Permissions-Policy, frame-ancestors/COOP/CORP) as a tested header set"
       ],
       "in_scope": true,
-      "status": "unproven"
+      "status": "proven",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "REQ-SEC-001",
+        "output_hash": "sha256:b87b447ad0a92a114263901ee61358b6e62b2a77f9611b50fbe90a47298cc9d3",
+        "collected_at": "2026-06-16T05:28:10.387098+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "REQ-RUM-001",
