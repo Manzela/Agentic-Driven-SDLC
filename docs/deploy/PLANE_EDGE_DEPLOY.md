@@ -23,10 +23,20 @@ real VM and Cloudflare provides the **edge + TLS + identity gate** via a Tunnel 
 
 ## Quickstart — scripted path (after the VM exists)
 
-The manual steps below are fully scripted in `plane-selfhost/`. On the VM (Docker installed):
+The manual steps below are fully scripted in `plane-selfhost/`. SSH into the VM
+(Oracle Cloud default user: `opc` for Oracle Linux, `ubuntu` for Ubuntu images),
+then run as one self-contained block:
 
 ```bash
+# 0. Docker (skip if already installed)
+curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker "$USER" && newgrp docker
+
+# 1. get the repo on this deploy branch
+git clone <your-repo-url> && cd Agentic-Driven-SDLC
+git checkout claude/plane-vm-deploy-turnkey
 cd plane-selfhost
+
+# 2. configure + deploy
 cp plane.env.template plane.env && $EDITOR plane.env   # set every __REPLACE…__ secret (openssl rand -hex 32)
 ./deploy.sh                                            # Step 1: bring up the ~13 services; prints first-run steps
 # → finish admin setup + create workspace `ascp` + project `ASCP` + an API token in the UI
