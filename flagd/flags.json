@@ -1,0 +1,51 @@
+{
+  "$schema": "https://flagd.dev/schema/v0/flags.json",
+  "_comment": "Agent kill-switch flag definitions (REQ-CTRL-001 / Requirement 32 / task 57). OpenFeature + self-hosted flagd (Apache 2.0, CNCF Incubating). Each agent entry point QUERIES these flags at start-of-turn; a flag whose effective value is true makes the gated capability HARD-REFUSE (analogous to a PreToolUse exit-2 block). Default state for every kill flag is OFF (variant 'off' => false), i.e. the capability is ENABLED until an operator flips it. When the flagd source is UNREACHABLE the client treats the capability as DISABLED (fail-closed, REQ-GATE-005) -- see tools/kill_switch.py. Flag semantics: kill.all is the global master kill-switch (design.md (b) 'plus a global kill.all'); the prompt's 'agent-kill-switch' boolean maps onto kill.all. Per-capability flags kill.<capability> disable exactly the named agent entry point (initializer / implementer / verifier / research, design.md Agent Kill-Switch (a)/(b)).",
+  "flags": {
+    "kill.all": {
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off",
+      "description": "Global master kill-switch ('agent-kill-switch'). When ON, EVERY gated agent capability (initializer / implementer / verifier / research) HARD-REFUSES at start-of-turn regardless of its per-capability flag. Default OFF (all capabilities enabled). REQ-CTRL-001 / design.md Agent Kill-Switch (b)."
+    },
+    "kill.initializer": {
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off",
+      "description": "Disables the Initializer agent capability (spec compiler + coverage model builder) when ON. Default OFF. REQ-CTRL-001."
+    },
+    "kill.implementer": {
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off",
+      "description": "Disables the Implementer agent capability (single-slice coding subagent) when ON; checked before a slice starts (tasks.md task 10.2 kill-switch instrumentability). Default OFF. REQ-CTRL-001."
+    },
+    "kill.verifier": {
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off",
+      "description": "Disables the Verifier agent capability (independent five-layer evaluator) when ON. Default OFF. REQ-CTRL-001."
+    },
+    "kill.research": {
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off",
+      "description": "Disables the Research agent capability (domain-baseline checklist sourcer) when ON. Default OFF. REQ-CTRL-001."
+    }
+  }
+}

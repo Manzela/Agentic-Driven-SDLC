@@ -1,0 +1,37 @@
+{
+  "theme": "light",
+  "rootVarCount": 31,
+  "colorVars": {
+    "--editor-colors-gray-text": "#5c5e63",
+    "--editor-colors-peach-text": "#ff5b59",
+    "--editor-colors-pink-text": "#f65385",
+    "--editor-colors-orange-text": "#fd9038",
+    "--editor-colors-green-text": "#0fc27b",
+    "--editor-colors-light-blue-text": "#17bee9",
+    "--editor-colors-dark-blue-text": "#266df0",
+    "--editor-colors-purple-text": "#9162f9",
+    "--editor-colors-gray-background": "#d6d6d8",
+    "--editor-colors-peach-background": "#ffd5d7",
+    "--editor-colors-pink-background": "#fdd4e3",
+    "--editor-colors-orange-background": "#ffe3cd",
+    "--editor-colors-green-background": "#c3f0de",
+    "--editor-colors-light-blue-background": "#c5eff9",
+    "--editor-colors-dark-blue-background": "#c9dafb",
+    "--editor-colors-purple-background": "#e3d8fd",
+    "--bprogress-color": "#29d",
+    "--bprogress-spinner-border-size": "2px"
+  },
+  "body": {
+    "bg": "oklch(0.9543 0.001 230.67)",
+    "color": "oklch(0.2378 0.0029 230.83)",
+    "font": "\"Inter Variable\", ui-sans-serif, system-",
+    "size": "16px",
+    "weight": "400",
+    "radius": "0px",
+    "border": "oklch(0.2378 0.0029 230.83)",
+    "shadow": "none",
+    "pad": "0px"
+  },
+  "h1": null,
+  "fontFamilyBody": "ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \""
+}

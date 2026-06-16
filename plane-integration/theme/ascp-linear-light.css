@@ -1,0 +1,74 @@
+/* =============================================================================
+   ASCP — Linear/Notion-grade clean light theme for self-hosted Plane v1.3.1
+   Overrides Plane's Tailwind-v4 semantic theme tokens (no fork needed).
+   Source: audit/plane-ui/enhancement-spec.json (forensic UI audit, 2026-06-16).
+   Load via a userstyle/extension or a reverse-proxy CSS injection.
+   ============================================================================= */
+:root,
+html[data-theme="light"],
+html.light {
+  /* ---- surface ramp: warm near-white canvas, pure-white raised cards ---- */
+  --background-color-surface-1: oklch(0.985 0.003 95);     /* app canvas (was flat cool gray) */
+  --background-color-layer-1: oklch(1 0 0);                /* cards / panels */
+  --background-color-layer-1-hover: oklch(0.972 0.004 95); /* hover */
+  --background-color-layer-2: oklch(0.968 0.004 95);       /* sunken / nested */
+
+  /* ---- borders: visible figure-ground, subtle for dividers ---- */
+  --border-color-subtle: oklch(0.928 0.005 95);
+  --border-color-subtle-1: oklch(0.935 0.005 95);
+  --border-color-strong: oklch(0.880 0.006 95);
+
+  /* ---- text ramp: 3 deliberate steps, all >= 4.5:1 on white ---- */
+  --text-color-primary: oklch(0.30 0.012 95);
+  --text-color-secondary: oklch(0.50 0.012 95);
+  --text-color-tertiary: oklch(0.62 0.010 95);
+  --text-color-placeholder: oklch(0.68 0.010 95);
+  --text-color-icon-primary: oklch(0.52 0.012 95);
+
+  /* ---- one restrained accent (indigo, Linear-ish) ---- */
+  --background-color-accent-primary: oklch(0.55 0.19 274);
+  --background-color-accent-primary-hover: oklch(0.50 0.19 274);
+  --text-color-accent-primary: oklch(0.55 0.19 274);
+  --text-color-link-primary: oklch(0.55 0.19 274);
+  --border-color-accent-strong: oklch(0.55 0.19 274);
+
+  /* ---- semantic status (proven / handoff / blocked) ---- */
+  --border-color-success-strong: oklch(0.60 0.13 150);
+  --text-color-success-secondary: oklch(0.52 0.13 150);
+  --border-color-danger-strong: oklch(0.57 0.18 27);
+
+  /* ---- ASCP lifecycle palette (for status chips / dots; non-color-only) ---- */
+  --ascp-proven: oklch(0.60 0.13 150);
+  --ascp-handoff: oklch(0.62 0.14 60);
+  --ascp-blocked: oklch(0.57 0.18 27);
+  --ascp-running: oklch(0.55 0.19 274);
+}
+
+/* ---- typography: tabular, tightened, identifiers in mono ---- */
+body, button, input, textarea {
+  font-feature-settings: "cv05" 1, "ss03" 1, "tnum" 0;
+  letter-spacing: -0.06px;
+}
+/* issue identifiers (ASCP-NN) read as machine keys */
+[class*="text-custom-text-3"], .issue-id, span[class*="tracking"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- board density: crisper cards, calmer columns ---- */
+.group\/kanban-block { margin-bottom: 6px !important; }
+.group\/kanban-block > div,
+[class*="rounded"][class*="border"][class*="bg-custom-background-100"] {
+  border-color: var(--border-color-subtle) !important;
+  box-shadow: 0 1px 2px oklch(0 0 0 / 0.04) !important;
+}
+
+/* ---- focus visibility (a11y) ---- */
+*:focus-visible {
+  outline: 2px solid var(--background-color-accent-primary) !important;
+  outline-offset: 2px;
+}
+
+/* ---- reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
