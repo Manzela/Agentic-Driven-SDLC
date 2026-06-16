@@ -1,0 +1,11 @@
+# Runtime dependencies — Agentic-Driven SDLC Control Plane.
+#
+# The control-plane tools (tools/*.py, .claude/hooks/*.py) and the Plane integration
+# (plane-integration/*.py) are deliberately pure-stdlib. The ONLY runtime third-party
+# dependency is the Z3 SMT solver, which backs the formal-verification harness
+# (verification/formal_verification_merged.py — the 34/34 machine-checked invariants).
+#
+# This file is the single source of truth for the runtime install. It MUST mirror
+# pyproject.toml [project.dependencies]; if a runtime dep is added, update both.
+# The CI "Z3 formal-verification harness" job installs from this file.
+z3-solver==4.16.0.0
