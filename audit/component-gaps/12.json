@@ -1,0 +1,175 @@
+{
+ "idx": 12,
+ "component": "feature_list.schema.json (schema/)",
+ "file_path": "schema/feature_list.schema.json",
+ "phase": "0",
+ "what": "A JSON Schema (draft-07) file `schema/feature_list.schema.json` that constrains the shape of `feature_list.json` (the canonical coverage model). It defines the top-level FeatureList object (required: `schema_version`, `product_class`, `checklist_ref{path,version,sha}`, `items[]`), a `CoverageItem` definition (required: `id` pattern `^[A-Z]+-[A-Z]+-[0-9]{3}$`, `type` enum {functional,NFR,WIRING}, `priority` integer \u22651, `dependencies[]`, `acceptance_criteria[]` minItems 1, `status` enum {unproven,proven,failed} default unproven, `in_scope` bool default true; optional `title`, `ears_pattern` enum of 5 base patterns, `ears_statement`, `provenance` enum {stated,inferred}, `evidence` $ref), and an\u2026",
+ "open_gaps": [
+  {
+   "gap": "THE FILE DOES NOT EXIST. There is no schema/ directory and no schema/feature_list.schema.json anywhere in the repo or git (find + git ls-files return nothing). The entire component is spec-only; the only concrete artifact is the inline JSON Schema block in design.md:290-413. Task 2.1 is unchecked ([ ]).",
+   "severity": "missing-wiring",
+   "fix": "Materialize design.md:290-413 verbatim into schema/feature_list.schema.json and check off task 2.1 (tasks.md:25), since every Phase-0 gate (PreToolUse validation, feature_list_init validation) depends on it existing.",
+   "cit": "shell: find . -iname '*.schema.json' \u2192 empty; git ls-files | grep schema \u2192 empty; tasks.md:25; design.md:138"
+  },
+  {
+   "gap": "Conditional requirement of `evidence` when status==proven is NOT expressed. The schema marks evidence optional with a prose note 'Required when status = proven'; draft-07 supports if/then or dependentRequired but neither is used, so an item with status:proven and no evidence VALIDATES. Req 5.3/5.6 and Property 2's 'reject transition to proven without 4 fields' are therefore unenforceable by the schema alone.",
+   "severity": "defect",
+   "fix": "Add a draft-07 `if: {properties:{status:{const:'proven'}}}, then:{required:['evidence']}` clause to CoverageItem so proven without evidence fails schema validation, closing the gap between Property 2 and the static artifact.",
+   "cit": "design.md:381-384,372-374; requirements.md:124,127; Property 2 design.md:890-894"
+  },
+  {
+   "gap": "'Non-empty' is unenforced for string fields. Req 5.6 and Property 2 demand each of the four EvidenceRecord fields be 'present AND non-empty', and Property 1 demands a 'non-empty id'. JSON Schema `required`+`type:string` accepts the empty string ''. Only output_hash (pattern) and id (pattern) are de-facto non-empty; test_file, test_name, collected_at, acceptance_criteria entries can be ''.",
+   "severity": "defect",
+   "fix": "Add `minLength:1` to test_file, test_name, collected_at (and items of acceptance_criteria), or document that non-emptiness is delegated to evidence_collector.validate_evidence_record (tasks.md:46) \u2014 but then Property 2's claim that the SCHEMA enforces non-emptiness is overstated.",
+   "cit": "requirements.md:127; design.md:884,892; tasks.md:46"
+  },
+  {
+   "gap": "Status-transition legality is not (and cannot be) enforced by the schema, yet Property 3 / Req 5.2 / 5.8 list the permitted edges. The schema only enumerates the three status values; nothing prevents a proven\u2192unproven or proven\u2192failed write at the schema layer. Wiring relies entirely on pre_tool_use_hook's status guard, which is itself unbuilt (task 8 unchecked).",
+   "severity": "missing-wiring",
+   "fix": "State explicitly in design.md that transition legality is hook-enforced, not schema-enforced, and confirm pre_tool_use_hook.check_status_transition (tasks.md:135) is the sole mechanism; add a property test that the hook (not the schema) rejects illegal edges.",
+   "cit": "design.md:898-902; requirements.md:123,129; tasks.md:135 (task 8 [ ])"
+  },
+  {
+   "gap": "WIRING integration-test obligation (Req 8.3 / 5.4) is a free-text description only. The schema cannot distinguish a WIRING item's EvidenceRecord (must exercise the real execution path) from a unit-test one \u2014 type:WIRING and a unit-test EvidenceRecord validate fine. Task 47 (tasks.md:959) tasks this separately but no mechanism binds it to the schema.",
+   "severity": "underspecified",
+   "fix": "Either add a conditional (`if type==WIRING then evidence.test_file matches tests/integration/...`) or move the obligation fully to the verifier/hook and remove the implication that the schema's description enforces it.",
+   "cit": "design.md:334; requirements.md:174; tasks.md:959"
+  },
+  {
+   "gap": "`provenance` is OPTIONAL but Req 4.3 says the System SHALL mark inferred-vs-stated provenance on EACH requirement. A schema-valid item can omit provenance entirely, violating 4.3 silently. (The Postgres column is NOT NULL CHECK \u2014 design.md:438 \u2014 so the schema and DB disagree on whether provenance is mandatory.)",
+   "severity": "inconsistency",
+   "fix": "Add `provenance` to CoverageItem.required to match the NOT NULL Postgres column (design.md:438) and Req 4.3, or document that provenance is captured only in Postgres and not required in the JSON file.",
+   "cit": "requirements.md:79; design.md:365-369 vs 438"
+  },
+  {
+   "gap": "No settings.json binding names the schema; the 'PreToolUse validates against this' claim (design.md:138) has no concrete code path in any built artifact. The settings.json PreToolUse hook (design.md:168-173) runs pre_tool_use_hook.py with no matcher, and no task wires jsonschema validation of feature_list.json into that hook (tasks.md task 5 / 8 status guards check 'evidence schema completeness' in prose but no task says 'load schema/feature_list.schema.json and jsonschema.validate'). The only explicit schema-load is feature_list_init.py (tasks.md:240).",
+   "severity": "missing-wiring",
+   "fix": "Add an explicit sub-bullet to tasks.md task 5 (pre_tool_use_hook) / task 8: 'load schema/feature_list.schema.json and call jsonschema.validate on the proposed feature_list.json write; block (exit 2) on ValidationError', closing the loop between design.md:138 and the hook implementation.",
+   "cit": "design.md:138,168-173,215; tasks.md:132-135,240"
+  },
+  {
+   "gap": "Append-only / never-reordered invariant (design.md:288 'items are never removed or reordered') is structurally unenforceable by JSON Schema and is asserted only in prose; nothing in the schema prevents removal or reordering of items. Property 3 attributes the blockade to PreToolUse, but no concrete diff/order-check mechanism is specified anywhere.",
+   "severity": "underspecified",
+   "fix": "Specify the concrete mechanism (e.g., PreToolUse compares the prior items[] id-sequence as a prefix of the new one) in design.md and a task; do not imply the schema enforces append-only.",
+   "cit": "design.md:288,318; Property 3 design.md:898-902"
+  },
+  {
+   "gap": "Requirement-citation mismatch: Property 1 'Validates: Requirements 5.1, 5.4' (design.md:886) but task 2.2 says 'Validates: Requirements 5.1, 5.4' while the schema task 2.1 cites '5.1, 5.3, 5.6' (tasks.md:29,33). Property 1's content (non-empty id, type, \u22651 acceptance criterion, default unproven) actually maps to 5.1, not 5.4 (5.4 is WIRING/NFR first-class). The 5.4 citation in Property 1 is dangling/incorrect.",
+   "severity": "inconsistency",
+   "fix": "Change Property 1's 'Validates' to Requirements 5.1 (and 5.7 for in_scope default) and drop 5.4, or add the WIRING/NFR-first-class assertion to Property 1's body to justify the 5.4 citation.",
+   "cit": "design.md:886; tasks.md:29,33; requirements.md:122,125"
+  },
+  {
+   "gap": "design.md/tasks.md coverage of this component is THIN on enforcement. The schema body itself is fully specified (design.md:290-413), but the component-inventory row collapses it under a `schema/` entry (design.md:138) and the ONLY building task is the bare task 2.1 (tasks.md:25-29) with no task wiring it to the PreToolUse hook and no negative-validation acceptance beyond the single design.md:623 smoke row. There is no task ensuring the schema enum stays in sync with the Postgres CHECK constraints or the spec_validator EARS patterns.",
+   "severity": "underspecified",
+   "fix": "Add tasks: (a) wire schema validation into pre_tool_use_hook (see above); (b) a consistency test asserting the schema's type/provenance/ears_pattern enums equal the Postgres CHECK enums (design.md:434-438) and the spec_validator pattern set; (c) a negative-case suite (missing each required field, wrong enum, empty strings, proven-without-evidence).",
+   "cit": "design.md:138,623; tasks.md:24-29"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "actor_agent schema/DB divergence \u2014 a DEFECT the draft never flags. The evidence_records Postgres table requires `actor_agent TEXT NOT NULL` (design.md:473), and Property 24 (validates Req 9.2) mandates every Evidence_Record's actor_agent be the Verifier, never the Implementer. But this component's JSON-Schema EvidenceRecord is locked to EXACTLY four fields with `additionalProperties: false` (design.md:389-390) \u2014 `actor_agent` is structurally FORBIDDEN. Therefore an EvidenceRecord that satisfies Property 24 / the DB CHECK (carries actor_agent) FAILS jsonschema.validate, and one that passes the schema cannot satisfy the NOT-NULL DB column or Property 24. The draft lists `db/migrations` and `su\u2026",
+   "cit": "design.md:387-390 (additionalProperties:false, 4 fields) vs design.md:473 (evidence_records.actor_agent NOT NULL) vs design.md:1066-1072 (Property 24, Validates Req 9.2)"
+  },
+  {
+   "kind": "missing",
+   "detail": "Traceability defect in the status-guard wiring the draft never flags. The PreToolUse status guard (the runtime validator the draft names as this component's primary invoker) is built by task 6.1, whose `_Requirements:` line is `5.2, 5.3, 7.4, 7.5, 13.2, 13.3, 13.4, 18.1` \u2014 it OMITS Req 5.6, even though design.md:215's hook-wiring table explicitly maps that same status guard to REQ-COV-002, REQ-COV-003, AND REQ-COV-006. So Req 5.6 (four-field gate, non-empty) is mapped to the status guard in design.md but is NOT traced to it in the building task. The draft's by_whom/when sections lean heavily on task 6.1 / the status guard as the enforcement path but never note that 5.6 is missing from that t\u2026",
+   "cit": "tasks.md:137 (task 6.1 _Requirements: 5.2,5.3,... no 5.6) vs design.md:215 (status guard enforces REQ-COV-006)"
+  },
+  {
+   "kind": "missing",
+   "detail": "The component's own acceptance criterion has NO building/verification task. design.md:623 (Phase-0 spine row 1) states the schema's pass condition: 'Schema validates a hand-written valid example; rejects an example missing output_hash.' The draft cites this as the component's self-test. But no task in tasks.md implements this negative-validation smoke test: task 16.1 (tests/smoke/test_spine_e2e.py) and 17.1 only exercise the four hooks; the 'missing output_hash \u2192 reject' assertion there targets subagent_stop_hook.py, NOT jsonschema.validate against schema/feature_list.schema.json. Tasks 2.2/2.3 are optional hypothesis property tests, not the design.md:623 acceptance row. So the component's s\u2026",
+   "cit": "design.md:623 (acceptance criterion) vs tasks.md:281-288 (16.1 tests hooks only) and tasks.md:24-41 (task 2 has no design.md:623 negative-validation subtask)"
+  },
+  {
+   "kind": "weak",
+   "detail": "Req 6.7-style enum-sync obligation is under-cited. The draft's final open_gap mentions 'no task ensuring the schema enum stays in sync with the Postgres CHECK constraints,' but understates a concrete, already-present divergence the docs expose: the JSON-Schema `status` enum is {unproven,proven,failed} (design.md:372) and the coverage_items Postgres CHECK is the SAME three (design.md:446) \u2014 consistent \u2014 BUT the `type` enum (functional,NFR,WIRING) appears in THREE places that can drift (JSON schema design.md:333, requirements table CHECK design.md:434, and the spec_validator pattern set) with no consistency test, AND the JSON schema's `ears_pattern` enum (5 base patterns, design.md:347) has no\u2026",
+   "cit": "design.md:333,347 (JSON enums) vs design.md:434,436 (requirements table: type CHECK present, ears_pattern no CHECK)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft repeatedly attributes CHECK-7a/7b/7c (and CHECK-1/4d/4e) as 'addressed' evidence FOR THIS schema component, but these Z3 checks are GENERIC boolean abstractions, not schema-specific. formal_verification_merged.py:301-338 defines `evidenceComplete == And(evidenceHasTestFile, evidenceHasTestName, evidenceHasHash, evidenceHasTimestamp)` over free Z3 Bools and `Implies(passed, evidenceComplete)` \u2014 it models the four-field invariant abstractly and would pass identically whether or not schema/feature_list.schema.json exists. The draft's ears_stories rows for CHECK-7a/7b mark status 'addressed' and its properties_and_checks list presents them as component coverage; this overstates how muc\u2026",
+   "cit": "verification/formal_verification_merged.py:301-338 (generic evidenceComplete Bools, no reference to the schema file); draft ears_stories CHECK-7a/7b rows marked 'addressed'"
+  },
+  {
+   "kind": "missing",
+   "detail": "`title` and `ears_statement` optional fields, and the `dependencies` items-as-strings shape, are silently un-validated against IDs. design.md:354-358 defines `dependencies` as an array of plain strings ('IDs of coverage items that must be proven before this one') but the schema applies NO pattern to those strings \u2014 unlike `id` which has `^[A-Z]+-[A-Z]+-[0-9]{3}$`. So a dependency can be any string, including a non-existent or malformed ID, and still validate. Req 5.1 requires 'a dependencies list' (present) but Property 1 and the Coverage-Item invariant implicitly assume dependencies reference real items; the schema cannot enforce referential integrity and the draft never notes that dependen\u2026",
+   "cit": "design.md:354-358 (dependencies items {type:string}, no pattern) vs design.md:326-329 (id pattern enforced)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's EARS-pattern reconciliation row is correct but omits the load-bearing reconciliation citation. The draft says 'Complex deliberately excluded as a documented composition' citing design.md:345-348,1188. The authoritative reconciliation statement is design.md:1187-1189 ('The glossary's sixth Complex pattern denotes a documented composition of the five base EARS patterns; the feature_list.json ears_pattern enum and spec_validator.py continue to operate over the five base patterns. No schema change.'). The draft's citation '1188' is approximately right, but it does not surface that this is an explicit reconciliation decision spanning the schema AND spec_validator together \u2014 i.e., if s\u2026",
+   "cit": "design.md:1187-1189 (EARS pattern note \u2014 schema + spec_validator both operate over 5 base patterns)"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Req 5.2 / REQ-COV-002",
+   "criterion": "IF a tool action would delete/reorder/modify an existing item's identity THEN PreToolUse SHALL block; status transitions only along unproven\u2192proven, unproven\u2192failed, failed\u2192unproven.",
+   "how": "Schema enumerates the status values but is a static document \u2014 it cannot express the transition graph or block deletion/reorder. Enforcement lives in pre_tool_use_hook status guard, not in the schema.",
+   "status": "partial",
+   "cit": "requirements.md:123; design.md:215,374; Property 3 design.md:898-902"
+  },
+  {
+   "req_id": "Req 5.3 / REQ-COV-003",
+   "criterion": "WHEN an item is set to proven, require an Evidence_Record with exactly four required fields; reject if any of the four is absent.",
+   "how": "EvidenceRecord.required=[test_file,test_name,output_hash,collected_at] + additionalProperties:false; CoverageItem.evidence 'Required when status=proven'.",
+   "status": "partial",
+   "cit": "requirements.md:124; design.md:387-411,383. Gap: JSON Schema cannot conditionally require `evidence` only when status==proven without an if/then or dependentRequired clause, which is absent."
+  },
+  {
+   "req_id": "Req 5.5 / REQ-COV-005",
+   "criterion": "WHILE any in-scope item is unproven, THE System SHALL treat the deliverable as incomplete.",
+   "how": "Schema supplies the in_scope boolean (default true) and status enum that the Stop gate reads; the WHILE obligation itself is enforced by stop_hook.py, not the schema.",
+   "status": "partial",
+   "cit": "requirements.md:126; design.md:376-380; status data only"
+  },
+  {
+   "req_id": "Req 5.6 / REQ-COV-006",
+   "criterion": "Evidence_Record has exactly four required fields; transition to proven rejected if any absent or empty. (Z3 CHECK-7a/7c)",
+   "how": "EvidenceRecord.required=4 fields, additionalProperties:false. BUT JSON Schema 'required' only enforces presence, not non-emptiness \u2014 an empty string passes `type:string`+required.",
+   "status": "partial",
+   "cit": "requirements.md:127; design.md:387-411. Gap: 'non-empty' is unenforced for test_file/test_name/collected_at."
+  },
+  {
+   "req_id": "Req 5.8 / REQ-COV",
+   "criterion": "THE System SHALL allow unproven\u2192failed and failed\u2192unproven; only proven requires complete Evidence_Record.",
+   "how": "status enum includes failed; description documents the transitions. Transition legality not enforceable by schema.",
+   "status": "partial",
+   "cit": "requirements.md:129; design.md:372-374"
+  },
+  {
+   "req_id": "Req 4.3 / REQ-DISC",
+   "criterion": "THE System SHALL mark inferred-vs-stated provenance on each requirement.",
+   "how": "provenance enum {stated,inferred} present but OPTIONAL (not in CoverageItem.required), so a generated item can omit provenance and still validate.",
+   "status": "partial",
+   "cit": "requirements.md:79; design.md:365-369"
+  },
+  {
+   "req_id": "Req 5/Property 2",
+   "criterion": "Evidence Schema Enforcement (Four-Field Gate) \u2014 transition to proven rejected unless all four fields present and non-empty.",
+   "how": "EvidenceRecord required-4 + additionalProperties:false enforces presence; 'non-empty' NOT enforced by schema (only by validate_evidence_record in evidence_collector.py, tasks.md:46).",
+   "status": "partial",
+   "cit": "design.md:890-894; tasks.md:37-41"
+  },
+  {
+   "req_id": "Req 5/Property 3",
+   "criterion": "Identity-Mutation Blockade \u2014 block delete/reorder/change of id/type/acceptance_criteria; permitted status edges only.",
+   "how": "Not a schema capability; enforced by PreToolUse status guard. Schema only enumerates valid status values.",
+   "status": "gap",
+   "cit": "design.md:898-902 (mechanism is the hook, not this component)"
+  },
+  {
+   "req_id": "Req 8.3 / REQ-WIRING",
+   "criterion": "WHEN a WIRING item is claimed proven, require an integration test exercising the real execution path as the Evidence_Record.",
+   "how": "Schema notes WIRING items 'require integration-test evidence' in a free-text description only; no machine constraint distinguishes a WIRING EvidenceRecord from a unit-test one.",
+   "status": "gap",
+   "cit": "design.md:334; requirements.md:174; tasks.md:959 (task 47, separately tasked, not schema-enforced)"
+  }
+ ],
+ "citation_issues": [
+  "requirements.md:15 \u2014 PHANTOM LINE ATTRIBUTION. The draft claims 'Phase-0 minimum viable spine (requirements.md:15)'. Line 15 of requirements.md is '## Glossary' (the glossary section header), not a Phase-0 spine statement. The Phase-0 spine is described in the Introduction at line 9: 'The minimum viable spine (Phase 0) consists of: feature_list.json + Stop hook + independent verifier subagent + git worktrees + GitHub required status check + Playwright behavioral proof.'",
+  "requirements.md:79 \u2014 MISIDENTIFIED REQUIREMENT NUMBER. The draft labels the citation as 'Req 4.3 / REQ-DISC' but line 79 of requirements.md is criterion 3 of Requirement 2 (Proactive Discovery), i.e., Req 2.3: 'WHILE proactive discovery is active, THE System SHALL present every inferred requirement for human confirmation and SHALL mark inferred-vs-stated provenance on each requirement.' Requirement 4 (Spec-Completion Loop) begins at line 97 and has no criterion about provenance. The content about provenance is real at that line, but the requirement number attribution (Req 4.3) is wrong \u2014 it should be Req 2.3."
+ ]
+}

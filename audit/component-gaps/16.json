@@ -1,0 +1,147 @@
+{
+ "idx": 16,
+ "component": "db/migrations/008_gate_audit_log.sql",
+ "file_path": "db/migrations/008_gate_audit_log.sql",
+ "phase": "2",
+ "what": "`db/migrations/008_gate_audit_log.sql` is a Phase 2 Postgres DDL migration (the 8th of eight, `001`\u2013`008`) whose sole content is `CREATE TABLE gate_audit_log` \u2014 an append-only, hash-chained gate-decision audit log. Per the canonical DDL (design.md:1156\u20131167) the table has columns: `seq BIGSERIAL PRIMARY KEY`, `event_name TEXT NOT NULL`, `tool_name TEXT` (nullable), `decision TEXT NOT NULL CHECK (decision IN ('allow','block'))`, `reason TEXT` (nullable), `requirement_id TEXT` (nullable), `actor_agent TEXT NOT NULL`, `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`, `prev_hash TEXT NOT NULL`, `entry_hash TEXT NOT NULL`. It is the durable storage substrate for the tamper-evident audit log: every\u2026",
+ "open_gaps": [
+  {
+   "gap": "NO physical migration file exists. There is no db/ directory and no db/migrations/008_gate_audit_log.sql on disk \u2014 the component is spec-only. In a spec-stage repo this may be expected, but it means every DDL claim is unverifiable against an artifact and task 28.8's deliverable is prose, not a file.",
+   "severity": "missing-wiring",
+   "fix": "Create db/migrations/008_gate_audit_log.sql containing the exact CREATE TABLE from design.md:1156-1167 so task 28.8 produces a real artifact.",
+   "cit": "design.md:142"
+  },
+  {
+   "gap": "seq/created_at chicken-and-egg: entry_hash is defined to INCLUDE seq (BIGSERIAL, DB-assigned) and created_at (DEFAULT now(), DB-assigned), but the producer signature audit_log.append(event, tool, decision, reason, requirement_id, actor_agent) takes NEITHER. The producer cannot compute entry_hash before the INSERT assigns seq/created_at, so the hash must be computed post-INSERT (an UPDATE \u2014 contradicting append-only) or seq/created_at must be client-assigned. The write protocol is underspecified.",
+   "severity": "underspecified",
+   "fix": "Either (a) drop seq and created_at from the hashed canonical form and hash only client-known fields, or (b) have append() pre-assign seq (SELECT nextval) and created_at client-side and pass them into the canonical row; pin the choice in requirements.md:461 / design.md:1170-1172 and task 52.1.",
+   "cit": "design.md:1166, 1172; tasks.md:968"
+  },
+  {
+   "gap": "'append-only' is asserted (REQ-AUDIT-001 requirements.md:457; DDL header design.md:1155) but NOT enforced by the DDL \u2014 no REVOKE UPDATE/DELETE, no BEFORE UPDATE/DELETE trigger, no rule. A superuser/agent can silently UPDATE or DELETE rows; tamper-evidence is detection-only (caught at next verify), never prevention. For a tamper-evident log this is the core weakness.",
+   "severity": "defect",
+   "fix": "Add to 008: REVOKE UPDATE, DELETE ON gate_audit_log FROM the app role, plus a trigger raising on UPDATE/DELETE; state in requirements.md:457 that append-only is DB-enforced, not advisory.",
+   "cit": "requirements.md:457"
+  },
+  {
+   "gap": "Field-name drift: REQ-AUDIT-001 lists the logged fields as including 'timestamp' (requirements.md:457), but the DDL/canonical form name the column 'created_at' (design.md:1164) and the producer append() signature omits the timestamp entirely (requirements.md:460). Three different surfaces for the same field.",
+   "severity": "inconsistency",
+   "fix": "Normalize to created_at everywhere: change requirements.md:457 'timestamp' -> 'created_at (timestamp)' and note in Req 27.4/27.5 that created_at is DB-assigned (DEFAULT now()) hence not a producer argument.",
+   "cit": "requirements.md:457"
+  },
+  {
+   "gap": "Dangling Z3 CHECK citation: the requirements cross-ref matrix lists Z3 group 'CHECK (audit chain)' for Property 28 / Requirement 27 (requirements.md:510), but formal_verification_merged.py contains NO such check (new-8 group is CHECK-10a..13b, none audit-related; harness lines 17-18, 520). Property 28 itself correctly says 'no Z3 check \u2014 runtime/CI verified' (design.md:1110), so the matrix entry contradicts both the property block and the harness.",
+   "severity": "inconsistency",
+   "fix": "Change the requirements.md:510 matrix cell from 'CHECK (audit chain)' to '\u2014 (runtime/CI, no Z3)' to match design.md:1110 and the harness self-count.",
+   "cit": "requirements.md:510"
+  },
+  {
+   "gap": "Nullable fields + 'deterministic JSON' canonical form is underspecified for hashing. tool_name, reason, requirement_id are nullable (design.md:1159,1161,1162). The canonical-JSON serialization of NULL (omit key? null literal? empty string?) is never pinned, so producer vs verifier may serialize NULL differently, producing divergent entry_hash and spurious tamper-failures.",
+   "severity": "underspecified",
+   "fix": "Pin the NULL/None serialization rule in Req 27.5 / design.md:1170 (e.g. JSON null literal, keys always present, sort_keys=true, UTF-8, no whitespace) and require audit_log.py and audit_verify.py to share one canonicalizer.",
+   "cit": "design.md:1170"
+  },
+  {
+   "gap": "Postgres-unavailable fallback breaks chain determinism. Under DB-down the producer 'appends to the file-backed log and reconciles on reconnect' (tasks.md:730), but seq (BIGSERIAL) does not exist in the file backend and seq is part of the hashed canonical form. On reconnect, DB-assigned seq values differ from any file placeholder, so re-hashing will not reproduce the file-time entry_hash \u2014 reconciliation is undefined.",
+   "severity": "underspecified",
+   "fix": "Use a client-generated monotonic seq (UUIDv7 / hybrid logical clock) that survives both backends, or specify that file-era entry_hashes are recomputed/re-chained on reconnect; add to tasks.md:730 and Requirement 27.",
+   "cit": "tasks.md:730"
+  },
+  {
+   "gap": "design.md/tasks.md coverage of THIS migration is thin: it is a single inventory row (design.md:142) plus a single task bullet (tasks.md:453-456). The DDL/algorithm live separately in the Merge Reconciliation Addendum (design.md:1156-1177) and Requirement 27; task 28.8 alone gives columns but not the genesis sentinel, NULL rule, or append-only enforcement. The thinness is itself a gap.",
+   "severity": "underspecified",
+   "fix": "In task 28.8 (tasks.md:453-456) add an explicit cross-reference to design.md:1168-1177 and requirements.md:461-462, and inline the append-only-enforcement and NULL-serialization requirements so the migration is fully specified in one place.",
+   "cit": "tasks.md:453"
+  },
+  {
+   "gap": "No FK from gate_audit_log.requirement_id to requirements(id), unlike every sibling table (coverage_items, traceability_links, evidence_records, run_state all REFERENCE requirements(id)). requirement_id is a bare nullable TEXT, so a decision can reference a non-existent requirement and still persist, weakening the 'requirement ID' traceability of REQ-AUDIT-001.",
+   "severity": "underspecified",
+   "fix": "Either add requirement_id TEXT REFERENCES requirements(id) (matching sibling tables design.md:445,456,467,484) or explicitly document why audit rows intentionally allow dangling/absent requirement_id (e.g. plan-gate decisions before any requirement is active).",
+   "cit": "design.md:1162"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "contradiction",
+   "detail": "Property 28 (the sole correctness property pinning gate_audit_log / this migration) cites the WRONG requirement number. design.md:1110 reads 'Validates: Requirements 28 (REQ-AUDIT-001/002)', but Requirement 28 is 'Capability-Role Taxonomy Extension (Optional)' (requirements.md:464). The audit-log requirement is Requirement 27 (requirements.md:455). Meanwhile the requirements cross-ref matrix correctly maps Property 28 to 'Requirement 27' (requirements.md:510). So design.md Property 28 and the requirements.md:510 matrix disagree on which requirement Property 28 validates. This is a hard spec-internal contradiction directly on this component, and the draft missed it entirely \u2014 its ears_stories\u2026",
+   "cit": "design.md:1110 vs requirements.md:455,464,510"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "The mis-numbering is systematic across the entire Reconciliation property block, which makes the Property-28 error part of a corrupted shuffle the draft should have surfaced: Property 25 (Amendment) 'Validates: Requirements 26' but amendment is Requirement 22 (req 26 = Reasoning-Loop Detection); Property 26 (Resumed-State) 'Validates: Requirements 27' but resumed-state is Requirement 23 (req 27 = the audit log itself); Property 27 (Checklist) 'Validates: Requirements 25' but checklist is Requirement 24; Property 28 (Audit) 'Validates: Requirements 28' but audit is Requirement 27. Property 26's wrong pointer (27) collides with the audit log's own true number, and Property 28's wrong pointer (\u2026",
+   "cit": "design.md:1080,1090,1100,1110; requirements.md:431,435,440,455"
+  },
+  {
+   "kind": "missing",
+   "detail": "Requirement-tag drift on the migration's own task is not flagged. tasks.md:456 tags task 28.8 (write 008_gate_audit_log.sql) as '_Requirements: 16.1 (REQ-AUDIT-001..003)_'. Requirement 16.1 is the spine-smoke-test requirement (tasks.md:281, '16.1 Write tests/smoke/test_spine_e2e.py'), unrelated to the audit log; '16.1' is a boilerplate phase tag copy-pasted across the whole Phase-2 migration block (tasks.md:421,426,431,435,439,443,451,460 all carry 16.1). The real requirement is 27 / REQ-AUDIT-001..003. The draft's by_whom/when sections cite tasks.md:453-456 as the authoritative task spec but never note that the task's machine-readable _Requirements_ pointer is wrong for this migration. This\u2026",
+   "cit": "tasks.md:456 vs tasks.md:281"
+  },
+  {
+   "kind": "missing",
+   "detail": "REQ-AUDIT-003's RETENTION obligation has no policy and the draft does not flag it as a gap. REQ-AUDIT-003 (requirements.md:459; PRD:63) says 'THE System SHALL RETAIN the hash-chained gate-decision log as the execution-proof complement to SLSA', and PRD:109/41 tie it to EU AI Act log substrate. The migration defines no retention window, no archival/partitioning, no CREATE INDEX on gate_audit_log (grep for INDEX/retention/partition on this table returns nothing in design.md). For an append-only log positioned as a long-lived compliance substrate, 'retain' is asserted but never operationalized (how long, where, immutability of archived segments). The draft's REQ-AUDIT-003 ears_story marks statu\u2026",
+   "cit": "requirements.md:459; PRD_MERGED_canonical_spec_to_evidence.md:63,109"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's open_gap on the dangling Z3 citation is correct but understates the scope of corroboration and slightly misstates the harness self-description. The harness new-8 group is documented at formal_verification_merged.py:17-18 as 'CHECK-10a..13b \u2014 amendment monotonicity, resumed-state integrity, [checklist-approval CHECK-12], [omission-declaration CHECK-13a/13b]', and the runtime banner at line 520 prints 'new-8 (CHECK-10a..13b)'. I confirmed by reading the file (located at verification/formal_verification_merged.py, NOT repo root as the draft's bare 'formal_verification_merged.py:520' citation implies) that grep for audit/chain/hash/tamper/prev_hash/entry_hash yields ZERO audit-chain \u2026",
+   "cit": "verification/formal_verification_merged.py:17-18,520"
+  },
+  {
+   "kind": "missing",
+   "detail": "No INDEX on the chain-walk / verification access path. audit_verify.py and the required CI check 'audit-chain-verify' (tasks.md:700-701) must full-scan gate_audit_log ordered by seq to recompute the chain; the table grows unbounded (one row per gate decision, written by 3 hooks on EVERY allow/block, design.md:209,210,217). seq is the BIGSERIAL PK so ORDER BY seq is index-backed, but there is no index supporting per-session or per-requirement_id audit queries, and no spec statement that whole-table re-hash at merge is acceptable at scale. The draft enumerates 9 open_gaps but none addresses the verification-time scan cost / indexing of an unbounded append-only log \u2014 a real operability gap for \u2026",
+   "cit": "design.md:1156-1167; tasks.md:700-701"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-AUDIT-001 / Requirement 27.1",
+   "criterion": "THE System SHALL append every gate decision (event, tool, allow/block, reason, requirement ID, actor agent, timestamp) to an append-only, hash-chained audit log where each entry stores the hash of the prior entry.",
+   "how": "The gate_audit_log table provides exactly these columns (event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at) plus prev_hash/entry_hash for chaining. The migration is the storage realization of this criterion.",
+   "status": "partial",
+   "cit": "requirements.md:457; design.md:1156-1167"
+  },
+  {
+   "req_id": "REQ-AUDIT-003 / Requirement 27.3",
+   "criterion": "THE System SHALL retain the hash-chained gate-decision log as the execution-proof complement to SLSA build provenance.",
+   "how": "The table IS the durable retained log. Satisfied by the table's existence + append-only intent.",
+   "status": "partial",
+   "cit": "requirements.md:459; PRD_MERGED_canonical_spec_to_evidence.md:63"
+  },
+  {
+   "req_id": "Requirement 27.4 (Producer)",
+   "criterion": "a new tools/audit_log.py SHALL expose append(event, tool, decision, reason, requirement_id, actor_agent), CALLED by stop_hook.py, pre_tool_use_hook.py, subagent_stop_hook.py; audit_verify.py SHALL recompute the chain.",
+   "how": "The migration defines the write target; the producer/verifier are separate components (tasks 52.1/52.2/52.3). Wiring is specified but the producer signature omits seq/created_at needed to compute entry_hash.",
+   "status": "partial",
+   "cit": "requirements.md:460; tasks.md:968-970"
+  },
+  {
+   "req_id": "Requirement 27.5 (Hash-chain canonical form)",
+   "criterion": "genesis prev_hash = sha256(empty); canonical form = deterministic JSON of (seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at); entry_hash = sha256(canonical_row || prev_hash) INCLUDING seq and created_at.",
+   "how": "DDL comment block pins the algorithm; column set matches the canonical tuple. Consistent across requirements.md/design.md/tasks.md.",
+   "status": "partial",
+   "cit": "requirements.md:461; design.md:1168-1172; tasks.md:455"
+  },
+  {
+   "req_id": "Property 28",
+   "criterion": "For any gate_audit_log chain, recomputing each entry_hash as sha256(canonical_row || prev_hash) (genesis prev_hash = sha256(empty)) shall reproduce every stored entry_hash; any row whose prev_hash != recomputed digest of prior row shall fail verification.",
+   "how": "This is THE property pinning the table. Explicitly runtime/CI-verified (no Z3 check). Test authored in task 39.18 (test_audit_log.py).",
+   "status": "partial",
+   "cit": "design.md:1104-1110; tasks.md:679-682"
+  },
+  {
+   "req_id": "Property 24 (actor_agent)",
+   "criterion": "the actor_agent identity shall be the Verifier subagent, not the Implementer.",
+   "how": "gate_audit_log.actor_agent NOT NULL carries the deciding agent; same canonical actor_agent naming as evidence_records (Property 24 is enforced on evidence_records, not directly on gate_audit_log).",
+   "status": "partial",
+   "cit": "design.md:1163, 1066-1070; design.md:473"
+  },
+  {
+   "req_id": "Z3 matrix row (audit-log tamper-evidence)",
+   "criterion": "Local invariant row: Property 28 / Z3 group 'CHECK (audit chain)' / Requirement 27.",
+   "how": "The matrix names a Z3 group 'CHECK (audit chain)' that does NOT exist in formal_verification_merged.py (new-8 group is CHECK-10a..13b, none audit-related). Dangling citation.",
+   "status": "gap",
+   "cit": "requirements.md:510; formal_verification_merged.py:520"
+  }
+ ],
+ "citation_issues": []
+}

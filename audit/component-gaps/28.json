@@ -1,0 +1,226 @@
+{
+ "idx": 28,
+ "component": "verifier.md",
+ "file_path": ".claude/agents/verifier.md",
+ "phase": "0",
+ "what": "The Verifier (`.claude/agents/verifier.md`) is a Phase-0 Claude Code subagent **definition** (a Markdown agent spec, not executable code) for the independent evaluator that performs completion verification of each implemented slice. Per the canonical design (design.md:253-267, requirements.md:20 glossary), it is configured to: (a) run the verification engine across FIVE layers \u2014 structural (lint/type-check/AST), semantic (unit+integration tests), behavioral (Playwright CLI trace/screenshot capture), security (Semgrep+CodeQL SAST), and performance+accessibility (k6/Lighthouse + axe-core via the `perf_a11y_verifier` capability, REQ-VERIFY-007/008); (b) assemble a complete 4-field Evidence_Reco\u2026",
+ "open_gaps": [
+  {
+   "gap": "verifier.md DOES NOT EXIST. The Phase-0 spine component is fully specified in requirements/design/tasks but the file is absent \u2014 .claude/agents/ contains only a git-tracked, 0-byte .gitkeep. None of the four subagents (initializer/implementer/verifier/research) exist. The entire Phase-0 spine (hooks + agents + tools) is unbuilt despite the spec presenting it as the runnable hard-prerequisite.",
+   "severity": "missing-wiring",
+   "fix": "Author .claude/agents/verifier.md per design.md:253-267 with Claude Code agent frontmatter (name, description, tools allowlist excluding Write/Edit on src/, model) and the read-only-src / write-tests+status permission scope; this is tasks.md task 10.3. Until built, every Requirement-9 criterion is a gap, not 'addressed'.",
+   "cit": "tasks.md:213; design.md:154,629; .claude/agents/ contains only .gitkeep"
+  },
+  {
+   "gap": "Property 24 (implementer-cannot-self-verify) has NO enforcement mechanism. The only artifact is a comment on the evidence_records.actor_agent SQL column. No hook or tool validates that actor_agent != 'implementer.md' at evidence-write time. SubagentStop validates only the 4-field schema and omission_declaration \u2014 not the verifier-vs-implementer identity. The PBT (task 39.13) asserts rejection of implementer-authored records but no design component implements that rejection.",
+   "severity": "missing-wiring",
+   "fix": "Add an actor-identity check to subagent_stop_hook.py (or the PreToolUse status guard): block any feature_list.json status\u2192proven write or evidence_records insert whose actor_agent equals the implementer that produced the slice. Add a Z3 CHECK modeling role separation (currently none exists). Cite the new mechanism from design.md Property 24.",
+   "cit": "design.md:473,1066-1070; tasks.md:652-656; requirements.md:466"
+  },
+  {
+   "gap": "Layer-count contradiction across canonical files: requirements.md:186 and design.md:255 say the Verifier runs FIVE layers; the PRD (PRD_MERGED:35) describes 'a four-layer verification engine (structural, semantic, behavioral, security) plus a performance/accessibility layer'. The PRD never restates this as 'five layers' and never carries the original REQ-VERIFY-001..006 text \u2014 it only references REQ-VERIFY-007/008. A reader of the PRD alone sees four layers.",
+   "severity": "inconsistency",
+   "fix": "Normalize the PRD wording to 'five-layer verification engine' and include the REQ-VERIFY-001..006 definitions, or add an explicit note that the four-layer engine + the perf/a11y layer = five layers, matching requirements.md:186 and design.md:255.",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:35; requirements.md:186; design.md:255"
+  },
+  {
+   "gap": "verifier.md has read/write on tests/, yet the PreToolUse artifact guard (design.md:214) blocks any tool 'targeting tests/' as a protected artifact, and the implementer is denied tests/ writes (design.md:251). The two statements conflict: how the Verifier writes tests through a guard that protects tests/ is unspecified. No exception path for the Verifier is defined.",
+   "severity": "underspecified",
+   "fix": "Specify in design.md (artifact-guard row + verifier permissions) the exact carve-out allowing the Verifier subagent to write under tests/ while the guard still blocks the Implementer and destructive ops \u2014 e.g., key the guard on actor_agent or restrict it to test-file deletion/rewrite vs. addition.",
+   "cit": "design.md:214,251,267"
+  },
+  {
+   "gap": "WIRING-failed wiring is dangling. Req 8.2 says THE Verifier marks unreachable WIRING items failed, and wiring_checker.py (task 19) emits WIRING candidates, but no design step connects the Verifier to consume wiring_checker output or to perform the unproven\u2192failed transition. The Verifier's design.md key-behaviors list (255-265) never mentions WIRING handling at all.",
+   "severity": "missing-wiring",
+   "fix": "Add a Verifier key-behavior in design.md:255-265 that ingests wiring_checker.py findings and sets unreachable WIRING items to failed; reference REQ-EXEC-011 and task 47 (WIRING integration-test evidence).",
+   "cit": "requirements.md:173; design.md:135,255-265; tasks.md:959"
+  },
+  {
+   "gap": "Verifier agent frontmatter is entirely unspecified. The Claude Code agent spec requires name/description/tools/model fields (design.md:224 says 'following the Claude Code agent spec') but no canonical file gives the actual tools allowlist, model, or description for verifier.md. 'No write access to implementation' is asserted in prose but never expressed as a concrete tools/permission allowlist that the runtime would enforce.",
+   "severity": "underspecified",
+   "fix": "Add the verifier.md frontmatter to design.md \u00a7Subagent Definitions: explicit tools allowlist (Read, Bash for test runners, the evidence_collector tool; NO Write/Edit/MultiEdit on src/), model selection, and a description. Permission scoping in Claude Code is via the tools allowlist, not prose.",
+   "cit": "design.md:224,253-267"
+  },
+  {
+   "gap": "PBT task 39.13 uses the field name 'acting_agent' ('Generate evidence chains with arbitrary acting_agent identities') while the canonical schema field is 'actor_agent' (design.md:473 explicitly says 'Canonical name is actor_agent everywhere (no acting_agent)'). The role-separation test targets a field name the schema forbids.",
+   "severity": "defect",
+   "fix": "Replace 'acting_agent' with 'actor_agent' in tasks.md:655 to match the canonical evidence_records / gate_audit_log column, per design.md:473.",
+   "cit": "tasks.md:655; design.md:473"
+  },
+  {
+   "gap": "perf_a11y_verifier phase straddle. design.md:146 lists it as Phase '1/3', design.md:1182 says 'Phase 1/3', but the Verifier itself is Phase 0 and task 51 (its implementation) is in the Phase-4-era added-task block. The Verifier ships in Phase 0 missing its fifth layer, yet requirements.md:186 states the Verifier runs all five layers unconditionally \u2014 the spec asserts a Phase-0 capability that is not delivered until Phase 1/3.",
+   "severity": "inconsistency",
+   "fix": "Either scope requirements.md:186 to note the perf/a11y layer activates in Phase 1/3, or move the perf_a11y_verifier to Phase 0. Reconcile the Phase-0 spine claim (five layers) with the deferred task 51.",
+   "cit": "requirements.md:186; design.md:146,1182; tasks.md:966"
+  },
+  {
+   "gap": "Verifier capability not represented as a coverage item. The system requires WIRING/NFR obligations to be first-class coverage items (Req 5.4), and demands no orphan code (Req 6.3), yet the Verifier subagent \u2014 a load-bearing executable artifact \u2014 has no requirement ID reference path defined and would itself be a forward-orphan under orphan_detector.py (task 20). The spec does not say how agent .md files escape orphan detection.",
+   "severity": "underspecified",
+   "fix": "Document in design.md how .claude/agents/*.md definitions relate to coverage items / orphan detection (e.g., exempt the agent-definition files, or give each a requirement trailer), so the Verifier definition is not flagged as an orphan by its own system.",
+   "cit": "requirements.md:125,143; tasks.md:338-344"
+  },
+  {
+   "gap": "Design coverage of the Verifier is thin relative to its centrality. design.md devotes ~13 lines (253-267) to the single most important integrity component, with no sequence detail on: how it is invoked (no settings.json subagent binding shown \u2014 only hooks are wired), how it receives the slice/worktree under test, how it returns its result to SubagentStop, or how the 'does not verify its own output' guarantee is operationally enforced beyond a permission statement. tasks.md task 10.3 is a single 3-bullet item.",
+   "severity": "underspecified",
+   "fix": "Expand design.md Verifier section with: invocation contract (who calls it and with what input \u2014 slice id, worktree path), the return-payload schema (evidence + omission_declaration), the SubagentStop handshake, and the concrete independence-enforcement step (actor_agent identity check). Expand task 10.3 with the frontmatter and the WIRING/perf-a11y/role-check behaviors.",
+   "cit": "design.md:253-267; tasks.md:213-216"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "Requirement 30 (Eval-Gating in CI, REQ-EVAL-001) is mapped to baseline block B08 \u2014 the SAME 'Verification Engine' block that is the Verifier's home (requirements.md:417 '| 30 Eval-Gating in CI | B08 / B11 |'; B08 = Requirement 9 Verification Engine per requirements.md:390). Req 30 is a verification-engine obligation (DeepEval assert_test() metric-threshold gating, faithfulness \u22650.8 / answer-relevancy \u22650.7, required CI check 'deepeval-gate'). The draft's ears_stories enumerate Reqs 9.x, 8.2/8.3, 25.x, 29.x, 15.x, 28.x and Properties 23/24 but NEVER mention Requirement 30. The draft must at minimum decide and state whether eval-gating is a Verifier obligation or a CI-only sibling in the same b\u2026",
+   "cit": "requirements.md:417,480-484,390; design.md:149 (deepeval_gate.py); tasks.md (Req 30)"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft never flags the SubagentStop completeness/empty-string semantics that directly constrain the Verifier's Evidence_Record output. design.md:217 + Phase-0 component #5 (design.md:627) require all four fields 'present AND non-empty', and the Postgres CHECK 'evidence_complete' (design.md:474-477) enforces test_file<>'' AND test_name<>'' AND output_hash<>'' AND collected_at IS NOT NULL. The Verifier is the producer that must satisfy this non-empty constraint, yet the draft's behaviors/outputs describe a '4-field Evidence_Record' without noting the non-EMPTY (not merely non-absent) obligation that the Verifier's evidence_collector output must meet \u2014 Property 2 / CHECK-7c is specifically a\u2026",
+   "cit": "design.md:217,474-477,627; design.md:890-894 (Property 2); requirements.md:127 (REQ-COV-006, CHECK-7a/7c)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft asserts (Property 24 entry, open_gaps #2, properties_and_checks) that there is 'NO Z3 CHECK' modeling Verifier role-separation \u2014 this is CORRECT and verified against the harness (verification/formal_verification_merged.py has CHECK-7 family for evidence schema and CHECK-13 family for omission, neither references actor_agent/verifier/implementer; the CHECK-13 axiom uses a generic 'subagentAccepted13' boolean with no per-subagent identity, lines 481-500). HOWEVER the draft OVERSTATES the specificity of CHECK-13 to the Verifier in two places: it lists 'Z3 CHECK-13a/13b \u2014 omission-declaration gate applying to verifier output' as a Verifier check and an ears_story 'how_addressed' for Re\u2026",
+   "cit": "verification/formal_verification_merged.py:481-500,311-338; design.md:1124-1130"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft omits the Stop-hook completion-path coupling that is load-bearing for the Verifier's terminal effect. design.md:728-736 (evaluate_stop) shows the completion gate counts ONLY in_scope items and blocks unless every in-scope item is EXACTLY 'proven' (status != 'proven' \u2192 block, fail-closed). The Verifier's unproven\u2192proven flip is therefore the ONLY thing that can clear the Stop gate, and crucially a Verifier-set 'failed' status (its REQ-EXEC-011 / Req 5.8 transition) does NOT count as proven and so KEEPS the Stop gate blocked \u2014 coupling the Verifier's WIRING-failed transition to perpetual Stop-block until a human/retry intervenes. The draft mentions the unproven\u2192failed transition but \u2026",
+   "cit": "design.md:728-736,690; requirements.md:128,129 (Req 5.7, 5.8)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's config_settings/properties cite Property 2 evidence-schema location as 'design.md:890-894' and CHECK-7a/7c at 'formal_verification_merged.py:312-338'. Verified the line ranges are accurate, BUT the draft frames Property 2 / CHECK-7 as a check 'the Verifier's records must satisfy' \u2014 these are generic CoverageItem/Evidence_Record schema gates owned by Requirement 5/REQ-COV-006 and enforced at the SubagentStop hook and Postgres CHECK, NOT by the Verifier. The Verifier is one producer subject to them, but the draft's properties_and_checks list implies component-ownership ('the Verifier's evidence assembly must yield all four non-empty fields'). This slightly overstates Verifier owner\u2026",
+   "cit": "design.md:890-894; requirements.md:127 (REQ-COV-006); verification/formal_verification_merged.py:311-338"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft does not capture that Phase-0 spine test #7 (design.md:629) specifies the Verifier's acceptance test as 'Has no write permission on src/; CAN write Evidence_Records to feature_list.json' \u2014 i.e. the canonical test phrases the Verifier write target as writing 'Evidence_Records to feature_list.json', which is BROADER than the draft's repeated claim that the Verifier writes 'the status field only'. design.md:629 implies the Verifier writes the evidence sub-object into feature_list.json (status + evidence), whereas design.md:267 and tasks.md:214 say 'feature_list.json status field only'. This is an intra-design inconsistency about the Verifier's exact write scope (status-field-only vs. \u2026",
+   "cit": "design.md:629,267,381-384; tasks.md:214"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's layer-count contradiction gap (open_gaps #3, PRD four-layer vs requirements/design five-layer) is REAL and correctly identified, but the citation/quote is imprecise. The PRD actually says (PRD_MERGED:35) 'a four-layer verification engine (structural, semantic, behavioral, security) plus a performance/accessibility layer (new, REQ-VERIFY-007)' \u2014 it DOES explicitly append the fifth layer in the same clause, and PRD:58 carries REQ-VERIFY-007 in full. So the PRD does describe 4+1 layers inline, not a bare 'four layers' a reader would mistake for the total. The draft's claim 'A reader of the PRD alone sees four layers' overstates the contradiction \u2014 the PRD reader sees four-plus-one i\u2026",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:35,58; requirements.md:186; design.md:255"
+  },
+  {
+   "kind": "missing",
+   "detail": "Requirement 9.4 (PostToolUse runs lint/SAST/wiring) is marked 'addressed' in the draft as a non-Verifier obligation, but the draft never surfaces the DUPLICATION/ordering obligation it implies for the Verifier: PostToolUse runs lint+SAST+wiring as next-turn feedback (design.md:216, non-blocking, exit 1), while the Verifier RE-runs structural (lint/type/AST) and security (Semgrep+CodeQL) and consumes wiring as authoritative gates (design.md:258,261). The spec nowhere reconciles whether the Verifier re-executes the same checks PostToolUse already ran or trusts PostToolUse output \u2014 an efficiency/consistency obligation on the verification engine. The draft notes 'potential duplication' in one ea\u2026",
+   "cit": "design.md:216,258,261; requirements.md:189"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Requirement 9.1 / REQ-VERIFY-001",
+   "criterion": "THE System SHALL verify each Slice across five layers: structural (lint, type checking, AST), semantic (unit+integration tests), behavioral (E2E via Playwright), security (SAST via Semgrep_CodeQL), and performance+accessibility (k6/Lighthouse + axe-core).",
+   "how": "design.md:255-262 lists all five layers as Verifier key behaviors; tasks.md 10.3 specifies the first four layers, task 51 adds the fifth (perf_a11y_verifier). But the agent file is unbuilt.",
+   "status": "gap",
+   "cit": "requirements.md:186; design.md:255-262; tasks.md:213-216,966"
+  },
+  {
+   "req_id": "Requirement 9.2 / REQ-VERIFY-002",
+   "criterion": "THE System SHALL perform completion verification with the independent Verifier that has no write access to the implementation; the implementer SHALL NOT verify its own output.",
+   "how": "Verifier permissions in design.md:267 state read-only on impl source. Property 24 (design.md:1066) formalizes implementer-cannot-self-verify. However NO runtime mechanism enforces actor_agent != implementer \u2014 it is only a SQL comment; no hook/tool checks it. Unbuilt.",
+   "status": "gap",
+   "cit": "requirements.md:187; design.md:267,1066-1070; design.md:473"
+  },
+  {
+   "req_id": "Requirement 9.3 / REQ-VERIFY-003",
+   "criterion": "WHEN a behavioral check runs, THE Verifier SHALL produce a captured artifact (trace, screenshot, or test output) attached as an Evidence_Record.",
+   "how": "design.md:260 'Runs behavioral checks via Playwright CLI \u2014 captures trace/screenshot as evidence artifact'; tasks.md 10.3 + 15.1 (Playwright CI). Spec'd, unbuilt.",
+   "status": "gap",
+   "cit": "requirements.md:188; design.md:260; tasks.md:215,276"
+  },
+  {
+   "req_id": "Requirement 9.6 / REQ-VERIFY-006",
+   "criterion": "THE System SHALL set target line-coverage threshold on touched files to DEFAULT 85% (configurable), failing the Slice if coverage falls below.",
+   "how": "design.md:265 'Enforces line-coverage threshold \u226585% on touched files, reading from coverage.json produced by pytest-cov'. Property 23 (design.md:1058) binds it. Verifier reads, threshold owned by Req 20 registry. Unbuilt.",
+   "status": "gap",
+   "cit": "requirements.md:191; design.md:265,1058-1062"
+  },
+  {
+   "req_id": "Requirement 8.2 / REQ-EXEC-011",
+   "criterion": "IF a handler, route, job, or callback exists but is unreachable from any real execution path, THEN THE Verifier SHALL mark the corresponding WIRING item failed.",
+   "how": "Names the Verifier as the actor that marks WIRING items failed; requirements.md:129 enumerates the unproven\u2192failed transition as 'Verifier on a dead check'. The Verifier agent file that would do this is absent; wiring_checker.py (task 19) emits candidates but the design does not wire the Verifier to\u2026",
+   "status": "gap",
+   "cit": "requirements.md:173,129; design.md:374"
+  },
+  {
+   "req_id": "Requirement 8.3 / REQ-EXEC-012",
+   "criterion": "WHEN a WIRING item is claimed proven, THE System SHALL require an integration test exercising the real execution path as the attached Evidence_Record.",
+   "how": "Task 47 (previously untasked) adds WIRING integration-test evidence. The Verifier is the agent that would attach it but is unbuilt; design.md's Verifier behaviors (255-265) do not mention the WIRING-integration-test special case.",
+   "status": "gap",
+   "cit": "requirements.md:174; tasks.md:959"
+  },
+  {
+   "req_id": "Requirement 25.1 / REQ-VERIFY-007",
+   "criterion": "WHEN an NFR item of subtype performance is verified, THE System SHALL run k6/Lighthouse against numeric budgets and attach the result as the Evidence_Record.",
+   "how": "perf_a11y_verifier capability within verifier.md (design.md:146,262,1182); task 51. Capability + host agent both unbuilt.",
+   "status": "gap",
+   "cit": "requirements.md:447; design.md:146,262; tasks.md:966"
+  },
+  {
+   "req_id": "Requirement 25.2 / REQ-VERIFY-008",
+   "criterion": "WHEN an NFR item of subtype accessibility is verified, THE System SHALL run axe-core and require zero WCAG-A/AA violations on covered screens.",
+   "how": "Same perf_a11y_verifier capability (design.md:262, task 51). Unbuilt.",
+   "status": "gap",
+   "cit": "requirements.md:448; design.md:262; tasks.md:966"
+  },
+  {
+   "req_id": "Requirement 25.3 / REQ-VERIFY-008",
+   "criterion": "THE System SHALL treat UI-screen completeness as a verification target: every declared screen/state (incl. empty, loading, error) SHALL have a behavioral test asserting it renders.",
+   "how": "task 51 asserts every declared screen/state has a render test, via the Verifier. Unbuilt.",
+   "status": "gap",
+   "cit": "requirements.md:449; tasks.md:966"
+  },
+  {
+   "req_id": "Requirement 9.5 / REQ-VERIFY-005",
+   "criterion": "IF a subagent's result lacks required evidence markers, THEN THE SubagentStop_Hook SHALL block acceptance of that result.",
+   "how": "Enforced by subagent_stop_hook.py (design.md:217), NOT by the Verifier \u2014 but it gates the Verifier's returned result. SubagentStop also unbuilt (only .gitkeep in .claude/hooks/).",
+   "status": "gap",
+   "cit": "requirements.md:190; design.md:217; tasks.md:177-183"
+  },
+  {
+   "req_id": "Requirement 29.1/29.2 / REQ-SPEC-018",
+   "criterion": "WHEN a subagent (initializer, research, VERIFIER) completes a pass, its output SHALL include a non-null omission_declaration; SubagentStop SHALL reject (exit 2) any result whose omission_declaration is absent/null.",
+   "how": "Verifier is explicitly named as one of the three subagents whose output must carry omission_declaration (requirements.md:476); enforced by omission_guard in subagent_stop_hook.py (design.md:148,218). The Verifier's output SCHEMA must include this field (task 54). Verifier + schema unbuilt.",
+   "status": "gap",
+   "cit": "requirements.md:476-478; design.md:148,218,1124-1130; tasks.md:974"
+  },
+  {
+   "req_id": "Requirement 15.1 / REQ-ORCH-001",
+   "criterion": "THE System SHALL use Claude Code subagents and hooks as the inner planner/implementer/verifier orchestrator and SHALL NOT introduce an external agent-reasoning framework by default.",
+   "how": "Verifier is one of the named inner-loop subagents; task 43 wires the loop. Wiring task and the verifier subagent both unbuilt.",
+   "status": "gap",
+   "cit": "requirements.md:282; tasks.md:953"
+  },
+  {
+   "req_id": "Requirement 28.1 / REQ-ORCH-004 (OPTIONAL)",
+   "criterion": "WHERE a project requires roles beyond planner/implementer/verifier/research, additional bounded subagent roles SHALL be added; none SHALL have verifier write access.",
+   "how": "Establishes the Verifier as the canonical role whose write access defines the boundary that new optional roles must not breach (requirements.md:466). Bounds the Verifier negatively. Optional, untasked beyond mention (design.md:1185).",
+   "status": "partial",
+   "cit": "requirements.md:466; design.md:1185"
+  },
+  {
+   "req_id": "Property 24 (design.md)",
+   "criterion": "For any verification action in the evidence chain, the actor_agent identity SHALL be the Verifier (verifier.md), not the Implementer (implementer.md). No Evidence_Record may be created by an agent that also wrote the implementation.",
+   "how": "Stated as a correctness property + PBT task 39.13. The property test (tasks.md:655) asserts records with acting_agent=='implementer.md' are rejected \u2014 but NO design component implements that rejection. evidence_records.actor_agent is just a column; no hook/tool validates the identity. Pure assertion\u2026",
+   "status": "gap",
+   "cit": "design.md:1066-1070; tasks.md:652-656; requirements.md:466"
+  },
+  {
+   "req_id": "Property 23 (design.md)",
+   "criterion": "For any completed slice, if any touched file has line coverage below DEFAULT 85%, the Verifier SHALL mark the slice failed and NOT emit proven for the item.",
+   "how": "Bound to Verifier behavior (design.md:265). PBT task 39.12. The agent enforcing it is unbuilt; coverage.json/pytest-cov producer (task 51) unbuilt.",
+   "status": "gap",
+   "cit": "design.md:1058-1062; tasks.md:646-650"
+  },
+  {
+   "req_id": "Requirement 9 glossary 'Verifier'",
+   "criterion": "Verifier: The independent evaluator subagent that performs completion verification. It has no write access to the implementation and does not verify its own output.",
+   "how": "Glossary definition (requirements.md:20). Realized as design.md:253-267 subagent definition. File absent.",
+   "status": "gap",
+   "cit": "requirements.md:20"
+  }
+ ],
+ "citation_issues": []
+}

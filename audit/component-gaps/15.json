@@ -1,0 +1,182 @@
+{
+ "idx": 15,
+ "component": "db/migrations/007_requirement_versions.sql",
+ "file_path": "db/migrations/007_requirement_versions.sql",
+ "phase": "2",
+ "what": "A Phase-2 Postgres DDL migration file (`db/migrations/007_requirement_versions.sql`) whose sole obligation is to CREATE the `requirement_versions` amendment-history table \u2014 the 7th of 8 tables in the durable store. Per the canonical DDL (design.md:1141-1151) it creates: `id SERIAL PRIMARY KEY`, `requirement_id TEXT NOT NULL REFERENCES requirements(id)`, `version INTEGER NOT NULL`, `prior_text TEXT` (nullable), `new_text TEXT NOT NULL`, `author TEXT NOT NULL`, `rationale TEXT NOT NULL`, `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`, and `UNIQUE (requirement_id, version)`. The table is the durable amendment-history substrate for REQ-COV-007 / Requirement 22 (Requirement-Amendment Versioning)\u2026",
+ "open_gaps": [
+  {
+   "gap": "The file does not exist on disk. There is no `db/` directory and no `.sql` file anywhere in the repository (verified by `find ... -name '*.sql'` and `ls`); only README/CHANGELOG/spec/verification dirs exist. Every reference (design.md inventory, tasks 28.7/28.9/33.1, task 48) is to an unimplemented artifact.",
+   "severity": "missing-wiring",
+   "fix": "Either author `db/migrations/007_requirement_versions.sql` with the canonical DDL from design.md:1141-1151, or mark the component status as not-yet-built in the design.md inventory. Right now the inventory row (design.md:141) reads as if it exists.",
+   "cit": "design.md:141"
+  },
+  {
+   "gap": "Column-set conflict between design.md DDL and tasks.md 28.7. The canonical DDL (design.md:1145-1149) defines `prior_text, new_text, author, rationale, created_at`. But task 28.7 (tasks.md:450) specifies different/extra columns: `amended_at`, `amendment_reason`, and 'a flag/marker for whether the amended item has been re-proven' \u2014 NONE of which appear in the DDL (`amended_at` vs `created_at`; `amendment_reason` vs `rationale`; and there is NO reproven-flag column at all). An implementer following tasks.md would build a different table than design.md specifies.",
+   "severity": "inconsistency",
+   "fix": "Reconcile to one column set. Recommend the design.md DDL is canonical: in tasks.md:450 rename `amended_at`\u2192`created_at`, `amendment_reason`\u2192`rationale`, and DROP the reproven-flag (re-proof is tracked by `coverage_items.status` flipping back to 'proven', not by a column on this table \u2014 otherwise it duplicates state and risks divergence).",
+   "cit": "tasks.md:450 vs design.md:1145-1149"
+  },
+  {
+   "gap": "Requirement-number citation is inconsistent across three files for the same component. design.md Property 25 says 'Validates: Requirements 26 (REQ-COV-007)' (design.md:1080) \u2014 but REQ-COV-007 is Requirement 22 (requirements.md:409,432,507); Requirement 26 is REQ-OBS-006 Reasoning-Loop Detection (requirements.md:413,451). Separately, task 28.7 cites `_Requirements: 16.1 (REQ-COV-007)_` (Req 16 = REQ-STORE durable storage) while task 39.15 cites `_Requirements: 5.2 (REQ-COV-007)_` (Req 5 = coverage model). Four different requirement numbers (16.1, 5.2, 22, 26) are attached to one REQ-ID.",
+   "severity": "defect",
+   "fix": "Fix design.md:1080 to read 'Validates: Requirement 22 (REQ-COV-007)'. Standardize task citations: 28.7 and 39.15 should cite Requirement 22 (or 22.1) as the substantive requirement, optionally retaining 16.1 only as the durable-storage cross-cut. The canonical mapping is requirements.md:507 (invariant 8 \u2192 Property 25 \u2192 CHECK-10a/10b \u2192 Requirement 22).",
+   "cit": "design.md:1080; tasks.md:451,667"
+  },
+  {
+   "gap": "No runtime writer is wired. The amendment flow ('insert a version row AND reset coverage_items.status to unproven', design.md:1152; 'a new requirement_versions row shall be inserted', design.md:1078) names NO producing tool, hook, or agent. This contrasts sharply with the sibling gate_audit_log table in the SAME addendum, which explicitly names its producer `tools/audit_log.append(...)` and its callers stop_hook.py/pre_tool_use_hook.py/subagent_stop_hook.py (design.md:1173-1174). Task 48 (the parent feature) likewise states the obligations but names no handler module. The table can be created but nothing populates it or triggers the status reset.",
+   "severity": "missing-wiring",
+   "fix": "Add a task (under task 48) to write e.g. `tools/amendment_handler.py` exposing `record_amendment(requirement_id, new_text, author, rationale)` that (1) inserts the next `version` row and (2) resets the linked `coverage_items.status` to 'unproven' in a single transaction, and name which actor (human operator? a hook? the planner subagent?) invokes it. Mirror the audit_log producer/caller naming pattern from design.md:1173-1174.",
+   "cit": "design.md:1078,1152"
+  },
+  {
+   "gap": "Monotonicity is asserted but not enforced. Property 25 and design.md:1078 require a 'monotonically increasing version', but the only DDL constraint is `UNIQUE (requirement_id, version)` (design.md:1150), which permits non-monotonic or gapped sequences (e.g. inserting version=5 then version=3). The Z3 CHECK-10a/10b prove the abstract invariant but do not touch the integer sequencing.",
+   "severity": "underspecified",
+   "fix": "Specify the monotonicity mechanism: either compute `version = COALESCE(MAX(version),0)+1` inside the (to-be-written) amendment handler's transaction, or add a DB trigger / CHECK enforcing `version = previous_max+1`. State this in design.md near line 1150 and in task 28.7.",
+   "cit": "design.md:1150"
+  },
+  {
+   "gap": "'never overwritten / prior text retained' is policy with no DDL enforcement. design.md:1078 says prior version text 'shall be retained and never overwritten', but the table has no append-only protection (no revoke of UPDATE/DELETE, no trigger). A buggy or malicious update could rewrite history \u2014 undermining the audit purpose.",
+   "severity": "underspecified",
+   "fix": "Either add an append-only guard (REVOKE UPDATE,DELETE on requirement_versions, or a BEFORE UPDATE/DELETE trigger that raises) in the migration, or explicitly note this is enforced at the application layer and name where. Document alongside design.md:1078.",
+   "cit": "design.md:1078"
+  },
+  {
+   "gap": "design.md/tasks.md coverage of this component is thin relative to its sibling. The entire design.md treatment is the 11-line DDL block (1141-1151) plus a one-line Property (1078) and a one-line inventory row (141). There is NO column-by-column rationale, NO index guidance (an index on `requirement_id` for amendment-history lookups is absent), NO statement of who reads the amendment history (UI? audit? the verifier?), and NO transaction/ordering spec for the 'insert row + reset status' pair. The reproven-flag mentioned in tasks (450) is never modeled in design.",
+   "severity": "underspecified",
+   "fix": "Expand design.md to add: (a) an index on `requirement_id`; (b) the transaction boundary for the dual write (version-row insert + status reset must be atomic); (c) who/what consumes amendment history; (d) resolution of the reproven-flag question. State explicitly that re-proof is observed via `coverage_items.status`, not a column here.",
+   "cit": "design.md:1141-1153; tasks.md:450"
+  },
+  {
+   "gap": "The Postgres glossary enumeration is stale. requirements.md:44 lists the durable store's contents as 'requirements, coverage state, traceability links, evidence, and run state' \u2014 omitting amendment history (and the gate-decision audit log), even though both are now first-class durable tables post-reconciliation.",
+   "severity": "inconsistency",
+   "fix": "Update the Postgres glossary entry (requirements.md:44) to add 'requirement-amendment history' and 'gate-decision audit log' to the enumerated durable-store contents.",
+   "cit": "requirements.md:44"
+  },
+  {
+   "gap": "No FK/cascade behavior specified between requirement_versions and coverage_items, nor ON DELETE behavior on the requirements FK. `REFERENCES requirements(id)` has no ON DELETE clause (defaults to NO ACTION), and there is no link to the specific coverage_item being reset \u2014 the amendment row references the requirement but the status-reset targets a coverage_item with no modeled join in the table.",
+   "severity": "underspecified",
+   "fix": "Decide and document ON DELETE behavior for the requirements FK (likely RESTRICT, since history must survive), and clarify how the amendment maps requirement_id \u2192 the coverage_item(s) to reset (1:1? 1:many?). Add to design.md:1143-1152.",
+   "cit": "design.md:1143"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "Task 48 \u2014 the PARENT feature task that owns this component (`Requirement-amendment versioning (REQ-COV-007)`) \u2014 carries NO `_Requirements:_` citation line at all; it ends with `_Z3 CHECK-10a/10b._` and never names a requirement number. The draft's requirement-number-confusion gap enumerates 'Four different requirement numbers (16.1, 5.2, 22, 26)' attached to this REQ-ID, but omits that the single most authoritative task (48) is itself UNCITED. This is a distinct defect from the three the draft lists: a missing citation, not a wrong one. The standardization fix in the draft (gap on design.md:1080 / tasks.md:451,667) should also add a `_Requirements: 22 (REQ-COV-007)_` line to task 48 at tasks\u2026",
+   "cit": "tasks.md:962 (task 48, no _Requirements:_ line) vs tasks.md:451 (28.7 cites 16.1) and tasks.md:667 (39.15 cites 5.2)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft flags design.md:1080's 'Validates: Requirements 26' as the requirement-number defect, but the SAME line contains a SECOND, separate citation error the draft never mentions: 'Machine-checked: CHECK-10' (singular/bare) where the canonical identifier \u2014 used by the harness (formal_verification_merged.py:422,430 'CHECK-10a'/'CHECK-10b'), by requirements.md:507 ('CHECK-10a/10b'), by Requirement 22.1 (requirements.md:433 'Z3 CHECK-10a/10b'), and by tasks 39.15/48 \u2014 is the 'CHECK-10a/10b' pair. The bare 'CHECK-10' is non-canonical. The fix for design.md:1080 should correct BOTH tokens (Requirement 22 AND CHECK-10a/10b), not only the requirement number.",
+   "cit": "design.md:1080 ('Machine-checked: CHECK-10') vs requirements.md:507 and formal_verification_merged.py:422-442"
+  },
+  {
+   "kind": "missing",
+   "detail": "No seeding/initial-version semantics are specified for the `version` column. design.md:1078 and Property 25 require 'monotonically increasing version' for AMENDMENTS, but nothing states whether the pre-amendment baseline requirement is itself recorded as version 0/1 in `requirement_versions`, or whether the table holds amendments only (so the first amendment is version 1 or 2). This directly affects what `prior_text` of the first amendment row is (the original approved text \u2014 which lives in `requirements.id`, not here) and whether `prior_text` being nullable (design.md:1145) is meant to mark a seed row. The draft's monotonicity gap covers gap-freeness but not this 'where does the sequence st\u2026",
+   "cit": "design.md:1144-1145; design.md:1078"
+  },
+  {
+   "kind": "missing",
+   "detail": "The integration tests that 'run' this migration (28.9 tasks.md:459 and 33.1 tasks.md:501) assert only table EXISTENCE and 'correct columns and constraints' \u2014 they do NOT assert this table's specific constraints behave (the `UNIQUE (requirement_id, version)` rejection, the `created_at DEFAULT now()` population, the `requirements(id)` FK rejection on a dangling requirement_id). Contrast: the same tests explicitly assert the `evidence_complete` CHECK rejects incomplete records and `coverage_items.in_scope` defaults true (tasks.md:459-460,501-502). So `requirement_versions` gets weaker test coverage than its sibling tables even at the schema level. The draft treats 28.9/33.1 purely as 'apply' in\u2026",
+   "cit": "tasks.md:459-460 (evidence_complete + in_scope asserted) vs tasks.md:501 (only 'correct columns and constraints' generically for the 8 tables)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's 'no runtime writer is wired' gap names the amendment INSERT and the coverage_items status-reset as unwired, but understates the second half: the status reset must route through the PreToolUse status guard, whose permitted-transition set was specifically WIDENED in reconciliation to admit `failed \u2192 unproven` (on retry/amendment) \u2014 but the amendment flow needs `proven \u2192 unproven`, which is NOT among the four permitted edges listed (unproven\u2192proven, unproven\u2192failed, failed\u2192unproven; design.md:900, requirements.md:129, requirements.md:Req-5.2). A `proven \u2192 unproven` reset on amendment would be BLOCKED by the PreToolUse status guard as currently specified. This is a latent contradicti\u2026",
+   "cit": "design.md:900 + requirements.md:129 (permitted edges omit proven\u2192unproven) vs design.md:1078/1152 (amendment resets status to unproven)"
+  },
+  {
+   "kind": "missing",
+   "detail": "REQ-COV-007 is a `[DET]` UNWANTED-pattern requirement (PRD_MERGED line 54: 'REQ-COV-007 [DET] (Unwanted): IF a requirement is amended after approval...'). The EARS 'Unwanted behavior' pattern (IF/THEN) imposes that the System SHALL PREVENT a false-COMPLETE \u2014 i.e. the obligation is a guard, not just a record. The draft's ears_stories treat the recording (DDL) as the primary obligation and mark the block-COMPLETE half 'out of scope / unwired', but never classify the requirement by its EARS sub-pattern. For an Unwanted-pattern requirement the load-bearing clause is the prohibition ('SHALL NOT permit COMPLETE'), which this DDL component cannot satisfy at all \u2014 strengthening (not just noting) the\u2026",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:54; requirements.md:433"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-COV-007 / Requirement 22.1",
+   "criterion": "IF a requirement is amended after approval, THEN THE System SHALL record a `requirement_versions` row (prior text, new text, author, timestamp, rationale), re-enter the coverage item as `unproven`, and SHALL NOT permit COMPLETE while any amended item is un-reproven.",
+   "how": "The table provides the columns prior_text/new_text/author/created_at(timestamp)/rationale (design.md:1145-1149). The 'record a row' obligation is satisfied by the DDL; the 're-enter unproven' and 'block COMPLETE' obligations are NOT in this DDL (described only as a SQL comment design.md:1152 and enf\u2026",
+   "status": "partial",
+   "cit": "requirements.md:432-433"
+  },
+  {
+   "req_id": "REQ-COV-007 [DET] (PRD, Unwanted pattern)",
+   "criterion": "IF a requirement is amended after approval, THEN its coverage item SHALL re-enter `unproven` (a new version), and the deliverable SHALL NOT be COMPLETE while any amended item is un-reproven. A `requirement_versions` record SHALL capture prior text, new text, author, timestamp, and rationale.",
+   "how": "DDL captures all five fields (prior_text, new_text, author, created_at, rationale). Re-enter/block-COMPLETE clauses are out of this component's scope and unwired.",
+   "status": "partial",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:54"
+  },
+  {
+   "req_id": "Property 25 (Amendment Monotonicity)",
+   "criterion": "For any amendment to a requirement, a new `requirement_versions` row shall be inserted (monotonically increasing `version`) AND the associated `coverage_items.status` shall be reset to `unproven`; the prior version text shall be retained and never overwritten. An amended requirement may not remain `\u2026",
+   "how": "Monotonic `version` is enforced structurally by `UNIQUE (requirement_id, version)` (design.md:1150) \u2014 but uniqueness alone does NOT guarantee monotonicity/gap-freeness (a row could insert version=5 after version=2). 'never overwritten' is policy, not enforced by DDL (no append-only trigger/grant). T\u2026",
+   "status": "partial",
+   "cit": "design.md:1074-1080"
+  },
+  {
+   "req_id": "Requirement 16.1 / Req 16 REQ-STORE-001 (Durable Storage)",
+   "criterion": "THE System SHALL persist requirements, coverage state, traceability links, Evidence_Records, and run state in a managed Postgres database (cited by task 28.7 as `_Requirements: 16.1 (REQ-COV-007)_`).",
+   "how": "This migration adds one of the eight durable tables to the Neon Postgres store. NOTE the citation is mismatched: task 28.7 cites Requirement 16.1, but Req 16 is REQ-STORE-001..003 (durable storage), while the amendment requirement is REQ-COV-007 = Requirement 22 \u2014 the parenthetical '(REQ-COV-007)' c\u2026",
+   "status": "partial",
+   "cit": "tasks.md:451; requirements.md:288-296"
+  },
+  {
+   "req_id": "Glossary: Postgres",
+   "criterion": "The managed relational database used as the durable store for requirements, coverage state, traceability links, evidence, and run state.",
+   "how": "requirement_versions extends this durable store (Neon serverless Postgres, design.md:427). Note the glossary enumerates the durable store's contents but does NOT list amendment-history among them (a stale enumeration post-reconciliation).",
+   "status": "partial",
+   "cit": "requirements.md:44"
+  },
+  {
+   "req_id": "Glossary: Coverage_Item / status enum (implied dependency)",
+   "criterion": "status enum `{unproven,proven,failed}` default `unproven`; permitted transitions include failed\u2192unproven on retry/amendment; only *\u2192proven requires a complete Evidence_Record.",
+   "how": "The amendment flow resets `coverage_items.status` to `unproven`, relying on the coverage_items table (migration 003, task 28.3, tasks.md:429) and the PreToolUse status guard's transition rules (design.md:900). The status-reset write itself is unwired.",
+   "status": "partial",
+   "cit": "tasks.md:27; design.md:374,900"
+  }
+ ],
+ "citation_issues": [
+  "design.md:1141-1151 \u2014 CONFIRMED. Lines 1141-1151 contain the exact CREATE TABLE requirement_versions DDL block cited. All 8 columns and the UNIQUE constraint are present and match the draft exactly.",
+  "design.md:1078 \u2014 CONFIRMED. Line 1078 states: 'For any amendment to a requirement, a new requirement_versions row shall be inserted (monotonically increasing version) AND the associated coverage_items.status shall be reset to unproven; the prior version text shall be retained and never overwritten.' Text matches draft claim.",
+  "design.md:1080 \u2014 CONFIRMED AS DEFECT (draft correctly flags this). Line 1080 reads: 'Validates: Requirements 26 (REQ-COV-007). Machine-checked: CHECK-10 (formal_verification_merged.py).' The draft claims this is a citation error because REQ-COV-007 = Requirement 22 (confirmed at requirements.md:409,432,507) and Requirement 26 = REQ-OBS-006 Reasoning-Loop Detection (confirmed at requirements.md:413,451). The draft's identification of this defect is accurate.",
+  "design.md:141 \u2014 CONFIRMED. Line 141 reads: 'db/migrations/007_requirement_versions.sql | db/migrations/007_requirement_versions.sql | 2 | Creates requirement_versions amendment-history table (REQ-COV-007).' Matches draft claim.",
+  "design.md:1152 \u2014 CONFIRMED. Line 1152 reads: '-- On amendment: insert a version row AND reset coverage_items.status to unproven.' Matches draft claim.",
+  "design.md:1153 \u2014 CONFIRMED. Line 1153 reads: '-- Completion gate already blocks COMPLETE while any item is unproven (CHECK-10a).' Matches draft claim.",
+  "design.md:1142 \u2014 CONFIRMED. Line 1142: 'id SERIAL PRIMARY KEY'. Matches.",
+  "design.md:1143 \u2014 CONFIRMED. Line 1143: 'requirement_id TEXT NOT NULL REFERENCES requirements(id)'. Matches.",
+  "design.md:1144 \u2014 CONFIRMED. Line 1144: 'version INTEGER NOT NULL'. Matches.",
+  "design.md:1145 \u2014 CONFIRMED. Line 1145: 'prior_text TEXT,'. Matches (nullable, no NOT NULL).",
+  "design.md:1146 \u2014 CONFIRMED. Line 1146: 'new_text TEXT NOT NULL,'. Matches.",
+  "design.md:1147 \u2014 CONFIRMED. Line 1147: 'author TEXT NOT NULL,'. Matches.",
+  "design.md:1148 \u2014 CONFIRMED. Line 1148: 'rationale TEXT NOT NULL,'. Matches.",
+  "design.md:1149 \u2014 CONFIRMED. Line 1149: 'created_at TIMESTAMPTZ NOT NULL DEFAULT now(),'. Matches.",
+  "design.md:1150 \u2014 CONFIRMED. Line 1150: 'UNIQUE (requirement_id, version)'. Matches.",
+  "design.md:1173-1174 \u2014 CONFIRMED. Lines 1173-1174 name the audit_log producer and callers exactly as draft states: 'Producer: tools/audit_log.append(event, tool, decision, reason, requirement_id, actor_agent), called by stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py on every allow/block.' Matches.",
+  "design.md:427 \u2014 CONFIRMED. Line 427 reads: 'Eight tables (six original + requirement_versions + gate_audit_log; migrations 001\u2013008). Managed on Neon (serverless Postgres with per-PR branching).' Confirms Neon as durable store.",
+  "design.md:1074-1080 \u2014 CONFIRMED. Lines 1074-1080 contain Property 25: Amendment Monotonicity section including the reconciliation note at 1076 and the Validates line at 1080. Matches draft claims.",
+  "requirements.md:432-433 \u2014 CONFIRMED. Line 432: 'Requirement 22: Requirement-Amendment Versioning / Baseline block: B04 | PRD references: REQ-COV-007'. Line 433: the EARS criterion text about recording a requirement_versions row. Matches draft REQ-COV-007/Requirement 22.1 EARS story citation.",
+  "requirements.md:409 \u2014 CONFIRMED. Line 409: '22 Requirement-Amendment Versioning | B04 | REQ-COV-007'. Confirms Requirement 22 = REQ-COV-007.",
+  "requirements.md:413 \u2014 CONFIRMED. Line 413: '26 Reasoning-Loop Detection | B11 | REQ-OBS-006'. Confirms Requirement 26 = REQ-OBS-006, not REQ-COV-007.",
+  "requirements.md:499 \u2014 CONFIRMED. Line 499: '8. Amendment monotonicity: an amended-but-not-reproven requirement cannot be COMPLETE. (CHECK-10a UNSAT; CHECK-10b SAT.)' Matches draft claim.",
+  "requirements.md:507 \u2014 CONFIRMED. Line 507: '| 8 (amendment monotonicity) | Property 25 | CHECK-10a/10b | Requirement 22 |' \u2014 cross-reference table confirms invariant 8 \u2192 Property 25 \u2192 CHECK-10a/10b \u2192 Requirement 22. Matches draft claim.",
+  "requirements.md:44 \u2014 CONFIRMED. Line 44: 'Postgres: The managed relational database used as the durable store for requirements, coverage state, traceability links, evidence, and run state.' Amendment history is not listed \u2014 stale enumeration as draft claims.",
+  "requirements.md:288-296 \u2014 CONFIRMED. Lines 288-296 contain Requirement 16 (Durable Storage): 'Baseline block: B15 | PRD references: REQ-STORE-001..003', and acceptance criteria 16.1-16.3. Matches draft claim about Req 16 = REQ-STORE-001..003.",
+  "tasks.md:449-451 \u2014 CONFIRMED. Lines 449-451: '[ ] 28.7 Write migration db/migrations/007_requirement_versions.sql *(Reconciliation 2026-06-15: 7th table, supports task 48 \u2014 requirement-amendment versioning / REQ-COV-007)*' and description about requirement_versions table with FK, monotonically increasing version, amended_at, amendment_reason, and a flag/marker. Line 451: '_Requirements: 16.1 (REQ-COV-007)_'. Matches draft claim.",
+  "tasks.md:450 \u2014 CONFIRMED AS COLUMN CONFLICT. Line 450 specifies 'amended_at', 'amendment_reason', and a reproven-flag, while design.md:1145-1149 uses 'created_at', 'rationale', and no reproven-flag. The draft correctly identifies this naming conflict.",
+  "tasks.md:451 \u2014 CONFIRMED. Line 451: '_Requirements: 16.1 (REQ-COV-007)_'. Matches draft citation about tasks.md:451.",
+  "tasks.md:459 \u2014 CONFIRMED. Line 459: '[ ]* 28.9 Write integration tests for Postgres schema / Run all 8 migrations (001\u2013008) on a test Neon branch; assert all EIGHT tables created...'. Matches draft claim.",
+  "tasks.md:501 \u2014 CONFIRMED. Line 501: '[ ] 33.1 Write tests/integration/test_phase2_integration.py / Against a test Neon branch: run all 8 migrations (001\u2013008); assert all EIGHT tables exist...'. Matches draft claim.",
+  "tasks.md:417-418 \u2014 CONFIRMED. Lines 417-418: '[ ] 27.1 Write tools/db_connection.py / Implement get_connection() -> psycopg2.Connection: read DATABASE_URL from environment; support Neon serverless endpoint (SSL required); raise ConfigError if DATABASE_URL unset'. Matches draft claim.",
+  "tasks.md:664-666 \u2014 CONFIRMED. Lines 664-666: '[ ]* 39.15 Write tests/property/test_amendment.py \u2014 Property 25: Amendment Monotonicity (CHECK-10a/10b) / Authored alongside task 48 (requirement-amendment versioning). Generate amendment events on proven items...' and '# Feature: spec-to-evidence-control, Property 25: Amendment Monotonicity'. Matches.",
+  "tasks.md:667 \u2014 CONFIRMED. Line 667: '_Requirements: 5.2 (REQ-COV-007)_'. Matches draft citation at tasks.md:667 (the draft references this under the requirement-number citation inconsistency gap, citing tasks.md:451,667).",
+  "tasks.md:980 \u2014 The draft does not cite line 980 directly, but tasks.md is 980 lines total, confirming all cited line numbers within range.",
+  "PRD_MERGED_canonical_spec_to_evidence.md:54 \u2014 CONFIRMED. Line 54: 'REQ-COV-007 [DET] (Unwanted): IF a requirement is amended after approval, THEN its coverage item SHALL re-enter unproven (a new version), and the deliverable SHALL NOT be COMPLETE while any amended item is un-reproven. A requirement_versions record SHALL capture prior text, new text, author, timestamp, and rationale. (Z3 CHECK-10a/10b.)' Matches draft EARS story citation.",
+  "formal_verification_merged.py:417-427 \u2014 CONFIRMED. Lines 417-427 contain amendment_axioms with 'Implies(And(requirementAmended, Not(amendedItemReproven)), unproven)' at line 419 and CHECK-10a check at lines 422-427. Draft claims line 422-427 for CHECK-10a \u2014 confirmed.",
+  "formal_verification_merged.py:429-442 \u2014 CONFIRMED. Lines 429-442 contain CHECK-10b: 'check(CHECK-10b, core_axioms + amendment_axioms + [...], sat, CHECK-10b: amended \u2227 reproven \u2227 complete is SAT...)'. Matches draft claims.",
+  "PHANTOM CITATION \u2014 design.md:1080 cites 'Requirements 26' for REQ-COV-007, but Requirement 26 is REQ-OBS-006 (Reasoning-Loop Detection) per requirements.md:413,451. The draft correctly identifies this as a defect in design.md:1080. The citation in the draft is accurate in flagging this as an error in the source file.",
+  "CONFIRMED OFF-BY-MANY NOTE: formal_verification_merged.py lines 417 vs 422. The draft cites '417-427' for CHECK-10a and 'Implies(And(...))' at line 417. Actual line 417 is 'amendment_axioms = [' and line 419 is the Implies(...) predicate. The block spans 417-427. The draft's citation range 417-427 is accurate for the amendment_axioms block + CHECK-10a check block.",
+  "tasks.md:451 REQ citation mismatch confirmed: task 28.7 cites '_Requirements: 16.1 (REQ-COV-007)_' where Req 16 = REQ-STORE-001..003 (durable storage) confirmed at requirements.md:288-292. REQ-COV-007 is Requirement 22. The draft correctly identifies this as a defect.",
+  "tasks.md:667 REQ citation: line 667 reads '_Requirements: 5.2 (REQ-COV-007)_'. The draft claims task 39.15 cites 'Requirement 5.2 (REQ-COV-007)'. This is confirmed. Requirement 5 is not REQ-COV-007 (which is Requirement 22). This is a confirmed citation inconsistency as the draft claims."
+ ]
+}

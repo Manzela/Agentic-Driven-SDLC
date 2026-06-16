@@ -1,0 +1,161 @@
+{
+ "idx": 23,
+ "component": "deepeval_gate.py",
+ "file_path": "tools/deepeval_gate.py",
+ "phase": "3",
+ "what": "`tools/deepeval_gate.py` is a Phase-3 Python script that runs the DeepEval library's pytest-native `assert_test()` API to assert LLM-output quality against configured metric thresholds \u2014 faithfulness >= 0.8 and answer relevancy >= 0.7 \u2014 and fail the build if any threshold is not met. It is the implementation behind Requirement 30 / REQ-EVAL-001 (Eval-Gating in CI). It is intended to run as a REQUIRED CI status check named `deepeval-gate` that gates merge. (design.md:149; requirements.md:482-484; tasks.md:975)",
+ "open_gaps": [
+  {
+   "gap": "No CI workflow file is defined for the deepeval-gate check. Every other REQUIRED CI check has an explicit workflow + a task to create it: coverage-gate.yml (task 14.1), formal-verification.yml (task 40.1), secrets-scan.yml (task 40.2), audit-chain-verify.yml (task 40.3), zap-baseline.yml (task 56). deepeval_gate.py has the Python module (task 55) but NO .github/workflows/deepeval-gate.yml and no register-as-required-check subtask. The 'REQUIRED CI status check at merge' claim is therefore unwired.",
+   "severity": "missing-wiring",
+   "fix": "Add a task 40.4 (or subtask 55.1) 'Create .github/workflows/deepeval-gate.yml running pytest tools/deepeval_gate.py and register deepeval-gate as a REQUIRED status check in the GitHub repository ruleset; document in docs/github-ruleset.md', mirroring task 40.3.",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:975"
+  },
+  {
+   "gap": "deepeval-gate is omitted from the canonical required-status-checks list. tasks.md:270 enumerates the required checks as formal-verification, coverage-gate, secrets-scan, audit-chain-verify + human reviewer \u2014 and does NOT include deepeval-gate (nor zap-baseline). So the single documented source of truth for the GitHub ruleset contradicts requirements.md:484 / design.md:149, which call deepeval-gate REQUIRED at merge.",
+   "severity": "inconsistency",
+   "fix": "Update the docs/github-ruleset.md required-checks list at tasks.md:270 to include deepeval-gate (and zap-baseline), so all four P3 required gates are enumerated in one place.",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:270"
+  },
+  {
+   "gap": "The 0.8/0.7 thresholds have no owner and are not in the Requirement-20 threshold registry. Req 20.2 mandates that ALL numeric thresholds be configurable DEFAULTs requiring explicit operator override, and Req 20.3 registers cost budget, reasoning-loop K, retry budget \u2014 but NOT the eval metrics. They appear only as 'e.g.' example values (requirements.md:483), so they are neither authoritative defaults nor owned/overridable.",
+   "severity": "underspecified",
+   "fix": "Add the eval thresholds to the Requirement-20 threshold registry (requirements.md:356) with an explicit OWNER (e.g., the quality owner from Req 7) and an operator-override path, and drop the 'e.g.' so 0.8/0.7 become the authoritative defaults rather than illustrations.",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:483"
+  },
+  {
+   "gap": "No eval input is specified: the spec never says WHAT LLM output deepeval_gate.py evaluates, where the test cases / golden dataset come from, or which agent output is the actual_output / retrieval_context. faithfulness and answer-relevancy are RAG-style metrics requiring (input, actual_output, retrieval_context) tuples; none is sourced. The WHEN-guard 'a CI run includes LLM output evaluation' (requirements.md:483) has no defined producer.",
+   "severity": "underspecified",
+   "fix": "Specify the eval dataset/source in design.md (e.g., a golden-set fixture under tests/eval/ or evidence captured from verifier runs) and define what populates the DeepEval LLMTestCase fields; name the upstream component that produces the evaluable output.",
+   "cit": ".kiro/specs/spec-to-evidence-control/design.md:149"
+  },
+  {
+   "gap": "No judge/evaluator LLM is named. DeepEval's faithfulness and answer-relevancy metrics are LLM-as-judge metrics requiring an evaluator model; the spec names neither the model nor its provider, and gives no determinism/reproducibility note. This is a meta-risk for a system whose core thesis is 'completion from facts only, no LLM self-assessment can gate' (requirements.md:367) \u2014 yet this REQUIRED merge gate is itself an LLM judgment with no stated provider, seed, or flake mitigation.",
+   "severity": "underspecified",
+   "fix": "Name the evaluator model and provider, pin it, and add a reproducibility/flake policy (e.g., fixed model+temperature, retries, or a note that this gate is advisory-quality vs the deterministic gates) to reconcile with the 'no LLM gates' invariant.",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:483"
+  },
+  {
+   "gap": "REQ-EVAL-001 has NO correctness Property and NO Z3 CHECK, and no PBT test task. It is the only P3 addition with neither a formal check nor concrete wiring (zap-baseline has a workflow+action; flagd has a service dir; omission-gate has Property 30/CHECK-13). The spec's own traceability vector claims 'every new requirement carries a Z3 check OR a named verification tool' (PRD:130) \u2014 deepeval_gate.py is a 'named tool' but the tool itself is unbuilt/unwired, so the traceability is nominal only.",
+   "severity": "underspecified",
+   "fix": "Either add an integration/smoke test task asserting deepeval-gate fails the build when a metric is below threshold (a 'verification tool' test), or explicitly document that REQ-EVAL-001 is verified by CI behavior rather than Z3, to make the traceability claim concrete.",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:980"
+  },
+  {
+   "gap": "deepeval is not added to the dependency manifest. Task 15 pins z3-solver, hypothesis, jsonschema, psycopg2-binary, semgrep, playwright \u2014 deepeval is absent, so a Phase-3 build of tools/deepeval_gate.py would have an unpinned/undeclared dependency.",
+   "severity": "missing-wiring",
+   "fix": "Add deepeval (version-pinned) to the pyproject.toml/requirements.txt list in task 15, alongside the existing pins.",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:15"
+  },
+  {
+   "gap": "Phase-vs-deferral tension. deepeval_gate.py is a Phase-3 component (design.md:149), while the PRD defers promptfoo to 'Phase 3+' as the later/parallel harness (PRD:45). Since deepeval is itself Phase 3, 'Phase 3+' is a near-meaningless deferral horizon for the alternative \u2014 it reads as 'roughly the same phase, but skip it'. Minor but it muddies the deferral rationale.",
+   "severity": "inconsistency",
+   "fix": "Reword PRD:45 to defer promptfoo to a concrete later phase (e.g., 'post-v1 / Phase 5+') or to 'indefinitely deferred unless DeepEval proves insufficient', rather than 'Phase 3+', to avoid implying it ships beside deepeval in Phase 3.",
+   "cit": ".kiro/specs/spec-to-evidence-control/PRD_MERGED_canonical_spec_to_evidence.md:45"
+  },
+  {
+   "gap": "Design/tasks coverage is thin. This component gets exactly one row in the component inventory (design.md:149) with no behavioral section, no sequence in the data-flow diagrams, no entry in the Phase-0 'exact components' build table (design.md:621-636, which lists 14 spine components but not deepeval), no error-handling row (cf. spec_validator timeout at design.md:814), and no Phase-3 design narrative. Task 55 has zero subtasks (contrast task 52's 52.1-52.3 and task 40's 40.1-40.3). The component is essentially a one-line stub replicated across three files.",
+   "severity": "underspecified",
+   "fix": "Add a design.md subsection for deepeval_gate.py covering: eval input source, evaluator model, threshold config location, output/evidence artifact, CI workflow, ruleset registration, and failure/flake handling; and expand task 55 into subtasks (implement module, create workflow, register check, add smoke test, pin dependency) to match the rigor of tasks 40/52/56.",
+   "cit": ".kiro/specs/spec-to-evidence-control/design.md:149"
+  },
+  {
+   "gap": "No output artifact / audit-log wiring. Other gates either attach an Evidence_Record (perf_a11y_verifier, design.md:146) or feed the tamper-evident gate_audit_log (audit_log.py callers, design.md:144). deepeval_gate.py is a gate decision (allow/block merge) but is not listed among the audit-log producers/callers (requirements.md:460), so a REQUIRED merge-gate decision is not captured in the 'we can prove what happened' audit chain.",
+   "severity": "missing-wiring",
+   "fix": "Either wire the deepeval-gate pass/fail decision into tools/audit_log.append(...) (add it to the caller list at requirements.md:460) or document explicitly why CI-status-check gates are out of the gate_audit_log scope.",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:460"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "The single GOVERNING INVARIANT of the entire system (design.md:7) is stated more absolutely than the draft's cited 'completion from facts only' line: 'deterministic gates \u2014 Claude Code hooks, CI, OPA \u2014 decide whether delivery is complete, computed solely from verifiable facts. Model self-assessment and probabilistic predictions only inform; they never gate.' deepeval-gate is declared a REQUIRED MERGE GATE (requirements.md:484; design.md:149) whose faithfulness/answer-relevancy metrics are LLM-as-judge computations. This is a direct CONTRADICTION between a REQUIRED gate and the architecture's top-level invariant, not merely an 'underspecified judge model' (which is how the draft's open_gaps[4\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/design.md:7"
+  },
+  {
+   "kind": "missing",
+   "detail": "tasks.md:717 is the single strongest piece of evidence that REQ-EVAL-001 has NO assigned Property, and the draft never cites it. Line 717 enumerates exactly which requirements Properties 25-30 cover ('includes Properties 25\u201329 ... authored under tasks 48\u201352; Property 30 \u2014 omission-declaration gate \u2014 authored under task 54') and confirms all 30 properties run with --hypothesis-seed=0. REQ-EVAL-001/task 55 appears nowhere in this enumeration. The draft's properties_and_checks cites tasks.md:980 (the property list) but misses the CI test-execution task (tasks.md:715-717) that proves no eval-gate property is wired into the PBT CI run \u2014 a stronger, independent confirmation that should be in the d\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:717"
+  },
+  {
+   "kind": "missing",
+   "detail": "The cross-reference table at requirements.md:505-512 is an authoritative, machine-readable property\u2194requirement map that the draft does not cite for this component. It maps Property 28\u2192Req 27 (audit), Property 29\u2192Req 24.2 (research), Property 30\u2192Req 29/CHECK-13a/13b (omission). REQ-EVAL-001 (Req 30 the requirement) is structurally absent from this map. Note the dangerous numeric collision the draft only half-surfaces: 'Property 30' belongs to Requirement 29, while 'Requirement 30' is eval-gating with NO property \u2014 a reader could easily mis-credit Property 30 to Requirement 30. The draft should explicitly flag this Property-30-vs-Requirement-30 naming collision as an overstatement trap, since\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:512"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft flags the missing required-status-check registration but under-cites the canonical list. tasks.md:270 explicitly enumerates the required checks as 'formal-verification, coverage-gate, secrets-scan (task 45), audit-chain-verify (task 52), plus human PR reviewer' \u2014 and the human-reviewer smoke test (design.md:865, tests/smoke/test_repo_ruleset.py) only verifies 'requires a reviewer', NOT the required-checks set. So there is ZERO test or doc anywhere that would catch deepeval-gate's non-registration. The draft says deepeval-gate 'is NOT in the ruleset doc list' but should add that (a) the omission is shared with zap-baseline (both P3 required checks are absent from tasks.md:270), and \u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:270"
+  },
+  {
+   "kind": "missing",
+   "detail": "Baseline-mapping inconsistency the draft does not surface. Requirement 30 maps to baseline blocks B08 (Verification engine, Req 9 / REQ-VERIFY-001..006) and B11 (Observability, Req 12 / REQ-OBS-001..005) per requirements.md:417. But neither B08 nor B11 has any verification/observability mechanism that produces or consumes LLM-output-quality evals \u2014 B08 is the structural/semantic/behavioral/security verifier and B11 is OTel telemetry. So the B08/B11 baseline mapping for eval-gating is nominal: there is no narrative in Requirement 9 or Requirement 12 that this gate extends, unlike Req 25 (also B08) which concretely extends the verifier with perf/a11y Evidence_Records. This is a traceability-qu\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:417"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's dependencies[] and open_gaps reference 'the CI subgraph at design.md:54 / requirements.md:484' as if the architecture diagram contemplates deepeval-gate. It does not: the CI/Merge-Gate subgraph (design.md:50-55) contains only a generic GH_RULESET node ('required status checks') with no deepeval node, and design.md mentions 'deepeval' on exactly ONE line in the whole file (line 149). The draft's by_whom says deepeval-gate is 'nominally' registered by the ruleset, but should state plainly that the architecture diagram itself omits it \u2014 strengthening 'unwired' rather than implying the diagram references it. Minor, but the draft should not imply design.md:54 is a deepeval-specific de\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/design.md:54"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's glossary finding (ears_stories row 'Requirements traceability table row 30') correctly notes no glossary defines 'faithfulness'/'answer relevancy'/'eval-gate', but undersells the contradiction with the spec's self-assessment. PRD:17 claims a '32-term glossary' as 'genuinely strong / accepted as-is', and design.md:1188 only ever discusses the EARS 'Complex' term \u2014 so three DeepEval-specific terms that gate a REQUIRED merge check are undefined while the spec asserts glossary completeness. The draft should escalate this from 'partial' to an explicit overstatement-of-coverage: the '32-term glossary' completeness claim (PRD:17) is contradicted by the undefined eval metrics that a requ\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/PRD_MERGED_canonical_spec_to_evidence.md:17"
+  },
+  {
+   "kind": "missing",
+   "detail": "No design-level error-handling / fail-mode row exists for deepeval_gate.py, and the draft mentions this only as part of its omnibus 'design coverage thin' gap. It deserves a standalone flag tied to the spec's own pattern: design.md:805-816 (Hook Failure Modes) and the spec_validator Z3-timeout row (design.md:814) establish that every gate with a non-trivial failure mode gets an explicit fail-closed behavior. An LLM-judge gate has obvious failure modes the spec elsewhere insists on handling: evaluator-LLM API timeout/unavailability, rate-limit, and non-determinism/flake. None is specified for deepeval-gate, so its fail-open-vs-fail-closed behavior on judge-LLM error is undefined \u2014 a REQUIRED \u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/design.md:814"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's 'conditional activation' behavior and criterion-2 WHEN-guard analysis is correct but misses that the guard makes the REQUIRED-check claim self-undermining. requirements.md:483 gates behavior on 'WHEN a CI run includes LLM output evaluation', yet requirements.md:484 makes deepeval-gate a REQUIRED status check at merge unconditionally. If no producer of evaluable LLM output is ever defined (the draft's open_gaps[3]), then a REQUIRED check that is conditionally a no-op is either (a) always-green vacuously (providing no gating value) or (b) blocking with nothing to evaluate \u2014 an internal tension between criterion 2's WHEN-guard and criterion 3's unconditional REQUIRED status. The dra\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:484"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-EVAL-001 / Req 30, criterion 1",
+   "criterion": "THE System SHALL include a DeepEval eval-gating step in CI using the pytest-native assert_test() API for LLM output quality assertions.",
+   "how": "tools/deepeval_gate.py is the named implementation (design.md:149; task 55). Mechanism named (DeepEval + assert_test) but no eval inputs/test cases/dataset are specified, so 'LLM output quality assertions' has no concrete data source.",
+   "status": "partial",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:482"
+  },
+  {
+   "req_id": "REQ-EVAL-001 / Req 30, criterion 2",
+   "criterion": "WHEN a CI run includes LLM output evaluation, THEN the eval step SHALL gate on configured metric thresholds (e.g., faithfulness >= 0.8, answer relevancy >= 0.7) using DeepEval assert_test(), failing the build if any threshold is not met.",
+   "how": "design.md:149 and task 55 repeat the thresholds. But 'configured' has no owner/registry entry (not in the Req-20 threshold registry, requirements.md:354-359); thresholds appear only as 'e.g.' examples; and the WHEN-guard ('CI run includes LLM output evaluation') has no defined producer of evaluable \u2026",
+   "status": "partial",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:483"
+  },
+  {
+   "req_id": "REQ-EVAL-001 / Req 30, criterion 3",
+   "criterion": "THE eval step SHALL run as a REQUIRED CI status check at merge (deepeval-gate check name).",
+   "how": "Stated in requirements.md:484, design.md:149, task 55. But there is NO workflow file (no .github/workflows/deepeval-gate.yml task, unlike zap-baseline task 56 / 40.2 / 40.3) and deepeval-gate is NOT in the ruleset required-checks doc list (tasks.md:270). So 'REQUIRED status check' is asserted but ne\u2026",
+   "status": "gap",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:484"
+  },
+  {
+   "req_id": "Requirement 20.2 (threshold configurability)",
+   "criterion": "THE System SHALL treat all numeric thresholds as configurable DEFAULTs, with changes requiring explicit operator override.",
+   "how": "The 0.8/0.7 eval thresholds are numeric thresholds but are NOT registered in the threshold registry (Req 20.3 lists cost budget, reasoning-loop K, retry budget \u2014 not eval metrics). So the global 'all numeric thresholds configurable with operator override' invariant is not satisfied for this componen\u2026",
+   "status": "gap",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:355"
+  },
+  {
+   "req_id": "Requirements traceability table row 30",
+   "criterion": "Requirement 30 Eval-Gating in CI maps to baseline blocks B08/B11 and PRD ref REQ-EVAL-001.",
+   "how": "Baseline mapping present (requirements.md:417,481). No glossary term defines 'eval-gate', 'faithfulness', or 'answer relevancy' \u2014 these DeepEval-specific terms are used without definition (the spec claims a 32-term glossary, PRD:17, but none cover eval metrics).",
+   "status": "partial",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:417"
+  },
+  {
+   "req_id": "Property assignment (PBT suite)",
+   "criterion": "Every new requirement carries a Z3 check or a named verification tool; the PBT suite is 30 numbered correctness properties (1-24 + 25-30).",
+   "how": "REQ-EVAL-001 has NO Property number and NO Z3 CHECK. Properties 25-30 cover REQ-COV-007, REQ-STATE-005, REQ-SPEC-016, REQ-AUDIT-002, REQ-SPEC-017, REQ-SPEC-018 \u2014 Property 30 is the omission gate, not eval-gating (tasks.md:980). The Z3 harness stops at CHECK-13. So REQ-EVAL-001's only 'verification' \u2026",
+   "status": "gap",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:980"
+  }
+ ],
+ "citation_issues": []
+}

@@ -1,0 +1,139 @@
+{
+ "idx": 11,
+ "component": "coverage_query.rego",
+ "file_path": ".github/policies/coverage_query.rego",
+ "phase": "1",
+ "what": "`coverage_query.rego` is an OPA (Open Policy Agent) / Conftest Rego policy whose job is the merge-time zero-evidence completion gate: it DENIES a PR merge if any approved requirement has zero passing evidence. It is built in two stages: (a) a Phase-0 minimal STUB that \"passes only when `feature_list.json` contains zero `unproven` items\" (tasks.md:265), and (b) the Phase-1 FULL policy that \"deny[s] merge if any requirement ID in the approved set has zero rows in `evidence_records`\" plus a second rule denying any item with `status==\"proven\"` but a missing/empty `evidence` object (tasks.md:354-356). It is the CI/OPA leg of the three-part `Completion_Gate` (Stop hook + OPA/Conftest CI check + Gi\u2026",
+ "open_gaps": [
+  {
+   "gap": "INPUT-MODEL CONTRADICTION (the central defect). The same `.rego` file is specified against two incompatible inputs: (a) Property 22 (design.md:1052) and tasks.md:354 first bullet define it as a Postgres SQL query over the `evidence_records` table (`SELECT COUNT(*) FROM evidence_records WHERE requirement_id = ANY(approved_req_ids)`); (b) design.md:137, tasks.md:264, tasks.md:355 and the integration tests (tasks.md:407-408) define it as a Conftest policy over the `feature_list.json` JSON document (`conftest test feature_list.json`; `items[_].status == \"unproven\"`). Conftest/Rego evaluates a static document, not a live SQL table \u2014 these are mutually exclusive implementations and the spec never \u2026",
+   "severity": "inconsistency",
+   "fix": "Pick the feature_list.json document model as canonical (it matches the actual `conftest test feature_list.json` invocation and all the integration tests), and REWRITE Property 22 (design.md:1052) and tasks.md:354 to express the rule over `input.items` rather than a SQL SELECT. If the evidence_records table is the intended authority, then a separate non-Conftest gate (a SQL check) is needed and the file should not be a `.rego`. Add a sentence to design.md:137 stating the single input model.",
+   "cit": "design.md:137,1052; tasks.md:264,354-355,407"
+  },
+  {
+   "gap": "STUB vs FULL semantic divergence is uncaught. The Phase-0 stub passes on 'zero `unproven` items' (status-only, tasks.md:265) while the Phase-1 full policy additionally requires evidence presence (tasks.md:356). A `feature_list.json` with all items `proven` but EMPTY evidence passes the stub and fails the full policy \u2014 meaning Phase-0 green does NOT imply Phase-1 green, yet both are registered under the same required-check name with no migration note.",
+   "severity": "underspecified",
+   "fix": "State explicitly in task 14.1 that the Phase-0 stub is intentionally weaker and that task 21.1 strengthens it; ensure the required-status-check registration in task 14.2 survives the stub\u2192full swap (re-register, do not assume continuity).",
+   "cit": "tasks.md:265,356,270"
+  },
+  {
+   "gap": "MISSING WIRING: workflow re-registration. design.md:635 says the OPA check lives in `.github/workflows/coverage-gate.yml`; task 14.1 creates that workflow and registers it as a required check. But Phase-1 task 21 replaces the `.rego` content WITHOUT any task to update/re-register `coverage-gate.yml`, and task 14.2's required-checks list (`formal-verification`, `coverage-gate`, `secrets-scan`, `audit-chain-verify`) is the only place `coverage-gate` is named as required \u2014 there is no task verifying the swapped policy is still the gating one.",
+   "severity": "missing-wiring",
+   "fix": "Add a subtask under task 21 to confirm `coverage-gate.yml` invokes the Phase-1 policy and that `coverage-gate` remains in the repository ruleset's required checks (cross-ref task 14.2).",
+   "cit": "design.md:635; tasks.md:262-266,270,353"
+  },
+  {
+   "gap": "`in_scope` not honored by the policy. Requirement 5.7 and the Stop hook count ONLY `in_scope` items (requirements.md:128; design.md:689-690). Neither task 21.1, Property 22, nor design.md:137 mentions `in_scope`; a naive `items[_].status == \"unproven\"` rule would block merge on an out-of-scope unproven item, diverging from the Stop gate and breaking gate-consistency.",
+   "severity": "defect",
+   "fix": "Amend task 21.1 / Property 22 to filter `input.items[_]` on `in_scope == true` before the status/evidence checks, mirroring `evaluate_stop`'s `in_scope_items` filter (design.md:690).",
+   "cit": "requirements.md:128; design.md:137,690; tasks.md:355"
+  },
+  {
+   "gap": "`failed` status unhandled. The status enum is `{unproven, proven, failed}` (design.md:372) but the policy text only references `unproven` and `proven` (tasks.md:355-356). A `failed` item is neither `unproven` nor `proven`, so a feature_list with a `failed` in-scope item could SILENTLY PASS a rule written as 'deny if status==unproven' \u2014 a fail-open hole at merge.",
+   "severity": "defect",
+   "fix": "Change the deny rule to 'deny if status != proven' (i.e. anything not exactly proven blocks), matching the Stop hook's `i.status != \"proven\"` logic (design.md:731), so `failed` and `unproven` both block.",
+   "cit": "design.md:372,731; tasks.md:355"
+  },
+  {
+   "gap": "Fail-closed posture of the Rego policy is unspecified. REQ-GATE-005 mandates the Completion_Gate be fail-closed with ambiguous\u2192blocked (requirements.md:207), and the design specifies fail-closed behavior for stop_hook.py / pre_tool_use_hook.py (design.md:811-816) \u2014 but NOT for coverage_query.rego. Conftest behavior on a malformed/empty/missing `feature_list.json`, or on a Rego evaluation error, is undefined; a default-allow Rego (no matching deny rule fires) is fail-OPEN.",
+   "severity": "underspecified",
+   "fix": "Add a design note (near design.md:137 or 811) stating the policy uses default-deny semantics: an empty `items` array, a parse failure, or a missing input must produce a deny/non-zero Conftest exit, and the CI step must treat any Conftest error as a merge block.",
+   "cit": "requirements.md:207; design.md:811-816"
+  },
+  {
+   "gap": "OPA merge decisions are NOT audit-logged. REQ-AUDIT-001 requires every gate decision (event, tool, allow/block, reason, requirement ID, actor) appended to the hash-chained `gate_audit_log`; the three hooks were wired as producers (task 52.3), but the OPA/Conftest merge gate \u2014 a first-class gate decision \u2014 has no `audit_log.append` wiring, leaving a hole in the 'prove what happened' chain at the merge boundary.",
+   "severity": "missing-wiring",
+   "fix": "Either add a CI step that records the coverage-gate decision into `gate_audit_log` (the merge-time analogue of the hook producers), or explicitly document in REQ-AUDIT-001/design that CI-side gate decisions are out of the audit-log scope and why.",
+   "cit": "requirements.md:457,460; design.md:144; tasks.md:970"
+  },
+  {
+   "gap": "'approved set' provenance undefined. Both REQ-GATE-003 and Property 22 reference 'approved requirement(s)' / 'approved_req_ids' (requirements.md:205; design.md:1052) but no component or field defines how the policy obtains the approved set. `plan-approved.json` binds an approved feature_list SHA (design.md:762-769) but is never connected to the Rego policy's notion of 'approved requirements'.",
+   "severity": "underspecified",
+   "fix": "Define the approved set concretely \u2014 e.g. 'approved = all in_scope items in the feature_list.json whose SHA matches plan-approved.json.feature_list_sha' \u2014 and state it in task 21.1 and Property 22.",
+   "cit": "requirements.md:205; design.md:1052,762-769"
+  },
+  {
+   "gap": "Evidence-completeness depth mismatch. tasks.md:356 says deny if proven item's `evidence` object is 'missing or has empty fields', but does NOT enumerate the four required fields (test_file/test_name/output_hash/collected_at) that the schema and SubagentStop hook enforce (requirements.md:29; design.md:387-410). The Rego rule could pass a proven item carrying a partial 1-field evidence object that the hook layer would reject \u2014 an inconsistency between the merge gate and the in-session gate.",
+   "severity": "inconsistency",
+   "fix": "Specify in task 21.1 that the Rego Rule 2 must assert all four Evidence_Record fields are present and non-empty, mirroring the schema's `required` list and the SubagentStop check.",
+   "cit": "requirements.md:29; design.md:387-410; tasks.md:356"
+  },
+  {
+   "gap": "DESIGN/TASKS THINNESS. coverage_query.rego is named in design.md ONLY as a single one-line Component-Inventory row (design.md:137) plus diagram nodes \u2014 there is NO dedicated design subsection, no example Rego source, no input-schema contract, and no error-handling spec, unlike stop_hook.py / plan-approved.json which each get full code-bearing subsections. tasks.md gives it ~5 bullets (14.1, 21.1) but they contain the input-model contradiction above. For the merge-time leg of the load-bearing Completion_Gate, this is materially under-designed.",
+   "severity": "underspecified",
+   "fix": "Add a 'Coverage Merge Policy' subsection to design.md with: the canonical input model, an example Rego policy body (deny rules over `input.items`), the `in_scope`/`failed`/four-field handling, default-deny error semantics, and the workflow wiring \u2014 bringing it to parity with the stop_hook.py / plan-approved.json subsections.",
+   "cit": "design.md:137; tasks.md:353-357"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "BUILD-CHAIN CROSS-REFERENCE DEFECT not flagged. Task 14.1 (the Phase-0 stub author the draft cites in by_whom) explicitly says the full Postgres-backed policy is 'deferred to Phase 1 task 20' \u2014 but task 20 is `orphan_detector.py` (tasks.md:338), NOT the coverage policy. The actual full-policy build is task 21 (tasks.md:352). The draft's by_whom correctly names task 21 but never surfaces that the component's own build chain misroutes its forward reference to the wrong task. This is a concrete internal inconsistency in the spec text that bears directly on coverage_query.rego's build sequencing and belongs in open_gaps.",
+   "cit": "tasks.md:265 ('deferred to Phase 1 task 20') vs tasks.md:338 (task 20 = orphan_detector) vs tasks.md:352 (task 21 = full policy)"
+  },
+  {
+   "kind": "missing",
+   "detail": "OVERLOADED-WORKFLOW WIRING GAP not flagged. coverage_query.rego is invoked inside `.github/workflows/coverage-gate.yml`, but that SAME workflow also hosts the Playwright behavioral step (task 15.1) AND the SonarQube quality-gate step (task 22.1). The single required status check named `coverage-gate` therefore gates on three independent tools (OPA + Playwright + SonarQube). A SonarQube or Playwright failure blocks merge under the same check name, so the OPA policy is NOT independently gating \u2014 and REQ-GATE-003's 'THE OPA_Conftest required CI status check SHALL run' is satisfied only as a co-tenant of an overloaded workflow. The draft's 'missing wiring: workflow re-registration' gap discusses\u2026",
+   "cit": "tasks.md:262-264 (OPA in coverage-gate.yml), tasks.md:274 (Playwright in coverage-gate.yml), tasks.md:371 (SonarQube in coverage-gate.yml), tasks.md:270 (coverage-gate as one required check)"
+  },
+  {
+   "kind": "weak",
+   "detail": "REQ-GATE-001 'passing tests' limb is structurally invisible to the policy and the draft under-states this. The draft marks 10.1 'partial' but frames the only deficiency as the input-model conflict. The sharper, separate gap: REQ-GATE-001 (requirements.md:203) requires the completion verdict computed from 'zero unproven in-scope items, PASSING TESTS, and present Evidence_Records.' A Rego policy evaluating the static feature_list.json document can read status/evidence but cannot observe live 'passing tests' \u2014 that limb is structurally unobservable to a Conftest document policy. This is a coverage gap distinct from (and additional to) the feature_list-vs-evidence_records input-model contradicti\u2026",
+   "cit": "requirements.md:203; tasks.md:264,355-356"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft claims REQ-GATE-001 (10.1) is addressed 'indirectly' and that 'Property 4/22 cover it,' but Property 22's declared mapping is 'Validates: Requirements 10.3' ONLY (design.md:1054) \u2014 it does not list 10.1 \u2014 and Property 4 validates prediction independence (10.1/13.6/19.2) only on the prediction-independence axis, not the evidence-presence-at-merge limb. So no correctness property is explicitly bound to the OPA gate's role in the 10.1 facts-only verdict. The draft's ears_stories entry for 10.1 ('Property 4/22 cover it') overstates the actual property\u2192requirement trace.",
+   "cit": "design.md:1050-1054 (Property 22 Validates 10.3 only); design.md:906-910 (Property 4 scope); draft ears_stories[REQ-GATE-001]"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "The Postgres-unavailable fallback rule (tasks.md:730) is INTERNALLY CONTRADICTORY with the policy's stated input model and the draft lists it only as a benign behavior/dependency without flagging the conflict. tasks.md:730 says when the DB health-check fails, 'the OPA merge policy MUST fall back to the file-backed state (feature_list.json + claude-progress.txt) and reach the SAME allow/block decision it would on Postgres.' But a Conftest .rego policy ALREADY takes feature_list.json as its only input (tasks.md:264) \u2014 'falling back to feature_list.json' is a no-op unless the canonical/primary model is the evidence_records SQL table (design.md:1052). Thus tasks.md:730 silently presumes the very\u2026",
+   "cit": "tasks.md:730; design.md:815; design.md:1052; tasks.md:264"
+  },
+  {
+   "kind": "missing",
+   "detail": "DESIGN PATH/EXISTENCE MISMATCH for the harness the draft cites as authority. The draft's properties_and_checks repeatedly cites 'formal_verification_merged.py lines 138-141, 255-261' to prove no OPA/Z3 modeling exists. That harness does NOT live at the repo-root path the spec docs assume (design.md:632, tasks.md:252-254 all invoke `python3 formal_verification_merged.py` from root); it is actually at `verification/formal_verification_merged.py`. The substantive claim (gateBlock == unproven at line 139, zero rego/opa/conftest hits) is CORRECT, but the path the spec wires into CI (task 13.1 / design.md:632) does not match the file's real location \u2014 a CI-wiring defect adjacent to this component'\u2026",
+   "cit": "verification/formal_verification_merged.py:139 (gateBlock==unproven); tasks.md:252-254 & design.md:632 (invoke from repo root); draft properties_and_checks citation 'formal_verification_merged.py lines 138-141'"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Requirement 10.1 (REQ-GATE-001)",
+   "criterion": "THE System SHALL compute the completion verdict solely from verifiable facts \u2014 zero `unproven` in-scope items, passing tests, and present Evidence_Records \u2014 evaluated against the actual repository state.",
+   "how": "Bears on the component because the OPA policy is one of the gates computing this verdict from facts; the policy reads status/evidence facts, not predictions. Property 4/22 cover it. NOTE: the component's input model (feature_list.json vs evidence_records table) is contradictory \u2014 see open_gaps.",
+   "status": "partial",
+   "cit": "requirements.md:203"
+  },
+  {
+   "req_id": "Requirement 10.5 (REQ-GATE-005)",
+   "criterion": "THE Completion_Gate SHALL be fail-closed and non-bypassable by configuration; ambiguous states SHALL resolve to 'blocked,' not 'passed.'",
+   "how": "As a Completion_Gate member, coverage_query.rego must be fail-closed. The spec never states the Rego policy's default-deny posture, error handling on malformed input, or empty-input behavior \u2014 fail-closed is asserted for the Stop hook (design.md:811) but NOT specified for the Rego policy.",
+   "status": "gap",
+   "cit": "requirements.md:207"
+  },
+  {
+   "req_id": "Property 22: OPA Zero-Evidence Policy at Merge",
+   "criterion": "For any merge attempt, the OPA/Conftest policy shall deny the merge if the query `SELECT COUNT(*) FROM evidence_records WHERE requirement_id = ANY(approved_req_ids)` returns fewer rows than the count of approved requirements. The merge is permitted only when every approved requirement has at least o\u2026",
+   "how": "The pinning correctness property. It is a RUNTIME/PBT property (no Z3 check). Tested by task 21.2 (PBT) and 21.3 (integration). It defines the SQL/evidence_records-table input model.",
+   "status": "partial",
+   "cit": "design.md:1050-1054"
+  },
+  {
+   "req_id": "Task 21.1 (Phase-1 full policy)",
+   "criterion": "Implement `.github/policies/coverage_query.rego` (full policy, replacing Phase 0 stub): deny merge if any requirement ID in the approved set has zero rows in `evidence_records`; accept `feature_list.json` as Conftest input; policy reads `items[_].status == \"unproven\"` and denies if any found; add se\u2026",
+   "how": "Defines the full-policy build. Internally contradictory on input model (evidence_records SQL table vs feature_list.json document) \u2014 see open_gaps.",
+   "status": "partial",
+   "cit": "tasks.md:353-357"
+  },
+  {
+   "req_id": "Glossary: COMPLETE / proven / Evidence_Record",
+   "criterion": "COMPLETE is assigned only when every in-scope requirement is `proven` with attached evidence and all gates pass; Evidence_Record has exactly four required fields.",
+   "how": "The policy's second rule (deny proven-without-evidence) leans on the four-field Evidence_Record definition, but the spec never states that the Rego policy checks all four fields (test_file/test_name/output_hash/collected_at) \u2014 only 'evidence object missing or empty fields' (tasks.md:356), under-spec\u2026",
+   "status": "partial",
+   "cit": "requirements.md:29,34; tasks.md:356"
+  }
+ ],
+ "citation_issues": []
+}

@@ -1,0 +1,187 @@
+{
+ "idx": 27,
+ "component": "implementer.md",
+ "file_path": ".claude/agents/implementer.md",
+ "phase": "0",
+ "what": "A Claude Code subagent DEFINITION FILE (Markdown, `.claude/agents/implementer.md`) that bounds the coding agent to \"single slice, single worktree.\" Per design.md:240-251 it configures a subagent whose Role is \"Implements exactly one highest-priority `unproven` item per session in an isolated git worktree,\" with Key behaviors: (1) read `feature_list.json` to identify the single highest-priority `unproven` item; (2) create a dedicated git worktree via `git worktree add`; (3) target \u226415 minutes / \u22641 feature per session; (4) produce exactly one atomic commit with the requirement ID in the git trailer; (5) explicitly does NOT run verification (Verifier's exclusive domain). Permissions: write to i\u2026",
+ "open_gaps": [
+  {
+   "gap": "The artifact does not exist. `.claude/agents/` contains only a 0-byte `.gitkeep`; there is no implementer.md file on disk, despite it being a Phase-0 spine component whose acceptance test (design.md:630) is 'Creates worktree; commits with requirement ID in trailer'. The entire component is specified-but-unbuilt; task 10.2 is unchecked.",
+   "severity": "missing-wiring",
+   "fix": "Author `.claude/agents/implementer.md` per the Claude Code agent spec, encoding the role, the four key behaviors, and the permission scope from design.md:240-251 and tasks.md:208-211. Until then no Phase-0 smoke (design.md:630) or end-to-end loop (design.md:100-112) can run.",
+   "cit": ".claude/agents/.gitkeep (0 bytes); design.md:153,630; tasks.md:208"
+  },
+  {
+   "gap": "No settings.json binding for the subagent. The design's settings.json block (design.md:159-201) registers ONLY hooks; there is no `subagents`/agent-registration entry for implementer.md (or any of the four agents) anywhere in design.md or tasks.md. How the runtime discovers/loads/invokes the agent file is unspecified.",
+   "severity": "missing-wiring",
+   "fix": "Either document that Claude Code auto-discovers `.claude/agents/*.md` by convention (and cite the version) or add the explicit agent-registration block to the settings.json design and to task 9.1, and add a smoke test (like tests/smoke/test_hook_config.py) asserting the four agents are registered/discoverable.",
+   "cit": "design.md:159-201; tasks.md:191-199"
+  },
+  {
+   "gap": "Retry budget owner is named but never wired into the agent definition. requirements.md:359 says the retry budget (DEFAULT 3) is OWNED by 'the implementer loop' with run_state.retry_count, but implementer.md's key behaviors (design.md:244-249) and task 10.2 (tasks.md:208-211) never mention retry_count, the retry cap, or the REQ-LOOP-003 HANDOFF \u2014 so the ownership is asserted in NFR prose with no mechanism in the component it is assigned to.",
+   "severity": "underspecified",
+   "fix": "Add a key-behavior to implementer.md and a bullet to task 10.2: 'increments run_state.retry_count on a failed slice; on retry_count >= 3 stop and HANDOFF (REQ-LOOP-003)'. Optionally add a Z3/property check that retry_count>=3 routes to HANDOFF.",
+   "cit": "requirements.md:359; design.md:491; tasks.md:208-211"
+  },
+  {
+   "gap": "acting_agent vs actor_agent naming inconsistency in the role-separation guard. Property 24 / design.md:1068 and the Postgres evidence_records column (design.md:473) use `actor_agent` and state it is canonical 'everywhere (no acting_agent)', but the Property-24 test (tasks.md:655) asserts rejection of records where `acting_agent == \"implementer.md\"`. The test field name contradicts the declared canonical field name.",
+   "severity": "inconsistency",
+   "fix": "Rename `acting_agent` to `actor_agent` in tasks.md:655 to match design.md:473/1068 (the declared canonical name).",
+   "cit": "design.md:473,1068; tasks.md:655"
+  },
+  {
+   "gap": "Property 24 (implementer-cannot-self-verify) \u2014 the single most important invariant binding the implementer to separation-of-duties \u2014 has NO machine check. Grep of formal_verification_merged.py for actor_agent / role.separation / self-verif returns nothing. The 'no Z3 check' is not acknowledged; the requirements.md Critical Invariants list (1-7, 8-10) does not include role separation, and design.md:1066-1070 cites no CHECK id.",
+   "severity": "underspecified",
+   "fix": "Either add a Z3 CHECK asserting (evidenceCreated \u2227 actorIsImplementer) is UNSAT to formal_verification_merged.py and cite it under Property 24, or explicitly annotate Property 24 as 'runtime/test-verified, no Z3 check' the way Properties 28/29 are annotated (design.md:1110,1120).",
+   "cit": "design.md:1066-1070; verification/formal_verification_merged.py"
+  },
+  {
+   "gap": "Token-budget unit mismatch touching the implementer's HANDOFF trigger. requirements.md:357 sets the cost/token budget = 1,000,000 TOKENS per Slice, but run_state.token_cost_usd is NUMERIC(10,4) in USD (design.md:488) and the Stop-hook budget check reads `token_cost_usd >= token_budget_usd` (design.md:704). Tokens and USD are different units with no documented conversion; the implementer-loop budget cap is therefore expressed in two incompatible units.",
+   "severity": "inconsistency",
+   "fix": "Pick one unit. Either add a `token_budget` (integer tokens) column to run_state and have the budget check compare tokens, or convert the 1,000,000-token default to a USD figure and state the model price assumption. Reconcile requirements.md:357 with design.md:488,704.",
+   "cit": "requirements.md:357; design.md:488,704"
+  },
+  {
+   "gap": "design.md/tasks.md coverage of this component is THIN relative to its criticality. The implementer is a Phase-0 spine component and the load-bearing 'one slice' enforcer, yet its entire specification is ~10 prose lines (design.md:240-251) plus a 4-line task (tasks.md:208-211). Missing: the exact agent-spec frontmatter (name, description, tools, model), the precise tool-allowlist that realizes the 'worktree only' permission, the handoff protocol to the Verifier, the failure/retry behavior, and any test that exercises the markdown definition. By contrast the hooks each get full code blocks.",
+   "severity": "underspecified",
+   "fix": "Expand design.md section '.claude/agents/implementer.md' with the concrete agent frontmatter and tool allowlist, and expand task 10.2 to include a smoke test analogous to tests/smoke/test_hook_config.py that parses the agent file and asserts its permission scope (no tests/, no CI, no cross-worktree).",
+   "cit": "design.md:240-251; tasks.md:208-211"
+  },
+  {
+   "gap": "Permission scope 'write to implementation source in its assigned worktree only' has no enforcement mechanism in the implementer definition. The narrative permission (design.md:251) is not realized by any hook or tool-allowlist: nothing prevents the implementer from writing outside .worktrees/{item_id}. The PreToolUse artifact guard (design.md:214) protects tests/, schema, CI \u2014 but not 'other worktrees' or 'host FS outside this slice's worktree' (that confinement is described only as a sandbox-mount property at design.md:524, a separate Phase task 46).",
+   "severity": "missing-wiring",
+   "fix": "Either (a) realize the per-worktree write confinement via the sandbox mount (design.md:524, task 46) and cross-reference it from implementer.md, or (b) add a PreToolUse check that blocks writes whose path is outside the active slice's worktree. State which mechanism enforces design.md:251.",
+   "cit": "design.md:251,524; tasks.md:958"
+  },
+  {
+   "gap": "Highest-priority selection is unspecified beyond 'priority field'. implementer.md must pick 'the single highest-priority unproven item' (design.md:245) and feature_list schema has `priority` (integer, 1=highest, design.md:336-339), but no rule defines tie-breaking among equal-priority items or how dependencies (the CoverageItem.dependencies array) constrain selection \u2014 an item could be highest-priority yet have unproven dependencies.",
+   "severity": "underspecified",
+   "fix": "Specify the selection predicate in implementer.md: 'lowest priority integer among unproven items whose dependencies are all proven; ties broken by item id order'. Cite the dependencies field (design.md:354) so dependency-respecting selection is explicit.",
+   "cit": "design.md:245,336-339,354"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "REQ-SPEC-018 (Requirement 29) / Property 30 / CHECK-13a/13b \u2014 the Structured Omission Declaration gate \u2014 is entirely absent from the draft's ears_stories AND open_gaps, yet it bears directly and pointedly on implementer.md. REQ-SPEC-018.1 requires a non-null `omission_declaration` field on the output of 'a subagent (initializer, research, verifier)' \u2014 conspicuously naming three of the four Phase-0 subagents and OMITTING the implementer. REQ-SPEC-018.3 then says 'THE JSON schema for EACH subagent output type SHALL include omission_declaration as a required, non-nullable field,' and the SubagentStop omission guard (design.md:218) rejects (exit 2) any subagent result lacking it. This is a mater\u2026",
+   "cit": "requirements.md:476-478; design.md:148,218,1124-1130; tasks.md:974"
+  },
+  {
+   "kind": "missing",
+   "detail": "REQ-CTRL-001 (Requirement 32) Agent Code Kill-Switch is missing from the draft's dependencies/open_gaps. Task 57 says 'wire OpenFeature SDK into agent entry points' and REQ-CTRL-001.2 requires that 'the affected agent capability SHALL be disabled within the polling interval (\u226430s) WITHOUT requiring a process restart.' The implementer is an agent entry point / kill-switchable capability, so implementer.md is in scope for kill-switch wiring \u2014 but neither the draft's dependencies list nor its open_gaps mention flagd/OpenFeature, the kill-switch, or that implementer.md must be instrumentable for capability-disable. This is an unbuilt wiring obligation on the component just like the settings.json\u2026",
+   "cit": "requirements.md:492-496; design.md:151; tasks.md:977"
+  },
+  {
+   "kind": "missing",
+   "detail": "The SubagentStop evidence-schema gate (REQ-VERIFY-005 / criterion 9.5, subagent_stop_hook.py) as it bears on the IMPLEMENTER's own return is not addressed. The draft correctly notes the implementer 'Does NOT emit Evidence_Records' and is gated by the PreToolUse plan/scope gates, but it never asks what happens at SubagentStop when the implementer subagent returns. subagent_stop_hook.py (tasks.md:177-183) 'locates evidence field(s)' and blocks on missing/empty fields; combined with the omission guard (REQ-SPEC-018) this is the hook that fires on the implementer\u2192verifier handoff boundary. The draft lists SubagentStop only abstractly via Property 24 and never names REQ-VERIFY-005/9.5 as a gate t\u2026",
+   "cit": "requirements.md:190 (9.5); design.md:217; tasks.md:176-189"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's ears_stories entries for CHECK-6a and CHECK-6b assert these Z3 checks 'constrain the scope gate that bounds when the implementer may start a new slice' / 'releases the implementer to start the next slice,' implying implementer-specific machine coverage. Independent inspection of formal_verification_merged.py (lines 101-102, 284-299) shows CHECK-6a/6b operate over GENERIC abstract Booleans `priorItemUnproven` and `newSliceStarting` with zero reference to the implementer (grep for 'implementer' in the harness returns 0 hits). These checks pin the scope-sequencing RULE (REQ-EXEC-005), not the implementer component. The draft already correctly flags that Property 24 has no Z3 check; \u2026",
+   "cit": "verification/formal_verification_merged.py:101-102,284-299"
+  },
+  {
+   "kind": "missing",
+   "detail": "REQ-VERIFY-001 / criterion 9.1's 'verify each Slice across five layers' bears on the implementer indirectly but is mis-scoped in the draft. The draft cites the line-coverage layer (Property 23) but omits that the FIVE-layer verification (structural, semantic, behavioral, security, performance+accessibility per the 2026-06-15 reconciliation) all operate on 'each Slice' \u2014 i.e., on the implementer's atomic-commit output as the unit of verification. The draft's design.md citations still reflect the older framing; Property 23's own text (design.md:1058-1062) and REQ-VERIFY-002 are the only verification linkages captured, but the Slice (the implementer's product) is the subject of all five layers \u2026",
+   "cit": "requirements.md:186 (9.1),445-449; design.md:255-262; tasks.md:966"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's token/cost-budget gap (open_gaps item on unit mismatch) is correct but understates the OWNERSHIP problem. REQ-LOOP-001 (14.1) states the token/cost budget is enforced 'per Slice' and the Slice is the implementer's unit of work, yet \u2014 exactly as with the retry budget (which the draft DID flag as 'named but never wired into the agent definition') \u2014 neither implementer.md's key behaviors (design.md:244-249) nor task 10.2 (tasks.md:208-211) mention the per-slice token/cost budget or its REQ-LOOP-002 HANDOFF trigger. The draft flags retry_count's missing wiring but does not apply the identical finding to the token/cost budget owned by the same implementer loop, even though task 44 cen\u2026",
+   "cit": "requirements.md:267,357; design.md:488,704; tasks.md:956"
+  },
+  {
+   "kind": "missing",
+   "detail": "Glossary term 'Slice' is cited by the draft, but two adjacent load-bearing glossary/architecture obligations on the implementer are not: (1) the Sandbox & Worktree Isolation section (design.md:514-527, task 46 / REQ-17.4) explicitly states the worktree 'created by the Implementer via git worktree add is mounted in as the writable working tree' and that this is what realizes the per-worktree write confinement \u2014 the draft's gap #9 correctly says implementer.md's write-confinement has no enforcement mechanism, but it frames the sandbox cross-reference as merely 'suggested,' missing that design.md:527 ALREADY ties REQ-17.4 isolation to 'the one-slice/one-worktree discipline FROM the Implementer \u2026",
+   "cit": "requirements.md:310,313 (17.1/17.4); design.md:514-527; tasks.md:957-958"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-EXEC-001 (Requirement 7.1)",
+   "criterion": "THE System SHALL restrict each coding subagent session to exactly one highest-priority `unproven` item.",
+   "how": "implementer.md key-behavior: 'Reads feature_list.json to identify the single highest-priority unproven item' (design.md:245); tasks.md:210 'read feature_list.json for highest-priority unproven item'.",
+   "status": "partial",
+   "cit": "requirements.md:156; design.md:242,245; tasks.md:210"
+  },
+  {
+   "req_id": "REQ-EXEC-002 (Requirement 7.2)",
+   "criterion": "WHILE a Slice is in progress, THE System SHALL isolate it in a dedicated git worktree to prevent cross-slice collisions.",
+   "how": "implementer.md key-behavior 'Creates a dedicated git worktree (git worktree add)' (design.md:246); mechanism delegated to tools/worktree_manager.py (task 11.1).",
+   "status": "partial",
+   "cit": "requirements.md:157; design.md:246; tasks.md:210,225"
+  },
+  {
+   "req_id": "REQ-EXEC-003 (Requirement 7.3)",
+   "criterion": "THE System SHALL target a per-slice size of \u226415 minutes / \u22641 feature and SHALL produce one atomic commit per completed Slice.",
+   "how": "implementer.md key-behaviors 'Targets \u226415 minutes / \u22641 feature per session' and 'Produces exactly one atomic commit with the requirement ID in the git trailer' (design.md:247-248).",
+   "status": "partial",
+   "cit": "requirements.md:158; design.md:247,248; tasks.md:210"
+  },
+  {
+   "req_id": "REQ-TRACE-002 (Requirement 6.2)",
+   "criterion": "WHEN a commit is created, THE System SHALL require \u22651 referenced requirement ID in the commit trailer.",
+   "how": "implementer.md 'Produces exactly one atomic commit with the requirement ID in the git trailer' (design.md:248); task 10.2 cites Requirement 6.2 (tasks.md:211); Property 10 pins it; enforced at write-time by tools/traceability_writer.assert_commit_has_req_id (task 29.1).",
+   "status": "partial",
+   "cit": "requirements.md:142; design.md:248,956; tasks.md:211,466"
+  },
+  {
+   "req_id": "REQ-VERIFY-002 (Requirement 9.2)",
+   "criterion": "THE System SHALL perform completion verification with the independent Verifier...; the implementer SHALL NOT verify its own output.",
+   "how": "implementer.md 'Does NOT run verification \u2014 verification is the Verifier's exclusive domain' (design.md:249); Property 24 forbids Evidence_Record with actor_agent=='implementer.md'.",
+   "status": "partial",
+   "cit": "requirements.md:187; design.md:249,1068; tasks.md:655"
+  },
+  {
+   "req_id": "REQ-LOOP-003 (Requirement 14.3)",
+   "criterion": "IF a Slice exhausts its retry budget (DEFAULT = 3 retries), THEN THE System SHALL fail gracefully and hand off to a human.",
+   "how": "Retry budget OWNER is explicitly 'the implementer loop'; counter in run_state.retry_count; on exhaustion hands off. But implementer.md key-behaviors (design.md:244-249) DO NOT mention retry budget, retry_count, or HANDOFF \u2014 owner stated in NFR text only, not wired into the agent definition.",
+   "status": "gap",
+   "cit": "requirements.md:269,359; design.md:491"
+  },
+  {
+   "req_id": "REQ-LOOP-001 (Requirement 14.1)",
+   "criterion": "WHILE a control loop runs, THE System SHALL enforce a hard iteration cap (DEFAULT = 25 turns per Slice) and a token/cost budget per Slice.",
+   "how": "Cap enforced via `claude -p --max-turns 25` (design.md:822) at the loop level, not inside implementer.md; the implementer is the per-slice loop subject.",
+   "status": "partial",
+   "cit": "requirements.md:267; design.md:822; tasks.md:99"
+  },
+  {
+   "req_id": "REQ-ORCH-001 (Requirement 15.1)",
+   "criterion": "THE System SHALL use Claude Code subagents and hooks as the inner planner/implementer/verifier orchestrator...",
+   "how": "implementer.md is the 'implementer' leg; orchestration wiring is task 43 (tasks.md:953). The wiring that actually invokes the four agents is an un-detailed future task.",
+   "status": "partial",
+   "cit": "requirements.md:282; tasks.md:953"
+  },
+  {
+   "req_id": "Property 10 (Commit Trailer Requirement ID)",
+   "criterion": "For any commit created by the implementer subagent, the trailer must contain \u22651 requirement ID matching [A-Z]+-[A-Z]+-[0-9]{3}.",
+   "how": "Names the implementer subagent directly as the commit author; pinned to REQ-TRACE-002; tested via tools/traceability_writer.parse_commit_trailers (task 29.2).",
+   "status": "partial",
+   "cit": "design.md:954-958; tasks.md:469-473"
+  },
+  {
+   "req_id": "Property 24 (Subagent Role Separation \u2014 Implementer Cannot Self-Verify)",
+   "criterion": "For any verification action, actor_agent shall be verifier.md, never implementer.md; no Evidence_Record may be created by the agent that wrote the implementation. NOTE: no Z3 CHECK pins this; harness has no actor_agent/role-separation assertion; also acting_agent vs actor_agent naming inconsistency.",
+   "how": "Directly names implementer.md as the forbidden actor; tasks.md:655 asserts any Evidence_Record with acting_agent=='implementer.md' is rejected.",
+   "status": "partial",
+   "cit": "design.md:1066-1070; tasks.md:652-656"
+  },
+  {
+   "req_id": "Glossary: Slice",
+   "criterion": "A bounded unit of implementation work, targeting \u226415 minutes / \u22641 feature, implemented in a dedicated git worktree and resulting in one atomic commit.",
+   "how": "This glossary term IS the implementer's unit of work; implementer.md key-behaviors restate all three bounds (size, worktree, atomic commit).",
+   "status": "partial",
+   "cit": "requirements.md:30; design.md:242-248"
+  },
+  {
+   "req_id": "Phase-0 spine component #8 (acceptance test)",
+   "criterion": "Implementer subagent: 'One-slice coder; creates worktree; produces one commit' \u2014 Test to pass: 'Creates worktree; commits with requirement ID in trailer'. NOTE: file absent, so this test cannot pass.",
+   "how": "Defines the smoke acceptance for the agent; but no test file in the design/tasks actually exercises a markdown agent definition end-to-end (the agent is prose, not executable).",
+   "status": "gap",
+   "cit": "design.md:630"
+  }
+ ],
+ "citation_issues": []
+}

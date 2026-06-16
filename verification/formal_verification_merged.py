@@ -387,7 +387,7 @@ unmapped_axioms = [
 check("CHECK-9a", unmapped_axioms + [
     unmappedExists,
     advancementAllowed,
-], "unsat", "CHECK-9a: Advancement while UNMAPPED items exist is UNSAT [REQ-SPEC-011]")
+], "unsat", "CHECK-9a: Advancement while UNMAPPED items exist is UNSAT [Requirement 2.2 / REQ-SPEC-010..012]")
 
 # CHECK-9b: Advancement IS allowed when all items are mapped
 check("CHECK-9b", unmapped_axioms + [

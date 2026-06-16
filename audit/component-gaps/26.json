@@ -1,0 +1,215 @@
+{
+ "idx": 26,
+ "component": "initializer.md",
+ "file_path": ".claude/agents/initializer.md",
+ "phase": "0",
+ "what": "`.claude/agents/initializer.md` is the Phase-0 subagent definition for the \"Spec Compiler + Coverage Model Builder\" \u2014 the realization of the abstract `Spec_Compiler` glossary component (requirements.md:18). Per design.md:226-238 it: (a) transforms terse product intent into an EARS-compliant, atomic, individually-testable spec; (b) validates that spec with the non-LLM Z3-backed `spec_validator.py` after every elaboration pass and never accepts its own completion claim; (c) loops bounded to DEFAULT=7 passes until `violation_count==0` or no-progress/cap triggers HANDOFF; (d) expands intent against the human-approved domain-baseline checklist and flags any UNMAPPED items; (e) writes `feature_lis\u2026",
+ "open_gaps": [
+  {
+   "gap": "The component file itself does not exist. .claude/agents/ contains only a 0-byte .gitkeep; initializer.md is fully specified in design.md/tasks.md but never materialized on disk. Task 10.1 (the building task) is unchecked [ ].",
+   "severity": "missing-wiring",
+   "fix": "Author .claude/agents/initializer.md per design.md:226-238 and the task 10.1 checklist, then check off task 10.1.",
+   "cit": "ls .claude/agents/ \u2192 only .gitkeep; design.md:152,226-238; tasks.md:202"
+  },
+  {
+   "gap": "requirements.md never names initializer.md or the file path .claude/agents/ \u2014 the requirements layer speaks only of the abstract 'Spec_Compiler' and 'THE System'. The binding Spec_Compiler\u2192initializer.md exists ONLY in design.md/tasks.md, so a requirements-only reader cannot trace the obligation to the realizing component.",
+   "severity": "underspecified",
+   "fix": "Add a sentence to the Spec_Compiler glossary entry (requirements.md:18) naming its realization: '(realized by .claude/agents/initializer.md \u2014 Phase 0).'",
+   "cit": "requirements.md:18; design.md:226"
+  },
+  {
+   "gap": "REQ-SPEC-018 (omission declaration) names the initializer as an obligated producer, but the initializer's OWN building task 10.1 (tasks.md:202-206) does not list omission_declaration, and no initializer-output JSON schema exists anywhere (no schema/ dir, find for subagent output schemas returns nothing). The obligation is retrofitted only by task 54 and gated only at SubagentStop \u2014 the producer side is unwired.",
+   "severity": "missing-wiring",
+   "fix": "Add omission_declaration emission to task 10.1's initializer behaviors and create an initializer-output JSON schema (schema/subagent_output.schema.json) with omission_declaration required+non-nullable per requirements.md:478.",
+   "cit": "requirements.md:476-478; tasks.md:202-206,974; design.md:1124-1130"
+  },
+  {
+   "gap": "EARS pattern count inconsistency. Requirement 1.4 and the schema enum use FIVE patterns {ubiquitous,event-driven,state-driven,unwanted,optional}; the glossary (requirements.md:31) lists SIX named patterns including 'Complex'. The reconciliation note (design.md:1187-1188) explains Complex as a composition, but Req 1.4's literal text ('exactly one of the five EARS patterns') still contradicts the glossary's enumeration.",
+   "severity": "inconsistency",
+   "fix": "Amend requirements.md:31 glossary to state the five base patterns plus 'Complex (a documented composition of the five, not a sixth enum value)', mirroring design.md:1187-1188.",
+   "cit": "requirements.md:31,65; design.md:347,1187-1188"
+  },
+  {
+   "gap": "Vague-adjective set mismatch. Requirement 1.2 lists examples {fast,secure,scalable,optimized}; the spec_validator scanner and Property 17 use a larger fixed set {fast,secure,scalable,optimized,efficient,reliable,performant}. The initializer routes candidates through the validator, so the effective reject-set is larger than the requirement implies, and the requirement gives no canonical list.",
+   "severity": "inconsistency",
+   "fix": "Make Requirement 1.2 cite the canonical adjective set explicitly (or state 'including but not limited to'), aligned with tasks.md:68 / Property 17 (design.md:1012).",
+   "cit": "requirements.md:63; tasks.md:68; design.md:1012"
+  },
+  {
+   "gap": "Requirement 3.1 (run Research_Sub_Agent on new product class) is operationally the initializer's trigger (design.md:274, tasks.md:220) but the initializer's building task 10.1 does NOT include Requirement 3.1 in its requirement map \u2014 only the research task 10.4 does. The initializer-side trigger logic is therefore unbuilt/untasked.",
+   "severity": "missing-wiring",
+   "fix": "Add '3.1 (trigger Research subagent on new/undefined product class)' to task 10.1's requirement map and to the initializer's key-behavior list.",
+   "cit": "design.md:274; tasks.md:206,220-221"
+  },
+  {
+   "gap": "Ownership split for feature_list.json creation is ambiguous. design.md:234 says the Initializer 'Writes feature_list.json'; tasks.md:237-242 assigns empty-model initialization to a separate tools/feature_list_init.py (task 12). It is unspecified whether the initializer calls that tool or writes the file directly, and how the initializer's write reconciles with the PreToolUse status/artifact guards that protect feature_list.json (design.md:214-215).",
+   "severity": "underspecified",
+   "fix": "State in the initializer definition that it calls tools/feature_list_init.py to seed the file and then populates items, and clarify whether the initializer is exempt from the artifact guard for the initial write.",
+   "cit": "design.md:234,214-215; tasks.md:237-242"
+  },
+  {
+   "gap": "Requirement 1.3 ('persist compiled requirements as version-controlled artifacts, not model context alone') has no concrete artifact path/format for the COMPILED SPEC TEXT. feature_list.json is the coverage model, not the requirements prose; the spec_validator consumes a 'spec artifact' but its on-disk form/location is never named.",
+   "severity": "underspecified",
+   "fix": "Name the spec artifact (e.g. .kiro/specs/<feature>/requirements.md or specs/spec.json) the initializer writes, and reference it from the spec_validator input contract.",
+   "cit": "requirements.md:64; design.md:238,533"
+  },
+  {
+   "gap": "Requirement 2.3 ('present EVERY inferred requirement for human confirmation') is addressed only by bulk plan-mode review; there is no per-item confirmation/acceptance mechanism distinguishing accept/reject of each inferred item. provenance=inferred is recorded but not gated.",
+   "severity": "underspecified",
+   "fix": "Specify a per-inferred-item confirmation step (e.g., the plan-mode presentation must enumerate inferred items and require explicit per-item or batch acknowledgement before they enter feature_list.json).",
+   "cit": "requirements.md:79; design.md:235,365-368"
+  },
+  {
+   "gap": "No agent registration / discovery is specified. The design settings.json block (design.md:159-201) and its building task (tasks.md:191-195) register HOOKS only \u2014 there is no 'agents' key and no settings.json file exists on disk. The initializer is assumed to be auto-discovered by Claude Code's .claude/agents/*.md convention, but this assumption is never stated, so 'BY WHOM it is invoked/registered' is implicit.",
+   "severity": "underspecified",
+   "fix": "Add an explicit note (design.md Subagent Definitions intro) that .claude/agents/*.md are auto-discovered by Claude Code, and confirm no settings.json agents binding is required; create settings.json in task 9.1.",
+   "cit": "design.md:159-201,224; tasks.md:191-195"
+  },
+  {
+   "gap": "CHECK-9a citation tag reads '[REQ-SPEC-011]' (formal_verification_merged.py:390) for the UNMAPPED invariant, but the requirements traceability appendix maps UNMAPPED/discovery (Requirement 2) to baseline B02 / REQ-SPEC-010..012 as a range and the prose criterion is Requirement 2.2. The single-ID tag 011 is within range but not the canonical criterion ID, a minor dangling-citation risk.",
+   "severity": "inconsistency",
+   "fix": "Make the harness tag cite the canonical criterion (e.g., '[REQ-SPEC-011 / Requirement 2.2]') to remove ambiguity.",
+   "cit": "formal_verification_merged.py:390; requirements.md:78,384"
+  },
+  {
+   "gap": "Thinness of design/tasks coverage relative to the initializer's load. The initializer carries the most requirements of any subagent (1.x, 2.x, 4.x, 5.1, 18.2, plus the 3.1 trigger and 29.1 omission), yet design.md gives it ~12 lines (design.md:226-238) and tasks.md a single subtask 10.1 with no acceptance test beyond 'Hand-run: produces valid feature_list.json from sample intent' (design.md:628). The 7-pass loop, no-progress detection, plan-mode mechanics, provenance gating, and omission emission are not decomposed into testable steps.",
+   "severity": "underspecified",
+   "fix": "Decompose task 10.1 into subtasks (spec-compile, validator-loop with cap/no-progress, discovery+UNMAPPED, provenance marking, feature_list emission, plan-mode handoff, omission_declaration emission) each with an acceptance test; add a behavioral fixture beyond the single hand-run.",
+   "cit": "design.md:226-238,628; tasks.md:202-206"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "The draft entirely omits the omission_declaration EARS-category enumeration that REQ-SPEC-018/Req 29.1 imposes on the initializer's output. requirements.md:476 and design.md:1128 require the field to list, BY EARS scenario category {Primary / Alternate / Exception / Recovery / Non-Functional / Edge-Case}, every scenario class NOT covered, each with a `[Gap]` marker. The draft's ears_stories entry for 29.1 and its '(Obligation, unwired) Emit omission_declaration' behavior describe the obligation generically ('by EARS scenario category') but never name the six required categories or the [Gap] marker convention. An initializer.md author working from the draft would not know the field's required\u2026",
+   "cit": "requirements.md:476; design.md:1128"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's properties_and_checks and several ears_stories entries attribute Z3 CHECK-9a (UNMAPPED), CHECK-12a/12b (checklist approval), and CHECK-13a/13b (omission gate) to the initializer as if they pin the initializer's behavior. Verified against the harness source: all three are actor-agnostic. CHECK-9a uses abstract Booleans `unmappedExists`/`advancementAllowed` (verification/formal_verification_merged.py:386-390); CHECK-12a uses `checklistIsDraft`/`checklistUsedForDisc` (470-473); CHECK-13a uses `omissionDeclNull`/`subagentAccepted13` (491-494) and its own comment scopes it to ANY subagent (research, verifier, initializer), NOT the initializer specifically. None encodes the initializer\u2026",
+   "cit": "verification/formal_verification_merged.py:386-390,470-473,481-500"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's open_gap on the harness path is incomplete/misleading. The draft cites the harness throughout as `formal_verification_merged.py:NNN` (repo-root relative), and design.md/tasks.md likewise reference a root-level `formal_verification_merged.py` (e.g. design.md:632 'python3 formal_verification_merged.py'; tasks.md:251-258). On disk the file is at `verification/formal_verification_merged.py` and a DEPRECATED copy sits at `docs/superseded/formal_verification.py`. The line numbers the draft cites are correct, but the path the spec and draft both assume (repo root) does not match disk \u2014 so the CI task 13.1 command `python3 formal_verification_merged.py` would fail as written. The draft n\u2026",
+   "cit": "design.md:632; tasks.md:251-258; verification/formal_verification_merged.py"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft does not address Requirement 24.2 / Property 29 (research epistemic integrity) as it bears on the initializer. The initializer is the CONSUMER of the domain-baseline checklist for proactive discovery (design.md:233,604). Req 24.2 (requirements.md:443) and Property 29 (design.md:1114-1120) require that every sourced claim carry a source URL + authority-tier label and pass an independent fact-check BEFORE human review and use. Combined with CHECK-12a (DRAFT cannot be used), this means the initializer is barred from discovering against any checklist whose claims are unlabeled/unverified \u2014 an additional precondition on the initializer's discovery pass beyond the bare DRAFT/approved bit\u2026",
+   "cit": "requirements.md:443; design.md:1114-1120"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's threshold-ownership treatment of SPEC_COMPLETION_HARD_CAP=7 and the Z3 validator timeout is correct that the initializer 'consumes but does not own' them, but it misses that BOTH defaults are centralized by task 44 (tasks.md:956) \u2014 the previously-untasked 'Execution-bounds config module' that explicitly lists 'loop 7, timeout 60s' among the numeric DEFAULTs with operator-override checks. The initializer's bounded loop and validator invocation depend on this config module, yet the draft's dependencies/config_settings lists never reference task 44 as the owning build task for the cap/timeout the initializer reads. This is a missing wiring dependency (initializer loop -> task-44 con\u2026",
+   "cit": "tasks.md:956; requirements.md:354"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's no-progress config entry conflates two distinct predicates without flagging that the spec itself only ever operationalizes the SLICE-level one. design.md:835-840 gives a concrete spec-level example (count must strictly decrease pass-over-pass -> immediate HANDOFF) but, unlike the slice-level watchdog (design.md:640-682 with N_PROGRESS_WINDOW=3 code and Property 8/15 tests), there is NO code, no run_state field, and no property test for the spec-level strict-decrease predicate the initializer loop depends on. Property 15 (design.md:994-998) is stated but its only test (task 39.6) lives in the PBT suite with no implementing component named \u2014 the initializer's task 10.1 produces onl\u2026",
+   "cit": "design.md:835-840,994-998; tasks.md:606-610"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft omits that task 10.1's requirement map (tasks.md:206) is missing Requirement 5.4 even though the initializer is the producer that must satisfy it. Req 5.4 (requirements.md:125) requires WIRING and NFR items to be represented as first-class coverage items in feature_list.json 'not as code comments or informal afterthoughts'; Property 1 explicitly 'Validates: Requirements 5.1, 5.4' (design.md:886) and names the initializer as the producer of those items. The draft surfaces the 3.1 and 29.1 omissions from task 10.1's map but never notices the 5.4 omission \u2014 the initializer is obligated to emit WIRING/NFR items as first-class, yet 5.4 appears in neither task 10.1's map nor the draft's \u2026",
+   "cit": "requirements.md:125; design.md:886; tasks.md:206"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Requirement 1.1 / REQ-SPEC-001",
+   "criterion": "THE Spec_Compiler SHALL compile product intent into atomic requirements, each with a unique ID, an EARS-pattern statement, a priority field, and \u22651 machine-checkable acceptance criterion.",
+   "how": "Initializer 'Transforms product intent into an EARS-compliant spec' (design.md:228); task 10.1 maps 1.1; CoverageItem schema enforces id pattern, ears_pattern, priority, acceptance_criteria minItems:1 (design.md:322-364). Property 1 validates 5.1/5.4.",
+   "status": "partial",
+   "cit": "requirements.md:62; design.md:228,322-364; tasks.md:206"
+  },
+  {
+   "req_id": "Requirement 1.3 / REQ-SPEC-003",
+   "criterion": "THE Spec_Compiler SHALL persist compiled requirements as version-controlled artifacts in the repository, not in model context alone.",
+   "how": "Initializer permissions are 'Read/write to spec artifacts' (design.md:238); task 10.1 maps 1.3. No concrete artifact path/format for the compiled spec is named (feature_list.json is the coverage model, not the requirements text).",
+   "status": "partial",
+   "cit": "requirements.md:64; design.md:238; tasks.md:206"
+  },
+  {
+   "req_id": "Requirement 1.4 / REQ-SPEC-004",
+   "criterion": "WHEN a requirement is authored or modified, THE Spec_Compiler SHALL validate it against the EARS schema and assign exactly one of the five EARS patterns.",
+   "how": "Property 16 (design.md:1002-1006) pins exactly-one-of-{ubiquitous,event-driven,state-driven,unwanted,optional}; ears_pattern enum has 5 values (design.md:347); spec_validator EARS encoder (tasks.md:65). Glossary lists SIX named patterns incl. 'Complex' (requirements.md:31) \u2014 reconciled by note desig\u2026",
+   "status": "partial",
+   "cit": "requirements.md:65,31; design.md:347,1002-1006,1187-1188"
+  },
+  {
+   "req_id": "Requirement 2.3 / REQ-SPEC-012",
+   "criterion": "WHILE proactive discovery is active, THE System SHALL present every inferred requirement for human confirmation and SHALL mark inferred-vs-stated provenance on each requirement.",
+   "how": "CoverageItem.provenance enum {stated,inferred} (design.md:365-368); initializer enters plan mode for human sign-off (design.md:235). 'present every inferred requirement for human confirmation' has no explicit per-item confirmation mechanism beyond plan-mode bulk review.",
+   "status": "partial",
+   "cit": "requirements.md:79; design.md:235,365-368"
+  },
+  {
+   "req_id": "Requirement 3.1 / REQ-SPEC-013",
+   "criterion": "WHEN a new product class is encountered for the first time, THE System SHALL run a Research_Sub_Agent ... and SHALL present the draft for human review before use.",
+   "how": "Initializer triggers the Research subagent: 'Triggered by the Initializer when a product class has no existing checklist' (design.md:274); task 10.4 says research is 'triggered by Initializer on new product class' (tasks.md:220). The initializer's own building task 10.1 does NOT list Requirement 3.1\u2026",
+   "status": "partial",
+   "cit": "requirements.md:91; design.md:274; tasks.md:220,221; (gap) tasks.md:206"
+  },
+  {
+   "req_id": "Requirement 4.3 / REQ-SPEC-022",
+   "criterion": "IF a spec-completion pass does not strictly reduce violation_count vs the prior pass, THEN THE System SHALL halt and hand off to a human.",
+   "how": "Initializer key behavior: HANDOFF on no-progress 'count doesn't decrease \u2192 immediate HANDOFF' (tasks.md:205); Property 15 convergence gate (design.md:994-998); error-handling example (design.md:835-840). Mechanism location (agent vs validator vs stop hook) underspecified.",
+   "status": "partial",
+   "cit": "requirements.md:107; tasks.md:205; design.md:994-998,835-840"
+  },
+  {
+   "req_id": "Requirement 29.1 / REQ-SPEC-018 (omission)",
+   "criterion": "WHEN a subagent (initializer, research, verifier) completes a pass, THEN its output SHALL include a non-null omission_declaration field listing, by EARS scenario category, every scenario class NOT covered, using [Gap] markers.",
+   "how": "Named for the initializer in requirements.md:476 but the initializer's OWN building task (10.1, tasks.md:202-206) never lists omission_declaration; only the retrofit task 54 (tasks.md:974) adds it to 'each subagent output schema (initializer, research, verifier)'. No initializer output schema file e\u2026",
+   "status": "partial",
+   "cit": "requirements.md:476; tasks.md:974; (gap) tasks.md:202-206"
+  },
+  {
+   "req_id": "Requirement 29.3 / REQ-SPEC-018",
+   "criterion": "THE JSON schema for each subagent output type SHALL include omission_declaration as a required, non-nullable field.",
+   "how": "Required by requirements.md:478 and task 54 (tasks.md:974). NO subagent-output JSON schema exists in the repo (find for schema/*.json returns nothing; no schema/ dir). The only schema present is feature_list.schema.json (also not on disk).",
+   "status": "gap",
+   "cit": "requirements.md:478; tasks.md:974"
+  },
+  {
+   "req_id": "Glossary: Spec_Compiler",
+   "criterion": "The component responsible for transforming product intent into atomic, individually-testable requirements with IDs and acceptance criteria.",
+   "how": "Initializer is the concrete realization (design.md:38,226). requirements.md never links 'Spec_Compiler' to initializer.md by name \u2014 the binding exists only in design.md/tasks.md.",
+   "status": "partial",
+   "cit": "requirements.md:18; design.md:38,226"
+  },
+  {
+   "req_id": "Property 15 (Spec-Completion Convergence Gate)",
+   "criterion": "Two consecutive passes without strict violation_count decrease \u2192 immediate HANDOFF. Validates Req 4.3.",
+   "how": "Initializer loop honors this (tasks.md:205; design.md:835-840). Property test task 39.6 (tasks.md:606-610).",
+   "status": "partial",
+   "cit": "design.md:994-998; tasks.md:205,606-610"
+  },
+  {
+   "req_id": "Property 17 (Vague-Adjective Rejection)",
+   "criterion": "Any candidate requirement with a non-deterministic adjective without a numeric bound is rejected. Validates Req 1.2.",
+   "how": "spec_validator vague-adjective scanner (tasks.md:68,84-88). Initializer routes candidates through it. Adjective set differs between Req 1.2 (4 examples) and Property 17 (7 members) \u2014 see open_gaps.",
+   "status": "partial",
+   "cit": "design.md:1010-1014; tasks.md:68,84-88; requirements.md:63"
+  },
+  {
+   "req_id": "Property 30 (Omission-Declaration Gate)",
+   "criterion": "Any subagent result (initializer, research, verifier) returned to SubagentStop must include a non-null omission_declaration; null/absent \u2192 exit 2. Validates Req 29 / REQ-SPEC-018. CHECK-13a/13b.",
+   "how": "Gate is at SubagentStop (design.md:1124-1130; harness:481-500). Requires the initializer to EMIT the field, but the initializer's building task 10.1 and any output schema do not include it; only retrofit task 54.",
+   "status": "partial",
+   "cit": "design.md:1124-1130; formal_verification_merged.py:481-500; tasks.md:974"
+  },
+  {
+   "req_id": "Z3 CHECK-13a/13b (omission gate)",
+   "criterion": "null omission_declaration \u2227 result accepted is UNSAT; non-null may be accepted. [REQ-SPEC-018]",
+   "how": "Harness:481-500. Applies to initializer output but the initializer never declares the field in its definition/schema (gap).",
+   "status": "partial",
+   "cit": "formal_verification_merged.py:481-500; tasks.md:974"
+  }
+ ],
+ "citation_issues": [
+  "PHANTOM LINE: design.md:237 cited for '- Does NOT write `plan-approved.json` \u2014 only the human does'. The actual text is on line 236. Line 237 is an empty line. This off-by-one error appears in: the 'Refuse to write plan-approved.json' behavior citation ('design.md:237,762'), the 'plan-approved.json' glossary citation ('design.md:237,762'), the Requirement 4.5 EARS story citation ('design.md:235,760; tasks.md:206'), and the open-gap suggestion ('design.md:237,762').",
+  "PHANTOM LINE: design.md:762 cited alongside design.md:237 for the Initializer's refusal to write plan-approved.json. Line 762 is '```json' (the opening of a JSON code block for the plan-approved.json example structure), not a statement about the Initializer's obligations. The relevant prose is on line 760: 'When the Initializer has driven violation_count to zero, it enters plan mode and presents the validated spec + feature_list.json. The human reviews and writes plan-approved.json.' This affects all citations written as 'design.md:237,762' \u2014 the second number resolves to wrong content."
+ ]
+}

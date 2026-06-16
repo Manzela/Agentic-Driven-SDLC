@@ -1,0 +1,122 @@
+{
+ "idx": 5,
+ "component": "post_tool_use_hook.py",
+ "file_path": ".claude/hooks/post_tool_use_hook.py",
+ "phase": "1",
+ "what": "`post_tool_use_hook.py` (`.claude/hooks/post_tool_use_hook.py`, Phase 1) is the Claude Code `PostToolUse` command-type hook. Per the design inventory (design.md:131) and hook-wiring table (design.md:216) it \"Runs lint, type check, SAST (Semgrep), wiring check on changed files; returns specific errors via stdout.\" Concretely (tasks.md 18.1, lines 309-316): on `Write`/`Edit`/`MultiEdit` completion it runs lint (`ruff check`) + type check (`mypy`) on the changed files, runs `semgrep --config auto` filtering for HIGH/CRITICAL findings, runs `python3 tools/wiring_checker.py` on the changed files, collects all findings, emits them to stdout as structured next-turn feedback, and exits 1 (non-blocki\u2026",
+ "open_gaps": [
+  {
+   "gap": "Requirement-to-task content mismatch on type-checking. REQ-VERIFY-004 (requirements.md:189) says the hook runs 'lint, SAST, and wiring checks' \u2014 type-checking (mypy) is NOT named in the requirement, but the design hook-wiring row (design.md:216) adds 'type check' and task 18.1 (tasks.md:311) adds `mypy`. The authoritative EARS criterion under-specifies what the hook actually does.",
+   "severity": "inconsistency",
+   "fix": "Amend REQ-VERIFY-004 to read 'run lint, type-check, SAST, and wiring checks' so the requirement, design row, and task agree, OR drop mypy from task 18.1 if type-check is meant to be Verifier-only.",
+   "cit": "requirements.md:189 vs design.md:216 vs tasks.md:311"
+  },
+  {
+   "gap": "Audit-log producer NOT wired into post_tool_use_hook.py while the other comparable hooks are. REQ-AUDIT-001 (requirements.md:460) and task 52.3 (tasks.md:970) wire audit_log.append(...) into stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py 'on every allow/block decision' \u2014 PostToolUse is deliberately excluded. This is internally consistent (PostToolUse makes no allow/block decision), but means PostToolUse findings/feedback events are NOT in the tamper-evident gate-decision log, even though task 36.1 DOES forward them to OTel. So the audit log and the OTel trace disagree on whether PostToolUse events are recorded.",
+   "severity": "underspecified",
+   "fix": "State explicitly in design.md (inventory row design.md:131 and audit section) that PostToolUse is intentionally NOT an audit-log producer because it issues no gate decision, and reconcile with task 36.1 by clarifying that OTel forwarding of PostToolUse is informational telemetry, not an audit-logged decision.",
+   "cit": "requirements.md:460; tasks.md:970; tasks.md:540"
+  },
+  {
+   "gap": "Design/tasks thinness. The component has NO dedicated design subsection (unlike stop_hook.py's 'No-Progress Watchdog' and pre_tool_use_hook.py's 'plan-approved.json Gate' sections). Its entire design coverage is three table rows (inventory design.md:131, hook-wiring design.md:216, error-handling design.md:813) plus one sequence-diagram line (105). No pseudocode, no defined output schema for the 'structured feedback' it emits to stdout, no specification of HOW changed files are determined (the hook receives a PostToolUse event \u2014 how it extracts the file path(s) from Write/Edit/MultiEdit payloads is unspecified), and no spec for what 'structured feedback' format the agent consumes.",
+   "severity": "underspecified",
+   "fix": "Add a short design subsection defining: (a) how changed-file paths are parsed from the PostToolUse event payload, (b) the JSON/text schema of the structured feedback emitted to stdout, (c) how multi-tool MultiEdit batches are handled. Mirror the depth of the stop-hook/pre-hook sections.",
+   "cit": "design.md:131; design.md:216; design.md:813; design.md:105"
+  },
+  {
+   "gap": "No timeout specified for the hook despite shelling out to four potentially-slow external processes (ruff, mypy, semgrep --config auto, wiring_checker.py). The Req 20.1 'hook validator timeout of 60 seconds' (requirements.md:354) is documented as applying to spec_validator.py (design.md:814) and is silent on post_tool_use_hook.py. A semgrep --config auto run on a large changeset can exceed 60s; the spec gives no timeout behavior for this hook.",
+   "severity": "underspecified",
+   "fix": "Specify in task 18.1 / design that post_tool_use_hook.py applies the 60s validator-timeout default per-tool (or a dedicated budget), and on timeout still exits 1 with a 'post-hook timeout' finding \u2014 never blocks.",
+   "cit": "requirements.md:354; design.md:814; tasks.md:309-316"
+  },
+  {
+   "gap": "REQ-OBS-003 hook-decision forwarding conceptually mis-fits PostToolUse. Task 36.1 (tasks.md:540) sets attribute 'decision' (allow/block) on the emitted span for 'all six hooks' including PostToolUse \u2014 but PostToolUse never makes an allow/block decision (it always exits 1, non-blocking). REQ-OBS-003 (requirements.md:236) is scoped to 'WHEN a hook makes a gate decision'. PostToolUse makes none, so either the requirement's trigger does not apply to it or the 'decision' attribute is meaningless/empty for this hook.",
+   "severity": "inconsistency",
+   "fix": "Either exclude PostToolUse from the REQ-OBS-003 gate-decision forwarding (it is not a gate), or define a distinct span event type (e.g. hook.feedback with a findings count) for PostToolUse rather than reusing the allow/block 'decision' attribute.",
+   "cit": "requirements.md:236; tasks.md:539-542"
+  },
+  {
+   "gap": "Zero formal-verification coverage. No Z3 CHECK pins this component (confirmed: grep of formal_verification_merged.py for post_tool_use/lint/sast/wiring \u2192 no match). Its single load-bearing invariant \u2014 'PostToolUse MUST exit 1 / must never block / cannot undo' \u2014 is asserted only in prose (requirements.md:251) and a Hypothesis PBT (Property 21, generic across all hooks). Given the spec's heavy reliance on the harness for every other gate invariant, the absence of any machine-checked 'PostToolUse-never-exits-2' assertion is a coverage gap relative to the rest of the system.",
+   "severity": "missing-wiring",
+   "fix": "Add a CHECK to formal_verification_merged.py modeling postHookBlocks \u21d2 False (i.e. a PostToolUse path that exits 2 is UNSAT), parallel to CHECK-5b/5c/8c that pin the Stop-hook exit-0 HANDOFF invariant, so the prevention/feedback split is formally pinned on both sides.",
+   "cit": "formal_verification_merged.py (no match); requirements.md:251; design.md:1044"
+  },
+  {
+   "gap": "Semgrep vs Semgrep_CodeQL naming. The hook runs only 'Semgrep' (design.md:216, tasks.md:312), but the glossary term Semgrep_CodeQL (requirements.md:47) and REQ-VERIFY-001 (requirements.md:186) pair Semgrep with CodeQL for SAST. The in-loop hook deliberately runs only Semgrep (CodeQL is a CI workflow, task 23); this is reasonable but nowhere stated, so a reader expecting 'SAST' to mean Semgrep+CodeQL would assume the hook runs CodeQL too.",
+   "severity": "underspecified",
+   "fix": "Note in the hook-wiring row / task 18.1 that PostToolUse runs Semgrep ONLY (CodeQL is the CI gate per task 23 / REQ-SEC-001) so the 'SAST' wording is not misread as including CodeQL at edit time.",
+   "cit": "requirements.md:47; requirements.md:186; design.md:216; tasks.md:312"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "Property 21's requirement-mapping line (tasks.md:591) lists '18.1' as one of the Requirements it validates: '_Requirements: 5.5, 7.4, 7.5, 10.2, 13.5, 14.1, 14.2, 18.1_'. Task 18.1 IS the post_tool_use_hook.py implementation. So the PBT suite explicitly traces Property 21 back to this hook's task \u2014 meaning the spec DOES wire a property-based test to post_tool_use_hook.py via task 18.1, not merely 'generically across all hooks.' The draft's properties_and_checks bullet says Property 21 'is the ONLY numbered Property that constrains this hook, and only via the shared exit-code contract' but never notes that tasks.md:591 names task 18.1 by number in Property 21's requirement list, which is the \u2026",
+   "cit": "tasks.md:591 (Property 21 _Requirements: ... 18.1_); cf. draft properties_and_checks bullet 1"
+  },
+  {
+   "kind": "missing",
+   "detail": "Design-vs-design internal contradiction on AST analysis the draft never flags. Req 9.1/REQ-VERIFY-001 (requirements.md:186) and the Verifier section (design.md:258) and task 17.x (tasks.md:215) all define the STRUCTURAL layer as 'lint, type check, AST analysis/AST'. The draft maps PostToolUse as a 'fast-feedback shadow of layers 1+4' (structural+security) and says it runs lint+type+SAST+wiring. But the structural layer's third element \u2014 AST analysis \u2014 is NOT in the PostToolUse task (task 18.1 runs ruff+mypy+semgrep+wiring_checker, no standalone AST step), even though wiring_checker.py itself uses the ast module (task 19.1, tasks.md:327). The draft asserts the hook is a 'shadow of layers 1+4'\u2026",
+   "cit": "requirements.md:186; design.md:258; tasks.md:215; tasks.md:327; cf. draft ears_stories REQ-VERIFY-001 row"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's REQ-VERIFY-004 ears_story cites the requirement as 'requirements.md:189' and labels its req_id 'REQ-VERIFY-004 (Req 9.4)', but does not verify that task 18.1's own back-reference uses the bare numeric form '9.4' (tasks.md:316: '_Requirements: 9.4, 13.2_') rather than the REQ-VERIFY-004 PRD id. This is the canonical traceability link for the component and it is numeric-only. More importantly, the draft never checks that REQ-VERIFY-004 is acceptance-criterion #4 under Requirement 9 (requirements.md:189) \u2014 i.e. the '9.4' mapping is correct \u2014 but it ALSO never notes that the requirement text at 189 omits BOTH 'type check' AND 'AST analysis' that appear downstream, so the under-specif\u2026",
+   "cit": "requirements.md:189; tasks.md:316; cf. draft open_gaps[0]"
+  },
+  {
+   "kind": "missing",
+   "detail": "Postgres-unavailable fallback obligation (N-25, tasks.md:730) is not assessed for PostToolUse. The reconciliation note at tasks.md:730 requires that 'every gate (Stop coverage gate, PreToolUse status/integrity guards, OPA merge policy) MUST fall back to file-backed state ... never fail-open' when db_connection.health_check() fails. PostToolUse is correctly NOT in that gate list (it makes no gate decision), but task 36.1 makes PostToolUse emit an OTel span, and if telemetry/DB is down the hook must still exit 1 and not crash the edit loop. The draft's fail-open-on-crash behavior covers exceptions generically but does not connect to the N-25 'never fail-open' family invariant to explicitly sta\u2026",
+   "cit": "tasks.md:730; tasks.md:540; cf. draft behaviors 'Fail-open on its own crash'"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's config_settings entry 'hook type = command' gives owner 'settings.json / REQ-STEER-004' and default note '(never http/mcp \u2014 fail-closed family requirement, though this hook itself never blocks)'. REQ-STEER-004 (requirements.md:253) mandates command-type hooks specifically 'for hard policy enforcement (which fail closed)' and says the system SHALL NOT use HTTP/MCP 'for hard policy.' PostToolUse enforces NO hard policy (it never blocks), so REQ-STEER-004's command-type mandate does not strictly bind it the way it binds the fail-closed hooks \u2014 the design.md:203 blanket statement ('All hooks are command type ... so they fail closed') is the actual source, and it conflates this non-bl\u2026",
+   "cit": "requirements.md:253; design.md:203; cf. draft config_settings 'hook type = command'"
+  },
+  {
+   "kind": "missing",
+   "detail": "Integration test 26.1 mapping detail omitted. The draft cites tasks.md:409 for the exit-1 integration assertion but does not surface that test 26.1's requirement trace (tasks.md:410: '_Requirements: 8.1, 8.2, 9.4, 10.3, 13.2_') ties the PostToolUse integration assertion to Req 8.1/8.2 (wiring) and 9.4 (verify) and 13.2 (steer) simultaneously \u2014 confirming the spec treats the hook's wiring-check behavior as testably bound to Req 8, not just Req 9.4. The draft's Req-8.1 ears_story is marked 'partial' citing only tasks.md:313 and 325-331 (the wiring_checker engine) and misses that integration test 26.1 actually exercises the hook+wiring_checker path together under Req 8.1/8.2 \u2014 a stronger covera\u2026",
+   "cit": "tasks.md:404-410 (test 26.1, _Requirements: 8.1, 8.2, 9.4, ...); cf. draft ears_stories Req-8.1 row"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's open_gaps correctly notes 'no spec for how changed files are determined,' but understates the evidence: independent grep confirms the spec has a concrete pattern it FAILS to apply here. subagent_stop_hook.py task 178 explicitly says 'Parse subagent result from stdin (JSON); locate evidence field(s)' (tasks.md:178) and pre_tool_use_hook.py reads tool input \u2014 i.e. sibling hooks document their stdin/payload parsing, but task 18.1 (tasks.md:309-316) says only 'on changed files' with no stdin-parsing step at all. So the gap is not merely 'unspecified in the abstract' \u2014 it is a documented inconsistency where every comparable hook specifies its input-parsing and this one uniquely does n\u2026",
+   "cit": "tasks.md:178; tasks.md:309-316; cf. draft open_gaps[2]"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Req 9.1 / REQ-VERIFY-001 (five-layer scope)",
+   "criterion": "THE System SHALL verify each Slice across five layers: structural (lint, type checking, AST analysis), semantic..., behavioral..., security (SAST via Semgrep_CodeQL), and performance + accessibility...",
+   "how": "PostToolUse runs the STRUCTURAL (lint/type) + SECURITY (Semgrep SAST) + wiring subset on every edit as in-loop feedback; the AUTHORITATIVE five-layer verification (incl. semantic/behavioral/perf/a11y and the proof-producing run) is the Verifier subagent's job, not the hook's. Hook is a fast-feedback\u2026",
+   "status": "partial",
+   "cit": "requirements.md:186; design.md:258; tasks.md:215"
+  },
+  {
+   "req_id": "Req 8.1 / REQ-EXEC-010 (wiring analysis)",
+   "criterion": "THE System SHALL run static call-graph and dead-code analysis on changed files and SHALL represent each wiring obligation as a WIRING coverage item in feature_list.json.",
+   "how": "PostToolUse invokes wiring_checker.py on changed files (task 18.1, line 313); wiring_checker (task 19) does the AST call-graph/dead-code analysis and emits WIRING item candidates to stdout. The hook is the trigger; wiring_checker is the engine.",
+   "status": "partial",
+   "cit": "requirements.md:172; tasks.md:313; tasks.md:325-331"
+  },
+  {
+   "req_id": "Req 12.3 / REQ-OBS-003 (hook-decision forwarding)",
+   "criterion": "WHEN a hook makes a gate decision, THE System SHALL emit that decision \u2014 event, tool, allow/block, reason, requirement ID \u2014 to the same trace endpoint as agent spans.",
+   "how": "Task 36.1 extends 'all six hooks (Stop, PreToolUse, PostToolUse, SubagentStop, SessionStart, PreCompact)' to emit OTel gate-decision events. PostToolUse is named in the six. Note: PostToolUse makes no allow/block 'gate decision' (it never blocks), so what it forwards is a feedback/finding event, not\u2026",
+   "status": "partial",
+   "cit": "tasks.md:539-542"
+  },
+  {
+   "req_id": "Req 20.1 / REQ-NFR (SAST threshold)",
+   "criterion": "THE System SHALL enforce the following DEFAULT numeric thresholds: ...0 HIGH or CRITICAL SAST findings...",
+   "how": "PostToolUse filters semgrep output for HIGH/CRITICAL findings (task 18.1 line 312) \u2014 but only REPORTS them (exit 1), it does not enforce/block on them. Enforcement of the 0-HIGH/CRITICAL threshold is the CI SAST gate (REQ-SEC-001, CodeQL/Semgrep workflows), not this hook.",
+   "status": "partial",
+   "cit": "requirements.md:354; tasks.md:312"
+  }
+ ],
+ "citation_issues": [
+  "design.md:131 misattribution \u2014 The draft's 'what' section quotes 'Runs lint, type check, SAST (Semgrep), wiring check on changed files; returns specific errors via stdout' and attributes it jointly to '(design.md:131) and hook-wiring table (design.md:216)'. The actual text at design.md:131 (component inventory row) reads: 'Runs lint + SAST + wiring checks after each file edit; returns errors as next-turn feedback.' It omits 'type check', omits '(Semgrep)', and says 'next-turn feedback' not 'specific errors via stdout'. The verbatim quoted formulation exists ONLY at design.md:216 (hook-wiring table row). design.md:131 is a partial-match misattribution \u2014 the quoted text cannot be confirmed at that line.",
+  "requirements.md:460 substance check \u2014 The draft cites 'requirements.md:460; tasks.md:970' for the open_gaps claim about audit_log.py NOT being wired into post_tool_use_hook.py. requirements.md:460 is actually Requirement 27.4 (which names stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py as audit-log callers and omits PostToolUse). The citation resolves and the content supports the claim, but the canonical ID for this sub-criterion is Req 27.4, not 'REQ-AUDIT-001' at that line number. REQ-AUDIT-001 appears as a PRD reference tag in the Requirement 27 header (line 456), not at line 460 itself. The citation is slightly imprecise (line 460 = sub-criterion 4, not the REQ-AUDIT-001 tag) but is not a phantom \u2014 the content at line 460 does support the claim."
+ ]
+}

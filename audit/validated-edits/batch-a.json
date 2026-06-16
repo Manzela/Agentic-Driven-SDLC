@@ -1,0 +1,1718 @@
+[
+ {
+  "component": "feature_list.json",
+  "confirmed_edits": [
+   {
+    "title": "Add conditional schema rule enforcing Evidence_Record when status=proven",
+    "target_file": "design.md",
+    "anchor": "definitions.CoverageItem JSON block (design.md:322-385); required list at line 324; evidence property at 381-383",
+    "change": "Add an allOf/if-then to CoverageItem in the design.md schema block: `\"allOf\": [{\"if\": {\"properties\": {\"status\": {\"const\": \"proven\"}}, \"required\": [\"status\"]}, \"then\": {\"required\": [\"evidence\"]}}]` so a schema-valid item cannot be status=proven with no evidence object. Update the Phase-0 schema test row (design.md:623) to also assert a status=proven item with NO evidence object is rejected (today it only rejects a missing output_hash inside an existing evidence object). Add a note in Req 5.3/5.6 and Property 2 that the four-field gate is jointly schema- AND hook-enforced.",
+    "change_type": "fix-defect",
+    "severity": "defect",
+    "dedup_key": "schema-evidence-required-when-proven",
+    "adds_wiring": true
+   },
+   {
+    "title": "Resolve status/in_scope required-vs-default contradiction in CoverageItem schema",
+    "target_file": "design.md",
+    "anchor": "CoverageItem.required at design.md:324; status default 'unproven' at 373; in_scope default true at 378",
+    "change": "A JSON-Schema `default` never populates a value for a `required` property, so 'status defaults to unproven' (Req 5.1/Property 1) and 'in_scope DEFAULT true' (Req 5.7) are not realized by the file schema even though they ARE realized by the Postgres DEFAULTs (design.md:447-448), making a hand/tool-written file that omits status schema-INVALID while the equivalent DB row is valid-and-defaulted. Pick one: (a) drop `status` and `in_scope` from CoverageItem.required and let the schema `default` annotate, OR (b) keep them required, remove the misleading `default` keywords, and reword Req 5.1/Property 1 to 'every item is WRITTEN with status=unproven by the Initializer' and Req 5.7 likewise. Note the DB-vs-file default divergence so the conservative-merge rule (tasks.md:730) stays consistent.",
+    "change_type": "resolve-inconsistency",
+    "severity": "inconsistency",
+    "dedup_key": "schema-required-vs-default",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add append-only ordering/length preservation check and property",
+    "target_file": "design.md",
+    "anchor": "'Never deleted or reordered' (design.md:126, 288); Property 3 Identity-Mutation Blockade (design.md:898-902)",
+    "change": "Property 3 blocks mutation of id/type/acceptance_criteria of an existing item but does NOT catch a pure reorder or a deletion that leaves surviving items' id/type/AC intact. Extend Property 3 (and the PreToolUse status/artifact guard at design.md:214-215) to diff the incoming items[] id-sequence and length against the prior committed version of feature_list.json and block on any deletion, truncation, or reorder. Add the corresponding assertion to tasks.md task 6.1 (check_artifact_guard / a new check_append_only) and its property test (tasks.md 6.4 / Property 3).",
+    "change_type": "add-wiring",
+    "severity": "missing-wiring",
+    "dedup_key": "append-only-order-length-guard",
+    "adds_wiring": true
+   },
+   {
+    "title": "Model the three-state status-transition graph in the Z3 harness or soften the machine-checked claim",
+    "target_file": "verification/formal_verification_merged.py",
+    "anchor": "Section 1 coverage/completion Booleans (lines 73-92); harness has no {unproven,proven,failed} enum or edge graph",
+    "change": "The harness models coverage with standalone Booleans (unproven/passed/evidence*) and never encodes the {unproven,proven,failed} three-state machine or the permitted-edge set (unproven\u2192proven, unproven\u2192failed, failed\u2192unproven) with all other edges UNSAT, so Req 5.8/Property 3's 'machine-checked status graph' is overstated. Add a CHECK group (e.g. CHECK-14a..n) using an Int/enum status variable that asserts each permitted edge is SAT and every non-permitted edge (e.g. proven\u2192failed, proven\u2192unproven without amendment, failed\u2192proven without evidence) is UNSAT, and reference it from requirements.md:123/129. Until added, soften 'machine-checked' wording for the status graph in requirements.md and design.md.",
+    "change_type": "fix-defect",
+    "severity": "underspecified",
+    "dedup_key": "z3-status-three-state-graph",
+    "adds_wiring": true
+   },
+   {
+    "title": "Extend amendment re-entry to flip the feature_list.json item, not only Postgres coverage_items",
+    "target_file": "design.md",
+    "anchor": "'On amendment: insert a version row AND reset coverage_items.status to unproven' (design.md:1152); REQ-COV-007 / Property 25",
+    "change": "REQ-COV-007/Property 25/CHECK-10 reset only Postgres coverage_items.status; on a Postgres-down amendment (the file is the Phase-0 source of truth and DB-down fallback, design.md:815) the feature_list.json item stays proven while the model is logically unproven. Extend Req 22 / the amendment design step / task 48 to ALSO flip the corresponding feature_list.json item to unproven and invalidate its plan-approval binding (re-block via feature_list_sha) on amendment, and add a Postgres-down amendment test under task 39.15.",
+    "change_type": "add-wiring",
+    "severity": "missing-wiring",
+    "dedup_key": "amendment-reentry-file-mirror",
+    "adds_wiring": true
+   },
+   {
+    "title": "Add a CI git-blob-SHA check enforcing checklist_ref.sha fidelity",
+    "target_file": "tasks.md",
+    "anchor": "Property 18 Checklist Version Link Fidelity (design.md:1018-1022); task 39.9 (tasks.md:626-630)",
+    "change": "Property 18 asserts checklist_ref.sha matches the actual git blob SHA, but no task computes the git blob SHA in CI \u2014 task 39.9 only writes the property test. Add a CI/task step (extend task 39.9 or the coverage-gate workflow) that runs `git hash-object` on checklist_ref.path and fails if it does not equal feature_list.json's recorded checklist_ref.sha, wiring Property 18 to an actual deterministic check.",
+    "change_type": "add-wiring",
+    "severity": "underspecified",
+    "dedup_key": "checklist-ref-sha-ci-check",
+    "adds_wiring": true
+   },
+   {
+    "title": "Fix glossary wording implying evidence is always present on every item",
+    "target_file": "requirements.md",
+    "anchor": "Glossary feature_list.json entry, requirements.md:28",
+    "change": "Line 28 reads '...with type, status, dependencies, acceptance criteria, and evidence' as if evidence is always present, but evidence is optional and present only on proven items. Reword to '...with type, status, dependencies, acceptance criteria, in_scope, and (when proven) an Evidence_Record.'",
+    "change_type": "resolve-inconsistency",
+    "severity": "inconsistency",
+    "dedup_key": "unique:glossary-evidence-always-present",
+    "adds_wiring": false
+   },
+   {
+    "title": "Enforce ears_pattern (and conditionally provenance) at the file level or relocate the guarantee to spec_validator",
+    "target_file": "design.md",
+    "anchor": "CoverageItem.required at design.md:324; ears_pattern at 345-349; provenance at 365-369",
+    "change": "`ears_pattern` and `provenance` are schema-optional, yet Req 1.4/Property 16 require exactly one EARS pattern per item and Req 2.3 requires provenance on every inferred requirement, so both guarantees are unenforced at the file level. Either add `ears_pattern` to CoverageItem.required and add an allOf making `provenance` required when provenance=='inferred' is in play (or unconditionally), OR explicitly state in Req 1.4 and Req 2.3 that these are enforced by spec_validator.py at authoring time (not by the file schema) and add the corresponding spec_validator check + task. Pick one and make schema, requirements, and Property 16 agree.",
+    "change_type": "add-detail",
+    "severity": "underspecified",
+    "dedup_key": "schema-ears-pattern-provenance-required",
+    "adds_wiring": true
+   },
+   {
+    "title": "Add an NFR subtype field so the Verifier can route performance vs accessibility deterministically",
+    "target_file": "design.md",
+    "anchor": "CoverageItem schema (design.md:331-385), type enum at 331-335; Req 25.1/25.2 (requirements.md:447-448)",
+    "change": "Req 25.1/25.2 route an NFR item to k6/Lighthouse vs axe-core by subtype `performance`/`accessibility`, but CoverageItem has only `type \u2208 {functional,NFR,WIRING}` and no machine-readable subtype, so perf_a11y_verifier cannot select its evidence tool from the coverage model. Add an optional `nfr_subtype` property (enum e.g. {performance, accessibility, reliability, security}) to CoverageItem, required-when type=='NFR' via an allOf, mirror it in the Postgres requirements table, and reference it from Req 25.1/25.2 and the verifier component (design.md:146).",
+    "change_type": "add-wiring",
+    "severity": "missing-wiring",
+    "dedup_key": "coverage-item-nfr-subtype",
+    "adds_wiring": true
+   },
+   {
+    "title": "Tie WIRING-type items to an integration-test Evidence_Record at the schema/Property level",
+    "target_file": "design.md",
+    "anchor": "type description 'WIRING items require integration-test evidence' (design.md:334); EvidenceRecord schema (design.md:387-411); Req 8.3 (requirements.md:174)",
+    "change": "Req 8.3 demands an integration test exercising the real execution path as the Evidence_Record for a proven WIRING item, but EvidenceRecord is a uniform 4-field shape with no marker distinguishing an integration test from a unit test, and no schema rule/Property ties WIRING\u2192integration evidence. Add an `evidence_kind`/`test_kind` enum field (e.g. {unit, integration, behavioral, perf, a11y}) to EvidenceRecord, add an allOf requiring evidence_kind=='integration' when the item type=='WIRING' transitions to proven, and add a Property (or extend Property 2) asserting it. Wire it to task 47.",
+    "change_type": "add-wiring",
+    "severity": "missing-wiring",
+    "dedup_key": "wiring-integration-evidence-marker",
+    "adds_wiring": true
+   },
+   {
+    "title": "Fix Property 24 PBT field-name from acting_agent to actor_agent",
+    "target_file": "tasks.md",
+    "anchor": "task 39.13 PBT body, tasks.md:655",
+    "change": "design.md:473 declares 'Canonical name is actor_agent everywhere (no acting_agent)' and Property 24 (design.md:1068) uses actor_agent, but the task 39.13 PBT asserts on `acting_agent` ('Generate evidence chains with arbitrary acting_agent identities; assert any Evidence_Record where acting_agent == \"implementer.md\"...'), so the Implementer-cannot-self-verify test checks a field the design says does not exist. Replace both occurrences of `acting_agent` with `actor_agent` in tasks.md:655.",
+    "change_type": "fix-defect",
+    "severity": "defect",
+    "dedup_key": "actor-agent-field-name",
+    "adds_wiring": false
+   },
+   {
+    "title": "Cross-reference the 'Complex' EARS-pattern resolution from the glossary, Req 1.4, and Property 16",
+    "target_file": "requirements.md",
+    "anchor": "Glossary EARS line listing six patterns incl. Complex (requirements.md:31); Req 1.4 'five EARS patterns' (requirements.md:65)",
+    "change": "The glossary lists six EARS patterns (incl. Complex) while the schema enum (design.md:347), Req 1.4, and Property 16 use five; design.md:1188 resolves this ('Complex = a documented composition of the five base patterns; no schema change') but that resolution is not referenced anywhere the reader hits the five-vs-six mismatch. Add a parenthetical to the glossary line 31 (and a note in Req 1.4 and Property 16) pointing to the design.md:1188 resolution so 'six' (glossary) and 'five' (schema/Req 1.4) are explicitly reconciled.",
+    "change_type": "resolve-inconsistency",
+    "severity": "inconsistency",
+    "dedup_key": "ears-complex-pattern-reconciliation",
+    "adds_wiring": false
+   },
+   {
+    "title": "Block COMPLETE/merge on an empty (zero-item) feature_list.json",
+    "target_file": "design.md",
+    "anchor": "items array (no minItems) design.md:315-319; evaluate_stop completion gate design.md:728-736; OPA zero-evidence policy",
+    "change": "tools/feature_list_init.py writes `items: []` (tasks.md:239) and the items array has no minItems, so an all-empty coverage model trivially satisfies the Stop gate (not_proven is empty \u2192 allow \u2192 COMPLETE) and the OPA zero-evidence policy, reading as COMPLETE before discovery has run. Add a precondition: gates (Stop completion path and OPA merge policy) must additionally require that discovery has run / items is non-empty (or that no domain-baseline item is UNMAPPED) before a COMPLETE verdict; document that `items: []` is a valid INIT state but not a valid COMPLETE state, and add a test asserting an empty file blocks COMPLETE.",
+    "change_type": "fix-defect",
+    "severity": "defect",
+    "dedup_key": "empty-items-vacuous-complete",
+    "adds_wiring": true
+   },
+   {
+    "title": "Reconcile feature_list_sha raw-byte binding with the expected in-place status-flip mutation",
+    "target_file": "design.md",
+    "anchor": "plan-approval gate compute_sha256(read_bytes()) design.md:791-792; 'status flip is the expected mutation' design.md:288",
+    "change": "The plan-approval gate binds approval to sha256 over the literal file BYTES (design.md:791-792), but the design EXPECTS in-place status flips unproven\u2192proven (design.md:288) which change those bytes \u2014 so after the first legitimate status flip the SHA no longer matches and every subsequent implementation Write is re-blocked, forcing a fresh human approval; whitespace/key-reorder changes also re-block. Specify a canonical comparison: compute feature_list_sha over a canonicalized projection of the item set (e.g. sorted (id,type,priority,dependencies,acceptance_criteria,in_scope) excluding the mutable status/evidence fields), so status flips do NOT invalidate approval while id/type/AC/scope changes do. Update Property 6 and design.md:789-801 accordingly.",
+    "change_type": "resolve-inconsistency",
+    "severity": "inconsistency",
+    "dedup_key": "feature-list-sha-canonical-binding",
+    "adds_wiring": false
+   }
+  ],
+  "refuted": [
+   {
+    "item": "Critic finding: Postgres coverage_items does not mirror `type` or `acceptance_criteria`, undercutting the 'mirrored to Postgres' framing",
+    "why": "Not a defect in the canonical artifacts. The design uses a deliberate NORMALIZED split: `requirements` table holds type/priority/ears_pattern/provenance (design.md:431-440), `evidence_records` holds the Evidence_Record (465-478), and `coverage_items` is intentionally just the mutable status view (id, requirement_id, status, in_scope, slice_id, updated_at). The artifacts never claim coverage_items mirrors the full item shape. The critique targets the AUDIT's own 'what' prose ('mirrored to Postgres / same item shape'), not the spec; the underlying Postgres-down amendment concern it raises is already captured by the gap-5 edit (amendment-reentry-file-mirror)."
+   },
+   {
+    "item": "open_gap 6 sub-point: priority uniqueness should be schema-enforced",
+    "why": "No requirement mandates global priority uniqueness. Req 7.1 requires the Implementer to take 'exactly one highest-priority unproven item' but a deterministic tie-break (e.g. by id) satisfies that without a uniqueness constraint. The schema sets priority minimum 1 (design.md:336-339); adding a uniqueness invariant would over-constrain with no backing requirement. The other parts of gap 6 (dependencies referential integrity, provenance-required, checklist_ref.sha) ARE confirmed and emitted under their own dedup_keys."
+   },
+   {
+    "item": "citation_issue: requirements.md:124 cited for both Req 5.3 and Req 5.6 (5.6 is at line 127)",
+    "why": "The canonical requirements.md is correct \u2014 Req 5.3 IS at line 124 and Req 5.6 IS at line 127. The miscitation lives only in the audit's own ears_stories metadata, not in any of the four canonical artifacts, so there is nothing to edit in requirements.md/design.md/tasks.md/the harness. Out of scope for an artifact edit."
+   },
+   {
+    "item": "critic_finding 9: gap-2 blast radius \u2014 Postgres defaults fire while JSON schema defaults don't (DB row valid, file invalid)",
+    "why": "DUPLICATE of open_gap 2 (same root cause: status/in_scope are simultaneously in `required` and given a `default`). Merged into the schema-required-vs-default edit, which now explicitly calls out the DB-vs-file default divergence rather than emitting a second edit."
+   },
+   {
+    "item": "ears_needing_work entries (Req 5.1, 5.2, 5.3/5.6, 5.7, Req 22, Z3 status graph)",
+    "why": "All six dedup into already-confirmed gaps and need no separate add-wiring edit: Req 5.1 + Req 5.7 \u2192 schema-required-vs-default (gap 2); Req 5.2 \u2192 append-only-order-length-guard (gap 3); Req 5.3/5.6 \u2192 schema-evidence-required-when-proven (gap 1); Req 22 \u2192 amendment-reentry-file-mirror (gap 5); Z3 status graph \u2192 z3-status-three-state-graph (gap 4). The mapping each names is the same wiring already created by the confirmed edits."
+   }
+  ],
+  "confirmed_count": 13,
+  "refuted_count": 5
+ },
+ {
+  "component": "stop_hook.py",
+  "confirmed_edits": [
+   {
+    "title": "Define MAX_TURNS_PER_SLICE constant and reconcile run_state.budget_exceeded / token_budget_usd against the DDL",
+    "target_file": "design.md",
+    "anchor": "evaluate_stop pseudocode lines 699-707: `if run_state.iteration_count >= MAX_TURNS_PER_SLICE:` and `if run_state.budget_exceeded:           # token_cost_usd >= token_budget_usd`",
+    "change_type": "fix-defect",
+    "change": "MAX_TURNS_PER_SLICE is used at design.md:699/701 but never defined as a module constant (only N_PROGRESS_WINDOW=3 and SPEC_COMPLETION_HARD_CAP=7 are). Add a module-constant block near line 654 (e.g. `MAX_TURNS_PER_SLICE = 25  # DEFAULT, bound to the task-44 execution-bounds config module`). Also `run_state.budget_exceeded` and `token_budget_usd` (line 704) have NO backing column: the run_state DDL (481-496) defines only `token_cost_usd NUMERIC(10,4)`. Either add a `token_budget_usd` column to the run_state DDL, or replace `run_state.budget_exceeded` with a computed predicate `run_state.token_cost_usd >= TOKEN_BUDGET` where TOKEN_BUDGET is a config constant bound to the Requirement-20 registry (req:357). Bind MAX_TURNS_PER_SLICE and the budget threshold to task 44 (Execution-bounds config module).",
+    "severity": "defect",
+    "dedup_key": "threshold-registry",
+    "adds_wiring": false
+   },
+   {
+    "title": "Reconcile budget unit: registry says 1,000,000 tokens, run_state stores USD",
+    "target_file": "design.md",
+    "anchor": "run_state DDL line 488 `token_cost_usd    NUMERIC(10,4) NOT NULL DEFAULT 0,` vs evaluate_stop line 704 comment `# token_cost_usd >= token_budget_usd`",
+    "change_type": "resolve-inconsistency",
+    "change": "The cost budget is specified as 1,000,000 TOKENS per slice in the registry (requirements.md:357) but run_state stores `token_cost_usd` in USD and the design comment compares USD-to-USD with no conversion defined. Pick ONE unit: either rename the column to `token_count` (integer tokens) and compare against the 1,000,000-token registry threshold, OR keep USD and change requirements.md:357 to a USD budget. Store both the running total and the threshold in the same unit and state the comparison explicitly in evaluate_stop. This is the same threshold-registry artifact as the MAX_TURNS/budget defect.",
+    "severity": "inconsistency",
+    "dedup_key": "threshold-registry",
+    "adds_wiring": false
+   },
+   {
+    "title": "Wire with_reentrancy_guard into a stop_hook main() entrypoint",
+    "target_file": "design.md",
+    "anchor": "`def with_reentrancy_guard(fn):` block at design.md:741-753 (immediately after the evaluate_stop pseudocode)",
+    "change_type": "add-wiring",
+    "change": "with_reentrancy_guard(fn) is defined but no code composes it with evaluate_stop, so the guard is dead. Add a `main()` entrypoint showing `result = with_reentrancy_guard(lambda: evaluate_stop(event)); save_run_state(run_state); sys.exit(0 if result.decision=='allow' else 2)`. This wires Req 10.4 (REQ-GATE-004) into the component. Mirror in tasks.md:100/126 (task 5.1 names with_reentrancy_guard and task 5.5 names the reentrancy unit test, but neither shows the composition).",
+    "severity": "missing-wiring",
+    "dedup_key": "unique:reentrancy-entrypoint",
+    "adds_wiring": true
+   },
+   {
+    "title": "Amend Property 5 and design rows 209/624 to include the HANDOFF-allow carve-out",
+    "target_file": "design.md",
+    "anchor": "Property 5 (design.md:914-916 'Termination is permitted only when zero items are `unproven`'); Hook-Wiring row design.md:209 'Termination while any in-scope item is `unproven` or `violation_count > 0`'; Phase-0 test row design.md:624 'With one unproven item \u2192 blocks'",
+    "change_type": "resolve-inconsistency",
+    "change": "Property 5, the Stop hook-wiring 'What it blocks' cell (209), and the Phase-0 test-to-pass row (624) all state the pure 'unproven blocks' rule WITHOUT the REQ-LOOP-005 HANDOFF override. At HANDOFF (cap/budget/no-progress) in-scope items are EXPECTED to remain unproven yet the hook MUST allow (exit 0); a naive implementer following Property 5/row-624 alone reproduces the infinite-block defect. Amend all three to read: 'blocks termination while any in-scope item is unproven AND no HANDOFF trigger (cap/budget/no-progress) is active.' tasks.md:948 already extends this caveat to Properties 8/9 \u2014 extend the same caveat to Property 5 and update the property-test spec at tasks.md:104-108 (5.2) which currently asserts unconditional exit-2 on any unproven mix.",
+    "severity": "inconsistency",
+    "dedup_key": "reqloop005-handoff-carveout",
+    "adds_wiring": false
+   },
+   {
+    "title": "Resolve Req 4.3 strict-decrease mechanism: scalar violation_count has no prior-pass comparator in evaluate_stop",
+    "target_file": "tasks.md",
+    "anchor": "task 5.1 _Requirements_ line 102 `_Requirements: 4.2, 4.3, 4.4, 10.2, 10.4, 14.1, 14.2_`",
+    "change_type": "resolve-inconsistency",
+    "change": "Req 4.3 (strict-decrease no-progress at spec level \u2192 HANDOFF) is listed under stop_hook task 5.1, but evaluate_stop only reads the scalar `run_state.violation_count` and has no access to the PRIOR pass's count to compute strict-decrease (design.md:837-840 describes it as the spec-completion loop's responsibility, NOT the Stop hook's). Either (a) remove 4.3 from task 5.1's _Requirements_ list (the strict-decrease check lives in the spec-completion loop / Initializer, design.md:832-840), OR (b) add a `prev_violation_count` column to the run_state DDL (design.md:481-496) and implement the pass-over-pass comparison inside evaluate_stop. Recommend (a) to keep the Stop hook a pure scalar gate.",
+    "severity": "inconsistency",
+    "dedup_key": "unique:req43-strict-decrease-owner",
+    "adds_wiring": false
+   },
+   {
+    "title": "Mark the Stop-hook audit_log.append call as a Phase-2 addition (guarded/no-op until task 52.3)",
+    "target_file": "design.md",
+    "anchor": "Hook-Wiring table Stop row, design.md:209 'calls `audit_log.append(...)` on the allow/block decision'",
+    "change_type": "resolve-inconsistency",
+    "change": "design.md:209 and Req 27.4 present `audit_log.append(...)` as always-on in the Phase-0 Stop hook, but `audit_log.py` (the producer) is Phase 2 and its wiring into stop_hook.py is task 52.3 (Phase 2). A Phase-0 hook cannot call a Phase-2 producer. Annotate the Stop row (and the SubagentStop/PreToolUse audit rows at 217/218/210) to say the audit_log.append call is a Phase-2 addition (no-op/absent until task 52.3 wires it), matching the staging already implied by tasks.md:970. Keeps the Phase-0 spine self-consistent.",
+    "severity": "inconsistency",
+    "dedup_key": "audit-call-site",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add a standalone Z3 check for the budget HANDOFF trigger (blocking-UNSAT and routing-SAT)",
+    "target_file": "verification/formal_verification_merged.py",
+    "anchor": "CHECK-5b (lines 266-269) and CHECK-5c (lines 272-275) \u2014 the cap/no-progress HANDOFF-exit-0 UNSAT checks; CHECK-3b (line 207-212) the cap routing-SAT check",
+    "change_type": "add-detail",
+    "change": "budgetExceeded appears only inside the core_axioms disjunction (line 152) and as a negated literal in CHECK-1/3b/8b/10b; it has NEITHER a standalone blocking-UNSAT check (mirroring CHECK-5b/5c: `core_axioms + [budgetExceeded, hookExitsBlocking]` expected UNSAT) NOR a routing-SAT check (mirroring CHECK-3b: `core_axioms + [budgetExceeded, handoff, Not(complete), Not(hookExitsBlocking)]` expected SAT). It is the only one of the three HANDOFF triggers with no dedicated check. Add CHECK-5d (budget blocking-UNSAT) and optionally CHECK-3c (budget routing-SAT). Update the harness self-count banner (currently 34: 14 core) and the requirements.md:9 / design.md:1191 '34/34' figure accordingly.",
+    "severity": "underspecified",
+    "dedup_key": "z3-budget-handoff-check",
+    "adds_wiring": false
+   },
+   {
+    "title": "Reorder task 5.1 checklist so HANDOFF triggers are evaluated BEFORE the unproven-items block",
+    "target_file": "tasks.md",
+    "anchor": "task 5.1, tasks.md:99 'Check 1 \u2014 any `unproven` items \u2192 **exit 2** (block, force continuation) ...; Check 2 \u2014 no-progress ...; Check 3 \u2014 iteration cap ...'",
+    "change_type": "resolve-inconsistency",
+    "change": "task 5.1 numbers the unproven-items block as 'Check 1' (FIRST) and cap/no-progress HANDOFF as Checks 2/3 (AFTER), contradicting design.md:692-734 which evaluates the three HANDOFF triggers (cap/budget/no-progress) BEFORE the unproven gate. Order is load-bearing for REQ-LOOP-005: if unproven is checked first the hook blocks (exit 2) at the cap and reproduces the infinite-block defect. Reorder so Check 1 = cap HANDOFF (exit 0), Check 2 = budget HANDOFF (exit 0), Check 3 = no-progress HANDOFF (exit 0), Check 4 = violation_count block, Check 5 = unproven-items block (the only exit-2 path). Drop the 'force continuation' gloss on the unproven case and add the missing budget-HANDOFF check (5.1 currently omits budget entirely \u2014 only names cap and no-progress).",
+    "severity": "inconsistency",
+    "dedup_key": "reqloop005-handoff-carveout",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add a run_state.phase discriminator and specify per-phase cap/no-progress routing in evaluate_stop",
+    "target_file": "design.md",
+    "anchor": "run_state DDL design.md:481-496 (no `phase` column); evaluate_stop pseudocode design.md:685-737 (single undifferentiated cap/no-progress path)",
+    "change_type": "add-detail",
+    "change": "stop_hook serves BOTH the spec-completion loop (Req 4: violation_count, cap=7 passes, pass-level strict-decrease no-progress) AND the implementation loop (Req 10/14: slice completion, cap=25 turns/slice, slice-level N=3 no-progress, design.md:840). The design never states how one Stop hook discriminates the two phases, yet they have different caps and different no-progress semantics. Add a `phase TEXT CHECK (phase IN ('spec','implementation'))` column to the run_state DDL and branch evaluate_stop: in spec phase apply SPEC_COMPLETION_HARD_CAP=7 + pass-level no-progress; in implementation phase apply MAX_TURNS_PER_SLICE=25 + slice-level check_no_progress. Cite design.md:832-842.",
+    "severity": "underspecified",
+    "dedup_key": "unique:run-state-phase-discriminator",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add subtasks for emit_handoff_summary, write_run_state, and the slice-history counters",
+    "target_file": "tasks.md",
+    "anchor": "task 5 / 5.1 (tasks.md:95-102) \u2014 enumerates only load_feature_list/load_run_state/check_no_progress/evaluate_stop/with_reentrancy_guard",
+    "change_type": "add-detail",
+    "change": "evaluate_stop references emit_handoff_summary, write_run_state, count_items_proven_since, and count_commits_since (design.md:700-713,663-672) and the budget branch (design.md:704) but none of these helpers is tasked anywhere; task 5.1 stops at evaluate_stop/with_reentrancy_guard. The HANDOFF-summary content contract (remaining unproven items, last N slice outputs, reason \u2014 design.md:828) also has no subtask. Add subtasks under task 5: (5.1b) emit_handoff_summary implementing the design.md:828 content contract; (5.1c) write_run_state/save_run_state persistence; (5.1d) count_items_proven_since / count_commits_since slice-history counters used by check_no_progress.",
+    "severity": "underspecified",
+    "dedup_key": "unique:stop-hook-helper-subtasks",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add Req 13.5 (Property 21 Hook Exit-Code Contract) to stop_hook task 5.1 _Requirements_",
+    "target_file": "tasks.md",
+    "anchor": "task 5.1 _Requirements_ line 102 `_Requirements: 4.2, 4.3, 4.4, 10.2, 10.4, 14.1, 14.2_`",
+    "change_type": "add-wiring",
+    "change": "Req 13.5 (requirements.md:254 \u2014 exit 0 = proceed, exit 2 = blocking via stderr, exit 1 does NOT block) is the exact contract stop_hook.py emits (exit-0 allow/COMPLETE/HANDOFF vs exit-2 block), and Property 21 (design.md:1042-1046) validating it is already wired as a stop-hook-touching property test in test_hooks.py (tasks.md:590-597). But task 5.1's _Requirements_ list omits 13.5 entirely. Add 13.5 to task 5.1's _Requirements_ (and to task 5.5's unit-test _Requirements at line 128, which currently lists only 10.4) so the Hook Exit-Code Contract is traced to its canonical emitter. This wires the EARS criterion to the component.",
+    "severity": "missing-wiring",
+    "dedup_key": "unique:req135-stophook-wiring",
+    "adds_wiring": true
+   },
+   {
+    "title": "Capture the N-25 Postgres-unavailable fallback gate-consistency constraints in the Stop-hook load_run_state spec",
+    "target_file": "tasks.md",
+    "anchor": "task 5.1 line 97 `Implement load_feature_list() and load_run_state() (reading from feature_list.json and claude-progress.txt / in-memory fallback before Postgres)`",
+    "change_type": "add-detail",
+    "change": "Note N-25 (tasks.md:730) is a load-bearing obligation on the Stop coverage gate: when db_connection.health_check() fails, the gate MUST fall back to file-backed state (feature_list.json + claude-progress.txt) and reach the SAME allow/block decision it would on Postgres \u2014 'never fail-open', and 'on divergence the gate takes the more conservative (blocking) result.' task 5.1's load_run_state bullet captures only the read order, dropping the three correctness constraints (file-fallback equivalence, never-fail-open, conservative-on-divergence). Add these three constraints to the load_run_state bullet and cross-reference Note N-25.",
+    "severity": "underspecified",
+    "dedup_key": "n25-fallback-consistency",
+    "adds_wiring": false
+   },
+   {
+    "title": "State that an in-scope item in `failed` status also blocks the Stop completion gate",
+    "target_file": "design.md",
+    "anchor": "evaluate_stop completion gate design.md:731 `not_proven = [i for i in in_scope_items if i.status != \"proven\"]` and Property 5 (design.md:914-916)",
+    "change_type": "add-detail",
+    "change": "With Req 5.8 / Property 3 making `failed` a first-class status, the completion gate `i.status != \"proven\"` means a `failed` in-scope item ALSO blocks termination (it is not-proven), exactly like `unproven`. Property 5 and the Stop hook-wiring row (design.md:209) describe the gate only in terms of `unproven`, never stating that `failed` likewise blocks. Update Property 5 / the design narrative to say 'any in-scope item whose status is not exactly `proven` (i.e. `unproven` OR `failed`) blocks termination', so the implementer does not special-case only `unproven`. Cite requirements.md:129; design.md:731,900.",
+    "severity": "underspecified",
+    "dedup_key": "unique:failed-status-blocks-stop",
+    "adds_wiring": false
+   }
+  ],
+  "refuted": [
+   {
+    "item": "open_gap: COMPONENT NOT BUILT \u2014 .claude/hooks/stop_hook.py is a 0-byte placeholder",
+    "why": "Confirmed factually (only .gitkeep exists, stop_hook.py absent), but this is an implementation-state observation, not a gap in the canonical SPEC/DESIGN/TASKS artifacts under audit. Task 5.1 (tasks.md:96-102) already fully tasks the build (evaluate_stop, check_no_progress, with_reentrancy_guard, try/except fail-closed). The audit scope is spec-to-evidence artifact consistency, not whether code has been written yet; no artifact edit is warranted for the mere absence of the executable."
+   },
+   {
+    "item": "critic overstatement: draft's CHECK-1 ears_story claims it pins evaluate_stop's exit-0 terminal case",
+    "why": "This critiques the DRAFT findings file's own framing of CHECK-1, not a defect in the canonical artifacts. CHECK-1 (formal_verification_merged.py:171-183) is correctly a whole-system reachable-COMPLETE SAT check; the canonical harness does not misrepresent it. No artifact change follows \u2014 it is a note about the draft's prose, which this validator supersedes."
+   },
+   {
+    "item": "critic weak: BUDGET HANDOFF UNVERIFIED understates scope (also no routing-SAT check)",
+    "why": "Not refuted on substance \u2014 it is the SAME underlying issue as the confirmed 'BUDGET HANDOFF UNVERIFIED IN Z3' gap. Collapsed into the single confirmed edit under dedup_key z3-budget-handoff-check, whose change spec already covers BOTH the missing blocking-UNSAT check (CHECK-5d) AND the missing routing-SAT check (CHECK-3c). Emitted once, not twice."
+   },
+   {
+    "item": "ears_needing_work: Req 4.4 (spec-completion hard pass cap=7 \u2192 HANDOFF) status partial",
+    "why": "Already fully covered in the canonical artifacts: requirements.md:108-110 (4.4 + 4.6 lex-specialis tiebreak), design.md:842 (SPEC_COMPLETION_HARD_CAP=7, HANDOFF exit-0 wins), and the cap-HANDOFF branch is in evaluate_stop. The mapping is complete; no artifact lacks it."
+   },
+   {
+    "item": "ears_needing_work: Req 4.6 tiebreak (cap-7 + violation_count>0 \u2192 HANDOFF exit-0 precedence over 4.2 exit-2)",
+    "why": "Fully specified: requirements.md:110 states the lex-specialis tiebreak verbatim, design.md:716-726,842 implements it (cap-HANDOFF evaluated before the violation_count block; lex-specialis prose pins precedence). No gap in the artifacts."
+   },
+   {
+    "item": "ears_needing_work: Req 14.1 (REQ-LOOP-001) hard iteration cap + token/cost budget per slice",
+    "why": "The cap/budget routing is present in evaluate_stop (design.md:699-707) and Req 20 registry (req:354,357). The only genuine defects here \u2014 undefined MAX_TURNS_PER_SLICE and the missing budget column/unit \u2014 are already captured by the threshold-registry confirmed edits. The EARS-to-component mapping itself is not missing, so no separate add-wiring edit is needed beyond those."
+   },
+   {
+    "item": "ears_needing_work: Req 27.4 (audit_log.append called by stop_hook)",
+    "why": "The EARS-to-component mapping already exists (design.md:209 Stop row + REQ-AUDIT-001 enforced column; tasks.md:970 task 52.3 wires it). The only real issue is the unstated Phase-0/Phase-2 staging, which is captured by the confirmed audit-call-site edit. The mapping itself is present, so no additional add-wiring edit."
+   }
+  ],
+  "confirmed_count": 13,
+  "refuted_count": 7
+ },
+ {
+  "component": "pre_tool_use_hook.py",
+  "confirmed_edits": [
+   {
+    "title": "Add a live PreToolUse secret-block gate (REQ-SEC-005 / 17.5) to the hook table and task 6",
+    "target_file": "design.md",
+    "anchor": "Hook Wiring Table, after the `PreToolUse` \u2014 status guard row (design.md:215); and tasks.md task 6.1 check list (tasks.md:131-136)",
+    "change_type": "add-wiring",
+    "change": "Add a 7th PreToolUse sub-gate row to the hook-wiring table: `PreToolUse` \u2014 secret-block guard | Trigger: any tool call carrying a prompt/span-attribute/URL/Bash-arg | scans args+prompt against secret regexes (API keys, tokens, passwords, connection strings) | blocks (exit 2) any call that would carry a secret | REQ-SEC-005 (17.5), Property 20. Then add `check_secret_block(event)` to task 6.1's chained checks and cite 17.5 in task 6's `_Requirements:` line. This is the live prevention gate 17.5 mandates ('NOT only via an offline test'); Property 20 (offline test, task 39.11) and task 45 (CI gitleaks, 17.2) do not satisfy it.",
+    "severity": "missing-wiring",
+    "dedup_key": "secret-block-pretooluse-gate",
+    "adds_wiring": true
+   },
+   {
+    "title": "Add a Phase-0 implementation task for the PreToolUse checklist-approval guard (REQ-SPEC-016, Property 27, CHECK-12)",
+    "target_file": "tasks.md",
+    "anchor": "Task 6 (tasks.md:130-137); cross-ref design.md:213 hook-table checklist-approval row and Property 27 (design.md:1094-1100)",
+    "change_type": "add-wiring",
+    "change": "Add a sub-task (under task 6 or task 50) implementing `check_checklist_approval(event)` in pre_tool_use_hook.py that, for an initializer/discovery Write referencing a domain-baseline checklist, blocks (exit 2) unless the referenced checklist has a non-null `approved_at` in `domain_baseline_checklists`. Cross-reference Property 27 / CHECK-12a-12b. Currently the design hook-table row (design.md:213), Property 27, and CHECK-12 exist but NO build task wires this guard into the hook (task 50 implements the abstract gate logic but does not name the PreToolUse hook check).",
+    "severity": "missing-wiring",
+    "dedup_key": "checklist-approval-pretooluse-guard",
+    "adds_wiring": true
+   },
+   {
+    "title": "Fix task 6.4 property-test acceptance to assert the full widened status-edge set",
+    "target_file": "tasks.md",
+    "anchor": "Task 6.4, line 'assert all are blocked; assert only `status: proven` writes are allowed' (tasks.md:154)",
+    "change_type": "resolve-inconsistency",
+    "change": "Rewrite the acceptance line to: 'assert the permitted status edges {unproven\u2192proven (requires complete Evidence_Record), unproven\u2192failed, failed\u2192unproven} are allowed and all other transitions (identity mutations, into-proven without evidence, any edge outside the set) are blocked.' The current 'only status: proven writes are allowed' would fail a legitimate unproven\u2192failed / failed\u2192unproven write and contradicts requirements.md:123/129, design.md:215, and Property 3 (design.md:900).",
+    "severity": "inconsistency",
+    "dedup_key": "status-edge-set-widened",
+    "adds_wiring": false
+   },
+   {
+    "title": "Fix task 6.1 build step to validate the full permitted-edge set, not 'unproven \u2192 proven only'",
+    "target_file": "tasks.md",
+    "anchor": "Task 6.1, `check_status_transition` bullet: 'validate proposed transition is `unproven \u2192 proven` only' (tasks.md:135)",
+    "change_type": "resolve-inconsistency",
+    "change": "Change the build-step spec to: 'validate the proposed transition is in the permitted set {unproven\u2192proven, unproven\u2192failed, failed\u2192unproven}; require a complete Evidence_Record only for *\u2192proven; reject any transition outside the set and any identity mutation.' The current 'unproven \u2192 proven only' wording encodes the narrow pre-reconciliation edge set in the BUILD step itself (not just the test), contradicting requirements.md:123/129 and design.md:215/374. Same underlying defect as the task-6.4 test fix.",
+    "severity": "inconsistency",
+    "dedup_key": "status-edge-set-widened",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add a Z3 CHECK family modeling the status-transition edge set including the failed state",
+    "target_file": "verification/formal_verification_merged.py",
+    "anchor": "New 8 checks section (CHECK-10a..13b, lines 409-500); model variables section (lines 121-131)",
+    "change_type": "add-detail",
+    "change": "Add a CHECK family (e.g. CHECK-14a/b/c) introducing booleans for the status-transition guard: declare edge enums or booleans {edgeUnprovenProven, edgeUnprovenFailed, edgeFailedUnproven, edgeOther} plus evidenceComplete, and assert: (a) any transition into proven without evidenceComplete is UNSAT; (b) edgeOther (any transition not in the permitted set) is UNSAT; (c) edgeUnprovenFailed and edgeFailedUnproven WITHOUT evidence are SAT (the widened edges are reachable). The harness currently has no boolean for the `failed` status or the transition edge set, so the most-recently-widened guard logic (req 5.8 / Property 3) is unverified by the formal model. Update the header self-count comment accordingly.",
+    "severity": "underspecified",
+    "dedup_key": "z3-status-transition-edges",
+    "adds_wiring": false
+   },
+   {
+    "title": "Define the full ordered 6+-guard chain in task 6.1 and update 'Chain all four checks'",
+    "target_file": "tasks.md",
+    "anchor": "Task 6.1 'Chain all four checks; return first blocking decision' (tasks.md:136); task 49.1 'chain it BEFORE the existing plan/scope/artifact/status checks' (tasks.md:964)",
+    "change_type": "resolve-inconsistency",
+    "change": "Replace 'Chain all four checks' with an explicit ordered chain that includes every guard the design assigns to this hook: integrity-guard (task 49.1) \u2192 plan \u2192 scope \u2192 artifact \u2192 status \u2192 checklist-approval (+ secret-block once added). Task 49.1 says the integrity guard chains BEFORE plan/scope/artifact/status, but task 6.1 still defines a four-check chain with no slot for the integrity or checklist guards, so the actual ordering across the 6 guards is unspecified. Pin the order here so the build is deterministic.",
+    "severity": "underspecified",
+    "dedup_key": "pretooluse-guard-chain-order",
+    "adds_wiring": false
+   },
+   {
+    "title": "Resolve REQ-AUDIT-001 Phase-0 vs Phase-2 audit-producer wiring split for pre_tool_use_hook.py",
+    "target_file": "tasks.md",
+    "anchor": "Task 6 (tasks.md:130-137); cross-ref design.md:210 (plan-gate row says it 'calls audit_log.append(...)') and requirements.md:460; producer-wiring lands only in task 52.3 (tasks.md:970)",
+    "change_type": "resolve-inconsistency",
+    "change": "Add an explicit note to task 6 that audit-log production (audit_log.append on every allow/block) is deferred to task 52.3 (Phase 2), and correspondingly soften the design.md:210 plan-gate row so it does not present audit production as an intrinsic Phase-0 capability of the PreToolUse plan gate. As written, design.md:210/217 describe a Phase-0 audit-producer behavior that no Phase-0/1 task delivers (audit_log.py and its hook wiring are Phase 2), so REQ-AUDIT-001 is unmet for the whole Phase-0/1 window with no acknowledgement of the deferral.",
+    "severity": "inconsistency",
+    "dedup_key": "audit-001-producer-phase-split",
+    "adds_wiring": false
+   },
+   {
+    "title": "Fix Property 26 dangling cross-reference 'Validates: Requirements 27'",
+    "target_file": "design.md",
+    "anchor": "Property 26, 'Validates: Requirements 27 (REQ-STATE-005)' (design.md:1090)",
+    "change_type": "fix-defect",
+    "change": "Change 'Validates: Requirements 27 (REQ-STATE-005)' to 'Validates: Requirements 23 (REQ-STATE-005)'. Requirement 27 is the Tamper-Evident Gate-Decision Audit Log; REQ-STATE-005 is Requirement 23 (Resumed-State Integrity), which is the requirement Property 26 / the PreToolUse integrity guard actually validates. The parenthetical REQ-ID is correct; the bare requirement number is wrong.",
+    "severity": "inconsistency",
+    "dedup_key": "property26-wrong-req-xref",
+    "adds_wiring": false
+   },
+   {
+    "title": "Pin the artifact guard's protected-path globs and destructive-Bash regex set canonically",
+    "target_file": "design.md",
+    "anchor": "Hook-wiring artifact-guard row (design.md:214) and task 6.3 (tasks.md:134)",
+    "change_type": "add-detail",
+    "change": "Define an explicit canonical PROTECTED_PATHS glob set (e.g. feature_list.json, schema/feature_list.schema.json, tests/**, .github/workflows/**, .github/policies/**) and a DESTRUCTIVE_BASH regex set covering bypass-equivalent forms (rm -rf, DROP TABLE, git reset --hard, git push --force/-f, truncate, find ... -delete, > redirection over protected paths) in design.md, and reference them from task 6.3. Also reconcile the membership disagreement: the design hook-table row (design.md:214) lists only `rm -rf` and `DROP TABLE` while task 6.3 (tasks.md:134) adds `git reset --hard` \u2014 make the two sources agree. Add a property test enumerating bypass-equivalent destructive commands.",
+    "severity": "underspecified",
+    "dedup_key": "artifact-guard-protected-set",
+    "adds_wiring": false
+   },
+   {
+    "title": "Define the scope-gate's exact command/argument detection patterns",
+    "target_file": "tasks.md",
+    "anchor": "Task 6.2 `check_scope_sequencing` (tasks.md:133); design.md:211 scope-gate row; CHECK-6a (formal_verification_merged.py:288)",
+    "change_type": "add-detail",
+    "change": "Specify the exact Bash command/argument patterns the scope gate inspects (e.g. `git worktree add`, the worktree_manager.py create entry points, and any slice-assign command surface) and the tool surfaces it covers, in task 6.2 and the design.md:211 row. Add a property test for bypass forms (worktree created via a wrapper script or non-Bash tool) and note that CHECK-6a proves only the abstract scopeGateBlocks boolean, not the concrete command detection. As written, 'Bash worktree-create or slice-assign call' has no precise detection definition, so the gate can be bypassed.",
+    "severity": "underspecified",
+    "dedup_key": "scope-gate-trigger-detection",
+    "adds_wiring": false
+   },
+   {
+    "title": "Wire REQ-OBS-003 (12.3) gate-decision telemetry as an obligation on pre_tool_use_hook.py",
+    "target_file": "tasks.md",
+    "anchor": "Task 6 `_Requirements:` line (tasks.md:137); cross-ref task 36.1 which names PreToolUse (tasks.md:539) and requirements.md:236 (12.3)",
+    "change_type": "add-wiring",
+    "change": "Add a note to task 6 (and/or cite 12.3 in its `_Requirements:`) that PreToolUse gate decisions must emit an OTel gate-decision event (event, tool, allow/block, reason, requirement ID) per REQ-OBS-003 (12.3), with the actual emission implemented in task 36.1 (Phase 3, which already names PreToolUse). Currently 12.3 is a binding obligation on this component but task 6 omits OTel emission entirely and 12.3 is not cited anywhere in task 6, leaving the Phase-0/1 PreToolUse hook with no decision telemetry and no acknowledged deferral.",
+    "severity": "missing-wiring",
+    "dedup_key": "obs-003-hook-decision-telemetry",
+    "adds_wiring": true
+   },
+   {
+    "title": "Add the schema-validation obligation for feature_list.json writes to task 6",
+    "target_file": "tasks.md",
+    "anchor": "Task 6.1 check list (tasks.md:131-135); cross-ref design.md:138 ('PreToolUse validates against this') and design.md:623 (Phase-0 spine: 'JSON Schema that PreToolUse validates writes against')",
+    "change_type": "add-wiring",
+    "change": "Add a `check_schema_validation(event)` step to task 6.1 that JSON-Schema-validates every feature_list.json write against schema/feature_list.schema.json (blocking on a schema-invalid write, e.g. an item with a proven status but a missing output_hash), and cite this in design's status-guard row. Design.md:138 and the Phase-0 spine table (design.md:623, test 'rejects an example missing output_hash') both state PreToolUse validates feature_list.json writes against the schema, but task 6's check_status_transition validates only transition edges + evidence completeness, never invoking the JSON Schema \u2014 so the design-mandated schema-validation behavior has no build step.",
+    "severity": "missing-wiring",
+    "dedup_key": "pretooluse-schema-validation",
+    "adds_wiring": true
+   },
+   {
+    "title": "Wire the Postgres-unavailable file-fallback into the PreToolUse status/scope/integrity guards in task 6",
+    "target_file": "tasks.md",
+    "anchor": "Task 6.1-6.2 (tasks.md:131-135, file-only reads); cross-ref design.md:815 ('Postgres unavailable | Fall back to feature_list.json...') and the reconciliation note (tasks.md:730)",
+    "change_type": "add-wiring",
+    "change": "Add to task 6 that the scope gate (reads prior-slice statuses), status guard (reads/validates feature_list.json), and integrity guard (reads run_state.resume_integrity_ok) must follow the Postgres-unavailable fallback defined at design.md:815 and tasks.md:730 \u2014 falling back to file-backed state (feature_list.json + claude-progress.txt) and reaching the SAME (conservative/blocking) decision, never fail-open. Cite design.md:815 (not just the general note 730). Currently task 6 reads feature_list.json file-only with no DB path or fallback contract, so the gate-consistency-on-fallback obligation (N-25) is unwired for this hook.",
+    "severity": "missing-wiring",
+    "dedup_key": "postgres-fallback-gate-consistency",
+    "adds_wiring": true
+   }
+  ],
+  "refuted": [
+   {
+    "item": "open_gap: pre_tool_use_hook.py does not exist (only .gitkeep); the Phase-0 spine-runnable claim is false",
+    "why": "Confirmed factually (.claude/hooks/ contains only .gitkeep), but this is an implementation-build-status observation, not a spec-artifact defect. The canonical artifacts already correctly task the build: design.md:128 inventories the component, design.md:625 lists it as Phase-0 spine #3 with pass tests, and tasks.md task 6 (130-137) implements it. There is no spec text to add or fix here \u2014 the artifacts are internally correct; the file is simply not built yet. Out of scope for a spec-reconciliation edit set."
+   },
+   {
+    "item": "open_gap: settings.json does not exist and no task creates it; PreToolUse binding is unwired",
+    "why": "The claim 'no task currently creates settings.json' is false. Task 9 (tasks.md:191-199) is dedicated to it: task 9.1 'Write `.claude/settings.json` (or `.kiro/settings.json`) with all hook registrations ... all as type:command' and task 9.2 smoke-tests it. design.md:159-200 documents the exact hooks block. The settings file not yet existing on disk is a build-status fact, not a missing spec/task. Already covered."
+   },
+   {
+    "item": "open_gap (#4 portion): the integrity guard has design rows + Z3 checks but no build task tying it into the hook",
+    "why": "Refuted for the integrity guard specifically. Task 49.1 (tasks.md:964) explicitly adds the PreToolUse integrity-guard check to pre_tool_use_hook.py reading run_state.resume_integrity_ok and blocking the first write with exit 2. Only the checklist-approval guard genuinely lacks an implementation task \u2014 that half is CONFIRMED and emitted separately under dedup_key checklist-approval-pretooluse-guard."
+   },
+   {
+    "item": "open_gap (#11): PRD credits a '13-row hook-wiring table' but design has 12 data rows",
+    "why": "The count drift is real (design.md hook-wiring table has exactly 12 data rows; PRD_MERGED:17 says 13-row). But the anchor is the PRD file, which is outside the four canonical artifacts this validation is scoped to ('Ignore any docs/website copy'; the four named files do not include the PRD). The canonical-side remedy \u2014 adding the missing secret-block row to design's table \u2014 is the same edit already emitted under dedup_key secret-block-pretooluse-gate (adding that row makes the table 13 and closes 17.5 simultaneously). Collapsed as a duplicate of the secret-block edit."
+   },
+   {
+    "item": "critic_finding (overstatement): the draft attributes component-specific PreToolUse enforcement to CHECK-12 / CHECK-11, which are fully abstract (no PreToolUse/first-write/exit-2 model)",
+    "why": "Accurate critique OF THE DRAFT component analysis, but not a defect in the canonical artifacts. The harness axioms ARE abstract by design (CHECK-11: Implies(resumeHashMismatch, Not(runProceeds)); CHECK-12: Implies(checklistIsDraft, Not(checklistUsedForDisc))) and the artifacts never claim otherwise \u2014 Property 26/27 in design.md correctly describe the concrete PreToolUse enforcement separately from the Z3 logic relation. No artifact edit follows; this is feedback on the draft's coverage characterization. (The genuinely missing piece \u2014 the checklist guard build task \u2014 is captured separately.)"
+   },
+   {
+    "item": "critic_finding (weak): REQ-COV-001 (5.1) is not represented as an ears_story; the status/artifact guards enforce 5.1-defined identity",
+    "why": "5.1's structural identity (id/type/dependencies/acceptance_criteria/status defaulting to unproven) is already canonically traced and enforced: Property 1 (design.md:884, 'Validates Requirements 5.1, 5.4') covers the schema invariant, the JSON Schema (design.md:322-385) pins every field, and task 2.1 (_Requirements: 5.1) builds it. The PreToolUse identity-mutation blockade is traced via Property 3 (5.2, 13.3). Adding a separate 5.1 ears_story to the component draft does not require any change to the canonical artifacts, which already cover 5.1. Draft-completeness note, not an artifact gap."
+   },
+   {
+    "item": "critic_finding (weak): the 60s hook-validator timeout (requirements.md:354) is mis-scoped to pre_tool_use_hook.py; it governs spec_validator.py/stop_hook",
+    "why": "This is a critique of the DRAFT's config_settings attribution, and it is correct that the 60s timeout is the spec_validator Z3 timeout (design.md:814) on the Stop-hook path, not a PreToolUse timeout. But the canonical artifacts already scope it correctly: design.md:814 and task 4.1 (tasks.md:69) attach the 60s timeout to spec_validator.py; requirements.md:354 lists it in the cross-cutting Req-20 threshold registry. Nothing in the artifacts misassigns it to pre_tool_use_hook.py, so there is no artifact edit to make \u2014 only the draft would need correcting."
+   }
+  ],
+  "confirmed_count": 13,
+  "refuted_count": 7
+ },
+ {
+  "component": "session_start_hook.py",
+  "confirmed_edits": [
+   {
+    "title": "Task the SessionStart\u2192state_integrity compute/write (it is currently untasked)",
+    "target_file": "tasks.md",
+    "anchor": "Task 49 'Resumed-state integrity (REQ-STATE-005)' (tasks.md:963) and its only subtask 49.1; task 7.1 'Implement .claude/hooks/session_start_hook.py' (tasks.md:163-169)",
+    "change_type": "add-wiring",
+    "change": "design.md:219 and Property 26 (design.md:1088) both state SessionStart 'computes the resumed-state hash via state_integrity.py and writes run_state.resume_integrity_ok', but no task implements this: task 7.1 only does git/progress/coverage load + stdout injection, and task 49/49.1 create state_integrity.py + the PreToolUse guard with NO subtask wiring state_integrity INTO session_start_hook.py. Add a subtask 49.2 (or amend 49) naming the file: 'extend .claude/hooks/session_start_hook.py to import tools/state_integrity.py, call state_integrity.compute_hash(), and write run_state.resume_integrity_ok (Phase-2 extension of the Phase-0 hook; non-blocking, exit 0 always)'. Cross-reference it from task 7 so the Phase-0 component's later mutation is traceable. Extend task 7.2 unit tests with an assertion that resume_integrity_ok is written on resume. _Requirements: 11.3, REQ-STATE-005_.",
+    "severity": "missing-wiring",
+    "dedup_key": "unique:sessionstart-integrity-untasked",
+    "adds_wiring": true
+   },
+   {
+    "title": "Add resume_integrity_ok (and violation_count, retry_count) to migration task 28.5",
+    "target_file": "tasks.md",
+    "anchor": "Task 28.5 'Write migration db/migrations/005_run_state.sql' \u2014 bullet 'run_state table with status CHECK {running,complete,handoff,blocked}, stop_hook_active boolean, no_progress_n counter'; _Requirements: 11.1, 16.1_ (tasks.md:441-443)",
+    "change_type": "fix-defect",
+    "change": "The design run_state SQL (design.md:481-496) declares resume_integrity_ok BOOLEAN, violation_count, and retry_count, but task 28.5 lists ONLY status CHECK + stop_hook_active + no_progress_n, so the durable column SessionStart is spec'd to write is un-tasked. Add 'resume_integrity_ok BOOLEAN (REQ-STATE-005; written by SessionStart, read by the PreToolUse integrity guard), violation_count INTEGER DEFAULT 0, retry_count INTEGER DEFAULT 0' to the column list and add REQ-STATE-005 to the _Requirements:_ line.",
+    "severity": "defect",
+    "dedup_key": "unique:run-state-005-columns",
+    "adds_wiring": true
+   },
+   {
+    "title": "Fix systematic Property\u2192Requirement off-numbering (Property 26 mislabeled Req 27)",
+    "target_file": "design.md",
+    "anchor": "design.md:1090 '**Validates: Requirements 27 (REQ-STATE-005). Machine-checked: CHECK-11...**' (and the same family: L1080 Property 25, L1100 Property 27, L1110 Property 28)",
+    "change_type": "resolve-inconsistency",
+    "change": "The canonical addendum mapping (requirements.md:507-512) makes REQ-STATE-005 = Requirement 23, but Property 26 cites 'Requirements 27' (Req 27 is the Tamper-Evident Audit Log). This mislabels THIS component's own correctness Property. Change 'Requirements 27' \u2192 'Requirement 23' on L1090. The off-by-N is systematic across the block: Property 25 'Requirements 26' \u2192 Requirement 22 (REQ-COV-007); Property 27 'Requirements 25' \u2192 Requirement 24 (REQ-SPEC-016); Property 28 'Requirements 28' \u2192 Requirement 27 (REQ-AUDIT). Fix all four to match the requirements.md:505-512 cross-reference table.",
+    "severity": "defect",
+    "dedup_key": "shared:property-requirement-offnumbering-25-28",
+    "adds_wiring": false
+   },
+   {
+    "title": "Annotate SessionStart hook-wiring row + inventory that integrity compute is a Phase-2 augmentation",
+    "target_file": "design.md",
+    "anchor": "Hook Wiring Table SessionStart row (design.md:219) and Component Inventory rows for session_start_hook.py (design.md:129, Phase 0) and state_integrity.py (design.md:143, Phase 2)",
+    "change_type": "resolve-inconsistency",
+    "change": "The SessionStart hook-wiring row presents the hash-compute as part of SessionStart from day one, but state_integrity.py is Phase 2 while session_start_hook.py is Phase 0. A reader building the Phase-0 spine would believe resume_integrity_ok is written from the start. Annotate the row's 'What it does' cell: 'load (git/progress/coverage): Phase 0; integrity compute + resume_integrity_ok write: Phase 2 via state_integrity.py'. Mirror the note in the session_start_hook.py inventory row (design.md:129).",
+    "severity": "inconsistency",
+    "dedup_key": "unique:sessionstart-phaselabel",
+    "adds_wiring": false
+   },
+   {
+    "title": "Make OTel hook.decision span honest for non-gating hooks (SessionStart/PreCompact)",
+    "target_file": "tasks.md",
+    "anchor": "Task 36.1 'Extend all six hooks ... to emit OTel gate-decision events' \u2014 bullet setting attributes hook.event/tool.name/decision(allow/block)/reason/requirement.id on hook.decision span (tasks.md:539-542)",
+    "change_type": "fix-defect",
+    "change": "Task 36.1 sets a 'decision' (allow/block) attribute uniformly on a 'hook.decision' span for ALL six hooks, but SessionStart and PreCompact never make an allow/block gate decision (always exit 0), so decision=allow/block is degenerate; and requirement.id is ambiguous for SessionStart (tagged with BOTH REQ-STATE-003 and REQ-STATE-005 per design.md:219). Specify the attribute set per hook class: for non-gating hooks (SessionStart, PreCompact) emit an informational span (distinct name e.g. 'hook.session_start' or decision='n/a') and either omit requirement.id or list both ids explicitly, rather than a gate-decision allow/block attribute \u2014 so the trace schema reflects which hooks actually gate. (REQ-OBS-003 / criterion 12.3 covers only true gate decisions.)",
+    "severity": "underspecified",
+    "dedup_key": "unique:sessionstart-otel-nongating",
+    "adds_wiring": false
+   },
+   {
+    "title": "Specify the resumed-state hash inputs / algorithm / baseline-store location",
+    "target_file": "design.md",
+    "anchor": "Property 26 (design.md:1088-1090), Hook Wiring SessionStart row (design.md:219), state_integrity.py inventory + 'New / changed components' note (design.md:143, design.md:1180); Requirement 23 (requirements.md:437-438)",
+    "change_type": "add-detail",
+    "change": "Neither requirements.md nor design.md defines WHICH state is hashed (feature_list.json items only? + run_state fields? + git HEAD?), the hash algorithm, or where the baseline 'durable store's recorded hash' it is compared against is persisted \u2014 yet SessionStart is credited with the compute. Add a short spec near Property 26 / the state_integrity.py note: exact byte-set (canonical JSON of in_scope feature_list.json items + named run_state fields), algorithm sha256 (consistent with the evidence/audit-log sha256 convention), and the run_state column holding the baseline hash, so SessionStart's compute is implementable from the spec alone.",
+    "severity": "underspecified",
+    "dedup_key": "shared:resumed-state-hash-input-spec",
+    "adds_wiring": false
+   },
+   {
+    "title": "Update glossary: SessionStart_Hook responsibilities + add a Progress_File term",
+    "target_file": "requirements.md",
+    "anchor": "Glossary entry 'SessionStart_Hook' (requirements.md:27) and the glossary block (requirements.md:17-48) which defines Coverage_Model (L19) and feature_list.json (L28) but no progress-file term",
+    "change_type": "resolve-inconsistency",
+    "change": "Two glossary gaps: (1) the SessionStart_Hook entry still reads only 'restores run state at the start of a session' \u2014 append '...and computes the resumed-state integrity hash, writing run_state.resume_integrity_ok (non-blocking; enforced by the PreToolUse integrity guard, Requirement 23)'. (2) criterion 11.3 (requirements.md:221) names 'the progress file' as a first-class load target, but no Progress_File glossary term exists (Coverage_Model and feature_list.json do). Add a glossary entry: 'Progress_File: the version-controlled claude-progress.txt checkpoint that SessionStart reads and PreCompact writes.'",
+    "severity": "inconsistency",
+    "dedup_key": "unique:progress-file-glossary",
+    "adds_wiring": false
+   },
+   {
+    "title": "Pin the SessionStart stdout contract so the two phase-0 tests assert the same fidelity",
+    "target_file": "tasks.md",
+    "anchor": "Task 7.1 'Inject combined summary into Claude Code context via stdout' (tasks.md:167); smoke test 16.1 'stdout contains git/progress/coverage summary' (tasks.md:286); integration test 17.1 'stdout JSON contains git_status, unproven_count, proven_count' (tasks.md:298)",
+    "change_type": "resolve-inconsistency",
+    "change": "Task 7.1 says 'inject combined summary via stdout' without pinning the output shape, so 16.1 asserts a free-text 'contains' summary while 17.1 asserts structured JSON fields (git_status, unproven_count, proven_count) \u2014 two different fidelities for the same hook output. Pin the contract in 7.1 (emit structured JSON with named fields git_status, unproven_count, proven_count) and align 16.1 to assert the same JSON fields (or explicitly state 16.1 is the looser smoke check by design), so the output contract is single-sourced.",
+    "severity": "inconsistency",
+    "dedup_key": "unique:sessionstart-stdout-contract",
+    "adds_wiring": false
+   },
+   {
+    "title": "Note REQ-STATE-003 base load is example-test-verified only (no invariant)",
+    "target_file": "design.md",
+    "anchor": "Property 26 block (design.md:1084-1090) and the Hook Wiring SessionStart row (design.md:219); REQ-STATE-003 / criterion 11.3 (requirements.md:221)",
+    "change_type": "add-detail",
+    "change": "The reconciliation-added integrity half has Property 26 + CHECK-11, but the component's PRIMARY purpose \u2014 REQ-STATE-003 base load (git status + progress + coverage so a session re-orients) \u2014 has NO correctness Property and NO Z3 CHECK; it is exercised only by example tests (7.2, 16.1, 17.1). Either add a property ('for any populated feature_list.json, the SessionStart summary reports the exact unproven/proven counts') or add a one-line design note that REQ-STATE-003 is intentionally example-test-verified only (no invariant), so the absence is documented rather than an oversight.",
+    "severity": "underspecified",
+    "dedup_key": "unique:sessionstart-baseload-property",
+    "adds_wiring": false
+   },
+   {
+    "title": "Cover where SessionStart writes resume_integrity_ok when Postgres is unavailable (N-25)",
+    "target_file": "tasks.md",
+    "anchor": "Notes bullet N-25 'Postgres-unavailable fallback gate-consistency' (tasks.md:730), which enumerates 'Stop coverage gate, PreToolUse status/integrity guards, OPA merge policy' but not SessionStart's write of resume_integrity_ok",
+    "change_type": "add-detail",
+    "change": "N-25 mandates file-backed fallback for the read-side gates but is silent on SessionStart's WRITE of run_state.resume_integrity_ok (a Postgres run_state column per design.md:492) when health_check() fails at session start. If Postgres is down at SessionStart, the spec does not say whether the flag is written to the claude-progress.txt fallback or skipped \u2014 yet the downstream PreToolUse integrity guard reads it. Extend N-25 to state where SessionStart records resume_integrity_ok under DB-unavailable (write to the file-backed run_state duplicate, reconcile on reconnect), keeping the conservative/blocking behavior.",
+    "severity": "missing-wiring",
+    "dedup_key": "unique:db-unavailable-resume-write",
+    "adds_wiring": false
+   }
+  ],
+  "refuted": [
+   {
+    "item": "ears[2] / Requirement 19.1 (REQ-PRED-001): wire SessionStart as a predictive-routing advisory context-injection channel",
+    "why": "REFUTED \u2014 not a gap. requirements.md:340 names SessionStart only as ONE allowable advisory channel for the OPTIONAL, off-gate Phase-6 predictive-routing feature ('e.g., via a UserPromptSubmit or SessionStart context-injection hook or an MCP retrieve tool'). The finding itself concedes 'No mechanism is added to session_start_hook.py... it is an off-gate optional usage, not a Phase-0 obligation.' Phase 6 is explicitly optional/out-of-v1-scope (requirements.md:11, 517; design.md Phase table). There is nothing for the Phase-0 session_start_hook.py to wire, so no edit is warranted."
+   },
+   {
+    "item": "open_gaps[1] (untasked obligation) treated as a finding separate from open_gaps[0]",
+    "why": "DUPLICATE of open_gaps[0], critic[4], ears[0], ears[1] \u2014 all describe the single underlying defect that the SessionStart compute-and-write of resume_integrity_ok is never tasked to session_start_hook.py. Collapsed into the one add-wiring edit under dedup_key unique:sessionstart-integrity-untasked."
+   },
+   {
+    "item": "critic[6] OTel requirement.id ambiguity and ears[3] treated as separate from open_gaps[3]",
+    "why": "DUPLICATE of open_gaps[3] \u2014 same task 36.1 defect (degenerate decision=allow/block for a non-gating hook, plus ambiguous requirement.id). Merged into one edit under dedup_key unique:sessionstart-otel-nongating."
+   },
+   {
+    "item": "critic[5] missing Progress_File glossary term treated as separate from open_gaps[6]",
+    "why": "DUPLICATE of open_gaps[6] \u2014 both are glossary-completeness items on the same requirements.md glossary block (the SessionStart_Hook entry undersells the integrity role AND there is no Progress_File term). Merged into one edit under dedup_key unique:progress-file-glossary."
+   }
+  ],
+  "confirmed_count": 10,
+  "refuted_count": 4
+ },
+ {
+  "component": "subagent_stop_hook.py",
+  "confirmed_edits": [
+   {
+    "title": "Scope the base evidence-schema gate to verifier results (skip-when-no-evidence)",
+    "target_file": "design.md",
+    "anchor": "Hook Wiring Table row: `| `SubagentStop` | Subagent result returned | Validates Evidence_Record schema (all four fields present and non-empty); calls `audit_log.append(...)` ... | REQ-VERIFY-005, REQ-COV-006, REQ-AUDIT-001 |` (design.md:217)",
+    "change_type": "add-detail",
+    "change": "Clarify that the base evidence-schema gate applies ONLY to subagent results that CARRY an `evidence` field (verifier results): the hook locates evidence field(s) and, when none are present (initializer/research results, which produce specs/checklists not Evidence_Records), it SKIPS the four-field validation rather than failing closed. State explicitly that REQ-VERIFY-005's 'required evidence markers' for NON-verifier subagents are enforced by the omission-declaration guard (omission_declaration field), not the four-field schema. Mirror this in tasks.md task 8.1 (add a 'skip when result has no evidence field' bullet). This resolves the universal-over-'a subagent's result' wording (requirements.md:190) vs the verifier-only schema gate (design.md:217).",
+    "severity": "underspecified",
+    "dedup_key": "subagentstop-skip-when-no-evidence",
+    "adds_wiring": true
+   },
+   {
+    "title": "Author a per-subagent output schema so REQ-SPEC-018 (29.3) has a concrete mechanism",
+    "target_file": "design.md",
+    "anchor": "Component Inventory rows for `omission_guard` (design.md:148) and `schema/` (design.md:138); plus tasks.md task 54 'add omission_declaration as a required non-nullable field to each subagent output schema (initializer, research, verifier)' (tasks.md:974)",
+    "change_type": "add-wiring",
+    "change": "Add a `schema/subagent_output.schema.json` (or per-role schemas) to the Component Inventory and a task to author it, declaring `omission_declaration` as a required, non-nullable field per requirement 29.3 (requirements.md:478). Define the subagent-result ENVELOPE once in the Data Models section with documented top-level keys (`evidence[]`, `omission_declaration`, `actor_agent`, `requirement_id`) so BOTH the evidence-schema gate and the omission_guard read the same documented JSON path from the stdin payload. Reference this schema from subagent_stop_hook.py. This closes the gap that 29.3 mandates a schema field with no schema artifact to validate against, AND the field-location drift (no canonical statement of WHERE omission_declaration lives) between task 8.1 and task 54.",
+    "severity": "missing-wiring",
+    "dedup_key": "subagent-output-schema-and-envelope",
+    "adds_wiring": true
+   },
+   {
+    "title": "Add Z3 evidence-at-SubagentStop-acceptance assertion (CHECK-7d)",
+    "target_file": "verification/formal_verification_merged.py",
+    "anchor": "evidence_schema_axioms block `Implies(passed, evidenceComplete)` (line 308) and CHECK-7a/7c (lines 312-338); model the SubagentStop omission gate at lines 481-500 (subagentAccepted13)",
+    "change_type": "add-detail",
+    "change": "Add a CHECK-7d-style assertion that machine-checks the four-field evidence schema at the SubagentStop ACCEPTANCE boundary, symmetric with the omission gate (CHECK-13a). Introduce a `subagentAcceptedEvidence` (or reuse a SubagentStop-acceptance) bool and axiom `Implies(Not(evidenceComplete), Not(subagentAcceptedEvidence))`, then assert `(Not(evidenceComplete) AND subagentAcceptedEvidence)` is UNSAT. Currently the schema is only tied to the `passed` transition variable via `Implies(passed, evidenceComplete)`, never to the SubagentStop accept decision \u2014 so this hook's Phase-0 raison d'etre is not formally checked at its own gate. Update the harness self-count/group comments and the requirements.md/design.md '34 assertions' figures accordingly.",
+    "severity": "underspecified",
+    "dedup_key": "z3-evidence-at-acceptance-check7d",
+    "adds_wiring": false
+   },
+   {
+    "title": "Fix omission_guard phase label (Phase 0 -> phase of task 54)",
+    "target_file": "design.md",
+    "anchor": "Component Inventory row `| `omission_guard` | (capability within `.claude/hooks/subagent_stop_hook.py`) | 0 | Omission-declaration gate ... |` (design.md:148); subagent_stop_hook.py inventory row labelled '0/1' (design.md:130)",
+    "change_type": "resolve-inconsistency",
+    "change": "Re-label the `omission_guard` Phase from `0` to the phase of task 54, which is scheduled in dependency-graph wave 45 (tasks.md:923, :974) \u2014 effectively post-Phase-4, NOT Phase 0. Split/annotate the subagent_stop_hook.py inventory row (design.md:130, currently '0/1') so the Phase-0 deliverable is strictly the base evidence-schema validator (task 8), while the omission_guard (task 54), the audit_log.append wiring (task 52.3, Phase 2/3), and the OTel hook.decision span (task 36.1, Phase 3) are flagged as LATER additions. The hook is genuinely a 0/2/3 multi-phase component and the single '0/1' label understates this.",
+    "severity": "inconsistency",
+    "dedup_key": "subagentstop-phase-span-mislabel",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add a dedicated design subsection assembling the full subagent_stop_hook.py obligation set",
+    "target_file": "design.md",
+    "anchor": "No dedicated subsection exists for subagent_stop_hook.py (contrast the 'No-Progress Watchdog' subsection at design.md:640 which fully narrates stop_hook.py); only inventory line :130 + wiring rows :217-218",
+    "change_type": "add-detail",
+    "change": "Add a dedicated design subsection for subagent_stop_hook.py (parallel to 'No-Progress Watchdog') specifying: the stdin parse contract; skip-when-no-evidence semantics; ordering of the omission_guard check vs the evidence-schema check; the audit_log.append call site/ordering; and exception handling (exit 2 fail-closed). Currently the hook's full obligation set is scattered across tasks 8, 52.3, and 54 with no single assembling task, and task 8.1 tags only requirement 9.5. Update tasks.md task 8.1 to also reference REQ-COV-006, REQ-SPEC-018, and REQ-AUDIT-001, and cross-link tasks 52.3 and 54 as completing the same component.",
+    "severity": "underspecified",
+    "dedup_key": "subagentstop-design-subsection",
+    "adds_wiring": false
+   },
+   {
+    "title": "Specify audit_log.append is called inside the decision path before exit (ordering)",
+    "target_file": "tasks.md",
+    "anchor": "Task 52.3 'Wire audit-log producer into the three hooks \u2014 modify stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py to call tools/audit_log.append(...) on every allow/block decision' (tasks.md:970); and the Postgres-fallback note (tasks.md:730)",
+    "change_type": "add-detail",
+    "change": "Specify in task 52.3 (and the new design subsection) that for subagent_stop_hook.py the audit_log.append call is invoked INSIDE the decision path BEFORE the exit, wrapped so an append failure degrades to the file-backed log (per the tasks.md:730 fallback) and NEVER suppresses or skips the gate decision/exit. Add a unit test: 'audit_log.append raises (e.g. Postgres down before file-fallback engages) -> the allow/block decision is still recorded to the file-backed log AND the hook exits with the correct code'. Without this, a fail-closed unhandled-exception exit 2 (task 8.1 / tasks.md:182) could fire before any audit entry is written, breaking REQ-AUDIT-001's 'on every allow/block decision' obligation (requirements.md:460).",
+    "severity": "underspecified",
+    "dedup_key": "audit-append-ordering-before-exit",
+    "adds_wiring": false
+   },
+   {
+    "title": "Enforce Property 24 (actor_agent != implementer) at the SubagentStop acceptance gate",
+    "target_file": "design.md",
+    "anchor": "Property 24 (design.md:1066-1070); evidence_records.actor_agent column with 'MUST be the Verifier, never the Implementer' (design.md:473); SubagentStop wiring row (design.md:217); PBT task 39.13 (tasks.md:652-656)",
+    "change_type": "add-wiring",
+    "change": "Add an actor_agent runtime check to subagent_stop_hook.py: BLOCK (exit 2) any evidence-bearing subagent result whose `actor_agent` is `implementer.md`, enforcing Property 24 ('implementer cannot self-verify') at the acceptance choke point rather than only at the DB column (design.md:473) + property test (task 39.13). Document this in the SubagentStop wiring row (design.md:217) and add it to task 8.1 / the new design subsection. The SubagentStop gate is the natural runtime enforcement point and currently nothing tasks the hook with this check.",
+    "severity": "missing-wiring",
+    "dedup_key": "property24-actor-agent-runtime-gate",
+    "adds_wiring": true
+   },
+   {
+    "title": "Fix non-canonical field name acting_agent in Property 24 PBT (task 39.13)",
+    "target_file": "tasks.md",
+    "anchor": "Task 39.13 'Generate evidence chains with arbitrary `acting_agent` identities; assert any Evidence_Record where `acting_agent == \"implementer.md\"` is rejected' (tasks.md:655)",
+    "change_type": "fix-defect",
+    "change": "Rename `acting_agent` to `actor_agent` in task 39.13 (both occurrences). design.md:473 declares 'Canonical name is actor_agent everywhere (no acting_agent)' and Property 24 (design.md:1068) uses `actor_agent`, but the validating PBT in tasks.md:655 still generates and rejects on the non-canonical `acting_agent` key \u2014 so the role-separation test would read the wrong field and fail to enforce the gate. This is a live naming-drift defect.",
+    "severity": "defect",
+    "dedup_key": "actor-agent-naming-canonical",
+    "adds_wiring": false
+   },
+   {
+    "title": "Map REQ-STEER-004 (command-type fail-closed) as an explicit obligation on this hook",
+    "target_file": "tasks.md",
+    "anchor": "Task 9.1 registers SubagentStop as \"type\":\"command\" (tasks.md:193-194); task 9.2 smoke test asserts all hooks command-type (tasks.md:197-199); requirement 13.4/REQ-STEER-004 (requirements.md:253)",
+    "change_type": "add-wiring",
+    "change": "Wire REQ-STEER-004 (command-type hooks fail closed; no HTTP/MCP for hard policy, requirements.md:253) explicitly onto subagent_stop_hook.py: add the requirement tag to the SubagentStop registration (task 9.1) and reference the task-9.2 smoke test (tests/smoke/test_hook_config.py) which parses settings.json and asserts EVERY registered hook including SubagentStop is command-type with no http/mcp. This is the reason the hook can fail closed (exit 2) at all; currently it is only an un-tagged behavior note.",
+    "severity": "missing-wiring",
+    "dedup_key": "req-steer-004-command-type-mapping",
+    "adds_wiring": true
+   },
+   {
+    "title": "Single out SubagentStop in the Property 21 exit-code-contract test",
+    "target_file": "tasks.md",
+    "anchor": "Task 39.4 'Write property test for hook exit-code contract' / test_hook_exit_code_contract, generic over hooks (tasks.md:593-597); Property 21 (design.md:1042-1046); requirement 13.5 (requirements.md:254)",
+    "change_type": "add-wiring",
+    "change": "Extend task 39.4 (Property 21, Hook Exit-Code Contract) to explicitly include a SubagentStop case: assert the hook's allow(exit 0)/block(exit 2 with stderr)/fail-closed-on-exception(exit 2) behavior conforms to REQ-STEER-005 (requirements.md:254). The exit-code contract is the foundation of this hook's entire allow/block behavior, yet the validating test (test_hook_exit_code_contract) is generic across hooks and does not single out SubagentStop, leaving its exit-code conformance only transitively covered.",
+    "severity": "missing-wiring",
+    "dedup_key": "property21-subagentstop-exit-code",
+    "adds_wiring": true
+   }
+  ],
+  "refuted": [
+   {
+    "item": "open_gap #8 \u2014 Field-location drift: no canonical statement of WHERE omission_declaration lives in the result JSON; the two guards parse the same stdin with no shared envelope.",
+    "why": "DUPLICATE of gap #2 (missing per-subagent schema). The real, actionable remedy \u2014 define the subagent-result envelope once in design.md Data Models with documented top-level keys so both guards read the same path \u2014 is folded into the 'subagent-output-schema-and-envelope' confirmed edit. Emitting it separately would double-count the same artifact change."
+   },
+   {
+    "item": "critic_finding \u2014 Phase-0 smoke/integration TEST obligations (task 16.1 test_spine_e2e.py, task 17.1 test_phase0_integration.py) absent from the draft.",
+    "why": "REFUTED as an artifact defect. The artifacts already FULLY cover this: task 16.1 (tasks.md:281-288) calls subagent_stop_hook.py with a complete Evidence_Record asserting exit 0 and with missing output_hash asserting exit 2; task 17.1 (tasks.md:291-302, esp. :299-300) does the same and asserts stderr NAMES output_hash, matching the design.md:627 spine row. These tasks exist and correctly exercise this hook. The complaint is that the draft findings-doc failed to surface them \u2014 a draft-completeness issue, not a gap/defect in the canonical artifacts. No edit needed."
+   },
+   {
+    "item": "critic_finding \u2014 REQ-COV-006 overstatement: draft cites requirements.md:127 (Req 5.6) as a direct SubagentStop obligation when its primary enforcement is the PreToolUse status guard (design.md:215), SubagentStop being secondary.",
+    "why": "REFUTED as an artifact edit. The artifacts are already internally consistent: design.md:215 maps REQ-COV-006 to the PreToolUse status guard (primary) and design.md:217 maps it to SubagentStop (secondary re-use of the same validate_evidence_record semantics). Both enforcement points are correctly documented. This is a critique of the DRAFT's citation altitude, not a defect in requirements.md/design.md/tasks.md. No artifact change is warranted."
+   },
+   {
+    "item": "critic_finding \u2014 Phase-3 OTel hook.decision span (task 36.1) makes SubagentStop a three-phase component; understated by the '0/1' label.",
+    "why": "DUPLICATE of the confirmed phase-mislabel edit ('subagentstop-phase-span-mislabel'). The OTel-span/three-phase point is the same underlying inconsistency (the '0/1' label understates the hook's true 0/2/3 span) and is already folded into that edit, which explicitly names task 36.1 (Phase 3) alongside task 52.3 and task 54."
+   },
+   {
+    "item": "critic_finding \u2014 draft's 'why' omits PRD_MERGED:44 and the correctness-of-deferral risk that the Z3 model never machine-checks evidence-completeness at the SubagentStop boundary.",
+    "why": "The PRD_MERGED:44 citation point is about the DRAFT's sourcing, not an artifact defect (PRD_MERGED:44 genuinely contains 'the SubagentStop gate (REQ-COV-006) already enforces Evidence_Record structure at the hook boundary' \u2014 verified). The substantive correctness-of-deferral concern \u2014 that the Pydantic/BAML deferral rests on an unverified-at-this-boundary claim \u2014 is DUPLICATE of Z3 gap #3 ('z3-evidence-at-acceptance-check7d'), which already adds the missing machine-check that would validate the deferral rationale."
+   },
+   {
+    "item": "citation_issue \u2014 design.md:37 wrong content (Mermaid node, not prose); PRD:521 phantom line (PRD has 133 lines); tasks.md:193-194 misattributed command string; tasks.md:956 imprecise hook-validator-timeout citation.",
+    "why": "REFUTED as artifact edits. These are critiques of the DRAFT findings-doc's own citations, not defects in the canonical artifacts. Verified: PRD_MERGED is 133 lines so PRD:521 is indeed a phantom, but the real text lives at requirements.md:521 (and PRD:44) which ARE correct; design.md:37 is a Mermaid label as stated; the command string only appears at design.md:184; requirements.md:354 correctly lists the 60s hook-validator timeout. None of these require changing requirements.md/design.md/tasks.md/harness \u2014 they require fixing the draft's citations, which is out of scope for the canonical-artifact edit set."
+   }
+  ],
+  "confirmed_count": 10,
+  "refuted_count": 6
+ },
+ {
+  "component": "post_tool_use_hook.py",
+  "confirmed_edits": [
+   {
+    "title": "REQ-VERIFY-004 under-specifies the PostToolUse check set (omits type-check AND AST)",
+    "target_file": "requirements.md",
+    "anchor": "Requirement 9, acceptance criterion 4 (requirements.md:189): \"WHEN a file edit completes, THE PostToolUse_Hook SHALL run lint, SAST, and wiring checks...\"",
+    "change_type": "resolve-inconsistency",
+    "change": "Amend criterion 9.4 to enumerate the full check set so requirement, design hook-wiring row (design.md:216), and task 18.1 (tasks.md:311) agree: change 'run lint, SAST, and wiring checks' to 'run lint, type-check (mypy), SAST (Semgrep), and wiring checks'. This reconciles the requirement with design.md:216 ('lint, type check, SAST (Semgrep), wiring check') and task 18.1 which runs ruff+mypy+semgrep+wiring_checker. Note that the structural layer's AST analysis (REQ-VERIFY-001) is performed inside wiring_checker.py via the ast module (task 19.1, tasks.md:327), so the wiring check subsumes AST \u2014 state this so 'lint+type+SAST+wiring' is not misread as omitting the structural-layer AST element.",
+    "severity": "inconsistency",
+    "dedup_key": "post-hook-check-set",
+    "adds_wiring": false
+   },
+   {
+    "title": "PostToolUse Semgrep-only scope (CodeQL is CI-only) is nowhere stated",
+    "target_file": "design.md",
+    "anchor": "Hook Wiring Table, PostToolUse row (design.md:216): \"Runs lint, type check, SAST (Semgrep), wiring check on changed files\"",
+    "change_type": "add-detail",
+    "change": "Add a clause to the PostToolUse hook-wiring row (and mirror in task 18.1, tasks.md:312) stating the in-loop hook runs Semgrep ONLY for SAST; CodeQL is the CI gate (task 23 / REQ-SEC-001), not run at edit time. This prevents the glossary term Semgrep_CodeQL (requirements.md:47) and REQ-VERIFY-001 (requirements.md:186) from being misread as requiring the hook to run CodeQL. Suggested: append '(Semgrep only at edit time; CodeQL runs in CI per REQ-SEC-001)'.",
+    "severity": "underspecified",
+    "dedup_key": "post-hook-semgrep-only",
+    "adds_wiring": false
+   },
+   {
+    "title": "No dedicated PostToolUse design subsection: changed-file parsing, stdout feedback schema, and MultiEdit handling unspecified",
+    "target_file": "design.md",
+    "anchor": "After the '`plan-approved.json` Gate' subsection (ends ~design.md:801), before '## Error Handling' (design.md:805) \u2014 mirror depth of 'No-Progress Watchdog' / 'plan-approved.json Gate'",
+    "change_type": "add-detail",
+    "change": "Add a 'PostToolUse Feedback Hook' design subsection (parallel to the Stop-hook and PreToolUse sections) defining: (a) how changed-file path(s) are parsed from the PostToolUse event payload for Write/Edit/MultiEdit \u2014 every sibling hook documents its input parsing (e.g. subagent_stop_hook task 8.1, tasks.md:178 'Parse subagent result from stdin (JSON)'; pre_tool_use reads tool input) but task 18.1 (tasks.md:309-316) uniquely says only 'on changed files' with no stdin-parsing step; (b) the JSON/text schema of the structured feedback emitted to stdout that the agent consumes next turn; (c) how a MultiEdit batch (multiple files in one event) is fanned out to the per-file lint/type/SAST/wiring runs. Also add a matching bullet to task 18.1 spelling out the stdin payload parse step.",
+    "severity": "underspecified",
+    "dedup_key": "post-hook-input-parse-and-output-schema",
+    "adds_wiring": false
+   },
+   {
+    "title": "No timeout specified for PostToolUse despite shelling out to four external processes",
+    "target_file": "design.md",
+    "anchor": "Error Handling > Hook Failure Modes table, '`post_tool_use_hook.py` crashes' row (design.md:813)",
+    "change_type": "add-detail",
+    "change": "Add a timeout behavior for post_tool_use_hook.py. The Req 20.1 60s validator timeout (requirements.md:354) is documented only for spec_validator.py (design.md:814) and silent for this hook, yet semgrep --config auto on a large changeset can exceed 60s. Add a Hook Failure Modes row (or extend the existing post_tool_use_hook row) and a task 18.1 bullet: apply the 60s validator-timeout default per external tool (or a dedicated post-hook budget); on timeout still exit 1 with a 'post-hook timeout' finding in the structured feedback \u2014 never exit 2, never block. This is also the concrete site to connect the N-25 'never fail-open' family note (tasks.md:730): when telemetry/DB is down (task 36.1 OTel forwarding) the hook MUST still exit 1 and not crash the edit loop.",
+    "severity": "underspecified",
+    "dedup_key": "post-hook-timeout-and-failopen",
+    "adds_wiring": false
+   },
+   {
+    "title": "REQ-OBS-003 gate-decision forwarding mis-fits PostToolUse (it makes no allow/block decision)",
+    "target_file": "tasks.md",
+    "anchor": "Task 36.1 (tasks.md:539-542): \"Extend all six hooks (Stop, PreToolUse, PostToolUse, SubagentStop, SessionStart, PreCompact) to emit OTel gate-decision events\" with attribute `decision` (allow/block)",
+    "change_type": "resolve-inconsistency",
+    "change": "PostToolUse never makes an allow/block gate decision (it always exits 1, non-blocking), but task 36.1 sets a `decision`(allow/block) attribute on its span for 'all six hooks' and REQ-OBS-003 (requirements.md:236) is triggered only 'WHEN a hook makes a gate decision'. Fix: in task 36.1 (and the design narrative) emit a distinct span event for PostToolUse \u2014 e.g. span name 'hook.feedback' with attributes `hook.event`, `tool.name`, `findings_count` (and severity breakdown) \u2014 instead of reusing the allow/block `decision` attribute that is meaningless for a non-gating hook. Clarify that REQ-OBS-003's gate-decision forwarding applies to the five gate-making hooks; PostToolUse forwards informational feedback telemetry, not an audit-logged gate decision.",
+    "severity": "inconsistency",
+    "dedup_key": "post-hook-otel-feedback-vs-decision",
+    "adds_wiring": true
+   },
+   {
+    "title": "PostToolUse intentionally NOT an audit-log producer \u2014 state it explicitly to reconcile with OTel forwarding",
+    "target_file": "design.md",
+    "anchor": "Component Inventory, post_tool_use_hook.py row (design.md:131); cross-ref audit producer list at design.md:144 (audit_log.py) and req 27.4 (requirements.md:460)",
+    "change_type": "resolve-inconsistency",
+    "change": "Req 27.4 (requirements.md:460) and task 52.3 (tasks.md:970) wire audit_log.append into stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py only \u2014 PostToolUse is deliberately excluded \u2014 yet task 36.1 forwards PostToolUse events to OTel, so the audit log and the OTel trace appear to disagree on whether PostToolUse events are recorded. State explicitly (in the design.md:131 inventory row or the audit_log.py row at design.md:144) that PostToolUse is intentionally NOT a gate-audit-log producer because it issues no allow/block gate decision, and that its OTel forwarding is informational feedback telemetry (paired with the 'hook.feedback' span from the OBS-003 fix), not a gate-decision audit entry.",
+    "severity": "inconsistency",
+    "dedup_key": "post-hook-not-audit-producer",
+    "adds_wiring": false
+   },
+   {
+    "title": "Zero Z3 coverage for the PostToolUse never-blocks invariant",
+    "target_file": "verification/formal_verification_merged.py",
+    "anchor": "New CHECK in the 'New checks' section after CHECK-13b (formal_verification_merged.py:500), parallel to the HANDOFF exit-0 checks CHECK-5b/5c/8c (lines 266-275, 364-370)",
+    "change_type": "add-wiring",
+    "change": "Add a CHECK pinning the PostToolUse 'cannot block' invariant, parallel to CHECK-5b/5c/8c which pin the Stop-hook HANDOFF exit-0 invariant. Confirmed gap: grep of formal_verification_merged.py for post_tool_use/postHook/lint/sast/wiring returns NO MATCH; the invariant 'PostToolUse MUST exit 1 / never exit 2 / cannot undo' (requirements.md:251, REQ-STEER-002) lives only in prose plus the generic Property 21. Add e.g. a Bool `postHookBlocks` with axiom `Not(postHookBlocks)` (PostToolUse is non-blocking by contract) and a check that `postHookBlocks` (a PostToolUse path that exits 2) is UNSAT \u2014 formally pinning the prevention(PreToolUse)/feedback(PostToolUse) split on both sides. Update the self-counting group comment/total accordingly (the harness self-counts checks_run, so no hardcoded figure needs changing, but add the new CHECK label to the printed group description).",
+    "severity": "missing-wiring",
+    "dedup_key": "post-hook-z3-never-blocks",
+    "adds_wiring": true
+   },
+   {
+    "title": "Req 8.1 wiring-analysis EARS story not mapped to the PostToolUse trigger role",
+    "target_file": "design.md",
+    "anchor": "Hook Wiring Table, PostToolUse row (design.md:216), 'Requirement enforced' column currently 'REQ-VERIFY-004, REQ-STEER-002'",
+    "change_type": "add-wiring",
+    "change": "Add REQ-EXEC-010 (Req 8.1) to the PostToolUse hook-wiring row's enforced-requirement list and note the trigger/engine split: PostToolUse invokes wiring_checker.py on changed files (task 18.1, tasks.md:313) which performs the static call-graph/dead-code analysis and emits WIRING coverage-item candidates (task 19, tasks.md:325-331). The hook is the trigger; wiring_checker is the engine. Integration test 26.1 (tasks.md:404-410) already exercises the hook+wiring_checker path together under Req 8.1/8.2, so the mapping is testably bound \u2014 make it explicit in the wiring row rather than leaving Req 8.1 traced only through the wiring_checker engine task.",
+    "severity": "missing-wiring",
+    "dedup_key": "post-hook-wiring-req8-trigger",
+    "adds_wiring": true
+   },
+   {
+    "title": "Req 20.1 SAST-threshold EARS story: PostToolUse reports HIGH/CRITICAL but does not enforce \u2014 mapping unstated",
+    "target_file": "design.md",
+    "anchor": "Hook Wiring Table, PostToolUse row (design.md:216), 'What it blocks' column currently 'Nothing (exit 1 = non-blocking)'",
+    "change_type": "add-wiring",
+    "change": "Clarify the Req 20.1 (0 HIGH/CRITICAL SAST findings) mapping for PostToolUse: the hook filters semgrep output for HIGH/CRITICAL findings (task 18.1, tasks.md:312) but only REPORTS them via next-turn feedback (exit 1) \u2014 it does NOT enforce/block on the 0-HIGH/CRITICAL threshold. Enforcement of that threshold is the CI SAST gate (REQ-SEC-001, CodeQL/Semgrep workflows, task 23). Add a clause to the PostToolUse 'What it blocks' cell (and a task 18.1 bullet) stating PostToolUse surfaces SAST findings as feedback only; the 0-HIGH/CRITICAL threshold (Req 20.1) is enforced at the CI gate, not at edit time.",
+    "severity": "missing-wiring",
+    "dedup_key": "post-hook-sast-threshold-report-only",
+    "adds_wiring": true
+   }
+  ],
+  "refuted": [
+   {
+    "item": "critic_findings[0] \u2014 Property 21's _Requirements line (tasks.md:591) names '18.1', wiring the PBT to post_tool_use_hook.py via task 18.1",
+    "why": "Misread. tasks.md:591 is the _Requirements trace for task 39.3 (property tests for hooks) and lists REQUIREMENT acceptance-criterion ids '5.5, 7.4, 7.5, 10.2, 13.5, 14.1, 14.2, 18.1' \u2014 '18.1' here is Requirement 18.1 (REQ-HITL-001, plan-approval gate), NOT task 18.1 (the post_tool_use_hook implementation task). The finding conflates a requirement id with a task id. Property 21 (Hook Exit-Code Contract) Validates Requirement 13.5 only (design.md:1047, tasks.md:595); it constrains PostToolUse solely via the shared generic exit-code contract, exactly as the draft stated. No edit warranted."
+   },
+   {
+    "item": "critic_findings[2] \u2014 REQ-VERIFY-004 also omits 'AST analysis'",
+    "why": "DUPLICATE of the REQ-VERIFY-004 under-specification (open_gaps[0] / dedup_key post-hook-check-set). The AST point is folded into that single confirmed edit, which now explicitly addresses AST (handled inside wiring_checker.py via the ast module, task 19.1) alongside type-check. Not emitted separately."
+   },
+   {
+    "item": "critic_findings[4] \u2014 N-25 'never fail-open' not connected to PostToolUse",
+    "why": "DUPLICATE of the timeout/fail-open edit (open_gaps[3] / dedup_key post-hook-timeout-and-failopen). The N-25 connection (tasks.md:730: telemetry/DB down \u2192 hook must still exit 1, not crash the edit loop) is incorporated into that edit's change spec rather than emitted as a standalone item. Note PostToolUse is correctly absent from the N-25 gate list because it makes no gate decision \u2014 the only real obligation is 'exit 1 on its own telemetry/DB failure', which the timeout/fail-open edit covers."
+   },
+   {
+    "item": "critic_findings[5] \u2014 config_settings 'hook type = command' overstates REQ-STEER-004's binding on a non-blocking hook",
+    "why": "REFUTED as a spec defect. This critiques the draft component-note's own phrasing, not the canonical artifacts. The canonical design.md:203 already states the blanket rule plainly ('All hooks are command type ... so they fail closed') and the settings.json config (design.md:174-180) correctly registers PostToolUse as type:command with the Write|Edit|MultiEdit matcher. There is no inconsistency or missing wiring in the artifacts to fix; the command-type-for-all-hooks rule is a uniform substrate decision (task 9.1, tasks.md:193-194), and applying it to a non-blocking hook is harmless and intentional."
+   },
+   {
+    "item": "critic_findings[6] \u2014 integration test 26.1 binds the hook to Req 8.1/8.2/9.4/13.2",
+    "why": "Informational, not a defect. test 26.1's trace (tasks.md:410: '_Requirements: 8.1, 8.2, 9.4, 10.3, 13.2_') correctly and already binds the PostToolUse+wiring_checker path to Req 8. This is corroborating evidence used to strengthen the Req-8.1 add-wiring edit (dedup_key post-hook-wiring-req8-trigger), not a separate gap. No standalone edit."
+   },
+   {
+    "item": "critic_findings[6 input-parsing] \u2014 every sibling hook documents input parsing and task 18.1 uniquely does not",
+    "why": "DUPLICATE of the design-thinness edit (open_gaps[2] / dedup_key post-hook-input-parse-and-output-schema). The sibling-hook comparison (subagent_stop task 8.1 stdin parse, tasks.md:178) is folded into that edit's change spec as the concrete evidence for adding a changed-file-parsing step. Not emitted separately."
+   },
+   {
+    "item": "ears_needing_work \u2014 Req 9.1 (five-layer scope) add-wiring",
+    "why": "DUPLICATE of the REQ-VERIFY-004 / structural-layer edit (dedup_key post-hook-check-set). The Req 9.1 partial mapping (PostToolUse = fast-feedback shadow of structural+security layers, authoritative five-layer verification is the Verifier's job) is the same under-specification as REQ-VERIFY-004 omitting type-check/AST; the fix in dedup_key post-hook-check-set makes the structural-layer subset explicit. Not emitted separately."
+   },
+   {
+    "item": "ears_needing_work \u2014 Req 12.3 (hook-decision forwarding) add-wiring",
+    "why": "DUPLICATE of the REQ-OBS-003 mis-fit edit (dedup_key post-hook-otel-feedback-vs-decision). Same underlying issue: task 36.1 names PostToolUse among the six but PostToolUse makes no allow/block decision, so it forwards a feedback event, not a gate decision. Covered by that single confirmed edit."
+   },
+   {
+    "item": "citation_issues \u2014 design.md:131 misattribution of the verbatim 'type check / (Semgrep) / via stdout' quote",
+    "why": "Citation-quality note about the DRAFT's own 'what' section, not a defect in the canonical artifacts. Confirmed: design.md:131 reads 'Runs lint + SAST + wiring checks after each file edit; returns errors as next-turn feedback' (no 'type check', no '(Semgrep)', says 'next-turn feedback'), while the verbatim 'lint, type check, SAST (Semgrep), wiring check ... via stdout' is at design.md:216. The substantive inconsistency this exposes (131 inventory row omits type-check while 216 includes it) is already captured by the post-hook-check-set edit, which reconciles requirement+design+task on the check set; the inventory row at 131 should be swept into that reconciliation. No separate edit \u2014 flagged as input to dedup_key post-hook-check-set."
+   },
+   {
+    "item": "citation_issues \u2014 requirements.md:460 cited as 'REQ-AUDIT-001' when line 460 is Req 27.4 sub-criterion",
+    "why": "Citation-precision note, not an artifact defect. Confirmed: requirements.md:460 is Requirement 27 acceptance criterion 4 (the producer/callers sub-criterion); the REQ-AUDIT-001 PRD tag sits in the Requirement 27 header at line 456. The content at 460 does support the claim (names stop/pre/subagent_stop as callers, omits PostToolUse). The substantive point is already captured by the post-hook-not-audit-producer edit; no separate fix for the citation."
+   }
+  ],
+  "confirmed_count": 9,
+  "refuted_count": 10
+ },
+ {
+  "component": "pre_compact_hook.py",
+  "confirmed_edits": [
+   {
+    "title": "Resolve PreCompact phase contradiction (Phase 1 vs Phase 2)",
+    "target_file": "design.md",
+    "anchor": "design.md:132 row `| `pre_compact_hook.py` | `.claude/hooks/pre_compact_hook.py` | 2 |` AND design.md:15 `| **Phase 2 (durable state)** | Postgres traceability graph + PreCompact checkpoints + SLSA attestations |`",
+    "change_type": "resolve-inconsistency",
+    "change": "Pick ONE phase for pre_compact_hook.py. The build task (task 25) sits under '### Phase 1 \u2014 Verification Depth' (tasks.md:306, tasks 18-26), Notes line 725 bounds 'Phase 1 task (18-26)', and the wave graph schedules 25.1 in wave 17 (tasks.md:810-812) between Phase-1 wave 16 (21.2-24.1) and Phase-2 wave 19 (27.1). Since PreCompact depends only on file+git artifacts (no Postgres), make it Phase 1: change design.md:132 '2'->'1' and remove 'PreCompact checkpoints' from the Phase-2 overview row (design.md:15). Alternatively move task 25 into Phase 2 (after task 26) to match design.md \u2014 but the wave graph + Notes already commit it to Phase 1, so renaming design.md is the lower-churn fix.",
+    "severity": "inconsistency",
+    "dedup_key": "precompact-phase-classification",
+    "adds_wiring": false
+   },
+   {
+    "title": "Reconcile the checkpointed artifact set across the three specs (and remove the orphan snapshot)",
+    "target_file": "tasks.md",
+    "anchor": "tasks.md:392-394 (task 25.1 bullets: append claude-progress.txt; write claude-progress-evidence-snapshot.json; `git add -f ... && git commit`) vs design.md:220 (PreCompact row 'Checkpoints claude-progress.txt, current evidence state, and feature_list.json') vs requirements.md:219-220",
+    "change_type": "resolve-inconsistency",
+    "change": "Make the file list identical in tasks.md:392-394 and design.md:220, and ensure every written file has a reader. As written, tasks.md commits claude-progress.txt + claude-progress-evidence-snapshot.json but NOT feature_list.json, while design.md:220 commits feature_list.json and never names the snapshot; the snapshot filename appears exactly once in the whole spec (tasks.md:393 write) and is read by nothing \u2014 SessionStart (tasks.md:165-166) reads only claude-progress.txt + feature_list.json. Recommended fix: drop claude-progress-evidence-snapshot.json from tasks.md:393 and instead commit feature_list.json directly (so SessionStart re-orients from it per design.md:219); add feature_list.json to the `git add`/commit at tasks.md:394; set design.md:220 to the same set {claude-progress.txt, feature_list.json}. If the derived snapshot is kept, add it to design.md:220 AND give it a reader in session_start_hook.py (task 7.1).",
+    "severity": "inconsistency",
+    "dedup_key": "precompact-checkpoint-artifact-set",
+    "adds_wiring": false
+   },
+   {
+    "title": "Glossary PreCompact_Hook definition narrower than its EARS criterion",
+    "target_file": "requirements.md",
+    "anchor": "requirements.md:26 `- **PreCompact_Hook**: The Claude Code `PreCompact` hook that checkpoints progress before context compaction.`",
+    "change_type": "fix-defect",
+    "change": "Widen the glossary entry to match criterion REQ-STATE-002 (requirements.md:220 'checkpoint progress AND EVIDENCE records'): change 'checkpoints progress before context compaction' to 'checkpoints progress and evidence records before context compaction.' The glossary currently summarizes the hook as progress-only, contradicting its own criterion and the design.md:220 set.",
+    "severity": "inconsistency",
+    "dedup_key": "precompact-checkpoint-artifact-set",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add pre_compact_hook.py row to the Hook Failure Modes table + pin the commit worktree",
+    "target_file": "design.md",
+    "anchor": "design.md:809-816 Hook Failure Modes table (currently covers stop_hook.py, pre_tool_use_hook.py, post_tool_use_hook.py, spec_validator.py, Postgres, plan-approved.json \u2014 no PreCompact row)",
+    "change_type": "add-detail",
+    "change": "Add a `pre_compact_hook.py` failure-mode row: 'On any exception (git index lock, detached HEAD, mid-rebase, unreadable feature_list.json), log to stderr and exit 0 \u2014 a failed checkpoint must NEVER block the run (non-blocking by REQ-STATE-002).' Also specify which ref/worktree the checkpoint commits to: the MAIN worktree, never a per-slice worktree, so the `chore: PreCompact checkpoint [skip ci]` commit (tasks.md:394) cannot collide mid-slice with the one-atomic-commit-per-slice invariant (REQ-EXEC-003 / requirements.md:158) or the implementer's 'exactly one atomic commit' rule (design.md:248). Note the checkpoint commit carries no requirement-ID trailer and is exempt from the REQ-TRACE-002 commit-trailer gate (it is a chore, not a slice commit).",
+    "severity": "underspecified",
+    "dedup_key": "precompact-failure-modes-worktree",
+    "adds_wiring": false
+   },
+   {
+    "title": "Fix settings.json owning-file path drift and stale task cross-reference for PreCompact binding",
+    "target_file": "tasks.md",
+    "anchor": "tasks.md:16 `Create `.vscode/settings.json` (or `.kiro/settings.json`) stub for hook wiring (populated in task 8)`",
+    "change_type": "fix-defect",
+    "change": "Two defects on this line: (1) 'populated in task 8' is wrong \u2014 task 8 is subagent_stop_hook.py (tasks.md:176); the hook-wiring task that registers PreCompact is task 9 (tasks.md:191-193). Change to 'populated in task 9'. (2) The stub path `.vscode/settings.json` is both inconsistent with task 9.1 / design.md:157 (`.claude/settings.json`) AND actively gitignored (.gitignore:32 ignores `.vscode/`), so a PreCompact binding placed there would never be committed and the runtime would never load it (silent fail-open wiring hole). Standardize the path to `.claude/settings.json` at tasks.md:16. The actual PreCompact command binding `python3 .claude/hooks/pre_compact_hook.py` is specified at design.md:193-198 and registered by task 9.1.",
+    "severity": "missing-wiring",
+    "dedup_key": "settings-json-precompact-binding",
+    "adds_wiring": true
+   },
+   {
+    "title": "Drop misleading `git add -f` on non-gitignored checkpoint files (or add the intended .gitignore entry)",
+    "target_file": "tasks.md",
+    "anchor": "tasks.md:394 `Commit both files via `git add -f ... && git commit -m \"chore: PreCompact checkpoint [skip ci]\"` if anything has changed`",
+    "change_type": "fix-defect",
+    "change": "The `-f` (force-add) implies claude-progress.txt / the snapshot are gitignored, but the actual .gitignore (lines 1-47) ignores only __pycache__, venvs, dist/build, test/coverage caches, .idea//.vscode/, OS files, .playwright-mcp/, and .env* \u2014 there is NO claude-progress entry. Resolve the intent mismatch: either (a) drop the `-f` so it reads `git add claude-progress.txt feature_list.json` (the files are tracked normally), or (b) if checkpoint files are meant to be ignored, add them to .gitignore and make task 1 (tasks.md:17 'Create ... .gitignore entries') actually create that entry \u2014 which justifies the `-f`. Recommend (a) given SessionStart must read feature_list.json back.",
+    "severity": "underspecified",
+    "dedup_key": "precompact-gitadd-f-gitignore",
+    "adds_wiring": false
+   },
+   {
+    "title": "PreCompact wrongly included in gate-decision OTel forwarding (makes no allow/block decision)",
+    "target_file": "tasks.md",
+    "anchor": "tasks.md:539-541 task 36.1 `Extend all six hooks (Stop, PreToolUse, PostToolUse, SubagentStop, SessionStart, PreCompact) to emit OTel gate-decision events ... attributes: hook.event, tool.name, decision (allow/block), reason, requirement.id`",
+    "change_type": "resolve-inconsistency",
+    "change": "PreCompact makes no gate decision \u2014 it always exits 0, has no allow/block, no requirement.id, and the design.md:220 PreCompact row explicitly lists 'Nothing (checkpoint write; non-blocking)' with no audit_log.append (unlike Stop:209, PreToolUse:210, SubagentStop:217-218 which DO call audit_log.append). REQ-OBS-003 (requirements.md:236) scopes the event to 'WHEN a hook makes a gate decision'. Fix task 36.1: either (a) exclude PreCompact from gate-decision forwarding and emit a distinct non-gate span for it (e.g. `hook.checkpoint` with item-count attributes, no decision/requirement.id), or (b) state that for PreCompact the `decision` attribute is a fixed checkpoint marker (not allow/block) and requirement.id is omitted. Update the ears_story for Requirement 12.3 accordingly.",
+    "severity": "inconsistency",
+    "dedup_key": "precompact-otel-not-gate-decision",
+    "adds_wiring": false
+   },
+   {
+    "title": "REQ-STATE-002 has no Z3 check and no Correctness Property \u2014 state the verification basis explicitly",
+    "target_file": "design.md",
+    "anchor": "design.md:220 PreCompact row (REQ-STATE-002) AND the Correctness Properties list (design.md ~1084-1130, which contains Property 26 for REQ-STATE-005 but no PreCompact/REQ-STATE-002 property)",
+    "change_type": "add-detail",
+    "change": "REQ-STATE-002 is the sole reason this component exists yet is verified by nothing in formal_verification_merged.py (a grep shows only the CHECK-11 family covers REQ-STATE, and that maps to REQ-STATE-005, not 002) and by no Correctness Property. This is defensible (a non-blocking checkpoint has no SAT/UNSAT gating invariant) but must be stated, not silent. Add a one-line note near the PreCompact design row / Property list: 'REQ-STATE-002 is verified by unit + integration test (task 25.2), not Z3 \u2014 a checkpoint write has no gating invariant.' Optionally add an integration test asserting that after a simulated PreCompact the checkpoint files + commit exist and SessionStart reads them back.",
+    "severity": "underspecified",
+    "dedup_key": "unique:reqstate002-no-z3",
+    "adds_wiring": false
+   },
+   {
+    "title": "Wire REQ-STATE-001 (persist run state outside model context) to PreCompact as a contributing writer",
+    "target_file": "design.md",
+    "anchor": "design.md:220 PreCompact row (Requirement enforced column currently lists only REQ-STATE-002)",
+    "change_type": "add-wiring",
+    "change": "PreCompact partially realizes REQ-STATE-001 (requirements.md:219: 'persist all mutable run state outside model context, in files, git history') \u2014 it is the write-side that persists progress + evidence to files and git before compaction. The current PreCompact row maps only REQ-STATE-002. Add REQ-STATE-001 to the PreCompact row's Requirement-enforced column (as a contributing writer alongside REQ-STATE-002) so the file+git persistence obligation is traced to this component, not only to the durable-Postgres path. (Note: this is a partial mapping \u2014 Postgres persistence under REQ-STATE-001 is covered by Phase 2 tasks 31.x.)",
+    "severity": "missing-wiring",
+    "dedup_key": "unique:reqstate001-precompact-wiring",
+    "adds_wiring": true
+   },
+   {
+    "title": "Relabel the REQ-STATE-001 ears-story's 11.4 reference (per-slice commit, not PreCompact)",
+    "target_file": "tasks.md",
+    "anchor": "tasks.md:18 task 1 `_Requirements: 11.1, 11.4_`",
+    "change_type": "resolve-inconsistency",
+    "change": "When mapping PreCompact's contribution to durable state, do NOT cite criterion 11.4 as a PreCompact/claude-progress.txt anchor: 11.4 (requirements.md:222) is 'record an incremental commit per completed Slice as the durable execution trail' \u2014 owned by the implementer's per-slice commit, NOT by PreCompact. PreCompact's genuine REQ-STATE anchors are 11.1 (persist outside model context) and 11.2 (the checkpoint itself). Keep task 1's tag `11.1, 11.4` as-is (task 1 legitimately scaffolds claude-progress.txt for 11.1 and the git/.gitignore trail relevant to 11.4), but in any PreCompact coverage note label the 11.4 link as 'task 1's scaffolding tag, unrelated to PreCompact' so no false PreCompact->11.4 coverage edge is implied.",
+    "severity": "inconsistency",
+    "dedup_key": "unique:reqstate-001-114-mislabel",
+    "adds_wiring": false
+   }
+  ],
+  "refuted": [
+   {
+    "item": "Critic 'overstatement': task 1's `_Requirements: 11.1, 11.4_` tag is itself wrong and should drop the 11.4 reference.",
+    "why": "The task-1 tag is defensible and need not change. Task 1 (tasks.md:13-18) scaffolds the repo: it creates claude-progress.txt (serving 11.1) AND the git scaffold + .gitignore entries that underpin 11.4's 'incremental commit per completed Slice ... durable execution trail.' The only real defect is using 11.4 as a *PreCompact* coverage anchor in the ears-story, which is captured by the separate relabel edit (dedup_key unique:reqstate-001-114-mislabel). The tag on task 1 stays."
+   },
+   {
+    "item": "Implied gap: REQ-STATE-005 / Property 26 / CHECK-11 are mishandled for PreCompact.",
+    "why": "No finding claims this, and the artifacts handle it correctly: REQ-STATE-005 is owned by state_integrity.py + the PreToolUse integrity guard (design.md:143, :212, :219, :492, Property 26 at design.md:1084-1090, CHECK-11a/11b in formal_verification_merged.py:444-461) \u2014 entirely separate from PreCompact. The absence of a Z3 check for REQ-STATE-002 is the genuine gap (captured by dedup_key unique:reqstate002-no-z3); REQ-STATE-005 coverage is intact and needs no edit."
+   },
+   {
+    "item": "Critic 'weak': the draft's .gitignore citation '.gitignore:41-47 / OS files' is inaccurate and mislocates the IDE/.vscode block.",
+    "why": "This is a citation-correction about the DRAFT findings file itself, not a defect in the canonical artifacts (requirements/design/tasks/verification). The substantive claim it carries (claude-progress.txt is not gitignored, so `git add -f` is misleading) is already CONFIRMED and captured by dedup_key precompact-gitadd-f-gitignore; the .vscode/-is-gitignored fact is captured by settings-json-precompact-binding. Nothing further to edit in the canonical set."
+   }
+  ],
+  "confirmed_count": 10,
+  "refuted_count": 3
+ },
+ {
+  "component": "spec_validator.py",
+  "confirmed_edits": [
+   {
+    "title": "Specify the producer that copies validate_spec() violation_count into run_state.violation_count",
+    "target_file": "design.md",
+    "anchor": "design.md:231-232 initializer Key behaviors: 'Runs spec_validator.py after every elaboration pass' / 'Loops (bounded to DEFAULT=7 passes) until violation_count == 0'",
+    "change_type": "add-wiring",
+    "change": "Add an explicit producer step to the Initializer key-behaviors (design.md:231-232) AND to Task 10.1 (tasks.md:204): on each elaboration pass call save_run_state(run_state with violation_count = validate_spec(...)['violation_count']) \u2014 including the -1 timeout sentinel \u2014 so the Stop hook's run_state.violation_count (design.md:490, read at design.md:722-725, REQ-SPEC-021) has a specified writer. Currently validate_spec RETURNS violation_count and stop_hook READS run_state.violation_count, but no step wires producer\u2192consumer (Task 31.1 only wires save_run_state mechanically, never with the validator's output).",
+    "severity": "missing-wiring",
+    "dedup_key": "violation_count-producer-wiring",
+    "adds_wiring": true
+   },
+   {
+    "title": "Reconcile spec 7-pass cap vs 25-turn slice cap \u2014 Stop hook keys HANDOFF on the wrong counter for the lex-specialis tiebreak",
+    "target_file": "design.md",
+    "anchor": "design.md:699 'if run_state.iteration_count >= MAX_TURNS_PER_SLICE' vs design.md:842 / requirements.md:110 keying on 'iteration_count < SPEC_COMPLETION_HARD_CAP'",
+    "change_type": "resolve-inconsistency",
+    "change": "Introduce a distinct run_state field spec_pass_count (separate from iteration_count which counts the 25-turn MAX_TURNS_PER_SLICE) and add a Stop-hook (or Initializer-loop) HANDOFF branch firing when spec_pass_count >= SPEC_COMPLETION_HARD_CAP (7), independent of the MAX_TURNS_PER_SLICE check at design.md:699. Fix design.md:842 and requirements.md:110 (Req 4.6) which currently say the exit-2 block applies while 'iteration_count < SPEC_COMPLETION_HARD_CAP' \u2014 iteration_count is the 25-turn counter (design.md:487), so as written the 7-pass lex-specialis tiebreak is not realizable. Name the same counter in the tiebreak that the cap-HANDOFF branch checks.",
+    "severity": "inconsistency",
+    "dedup_key": "unique:spec-pass-cap-vs-slice-cap",
+    "adds_wiring": false
+   },
+   {
+    "title": "Define dangling REQ-SPEC-020..024 / REQ-SPEC-021 EARS statements or replace with canonical Req 4.x numbers",
+    "target_file": "requirements.md",
+    "anchor": "requirements.md:101 'PRD references: REQ-SPEC-020..024' (Requirement 4); REQ-SPEC-021 referenced at design.md:209,718,726,842 but never EARS-defined",
+    "change_type": "fix-defect",
+    "change": "REQ-SPEC-020..024 appear ONLY as PRD references (requirements.md:101, 385) and REQ-SPEC-021 is cited 4x in design.md as the Stop-hook spec-gate requirement but is never defined as an EARS statement anywhere. Either (a) add explicit REQ-SPEC-020..024 EARS definitions under Requirement 4 mapping REQ-SPEC-021 = criterion 4.2 (the violation_count>0 Stop-block), or (b) replace the dangling REQ-SPEC-0xx citations in design.md:209/718/726/842 with the canonical Requirement 4.2/4.6 criterion numbers, removing the dangling references.",
+    "severity": "defect",
+    "dedup_key": "unique:dangling-req-spec-021",
+    "adds_wiring": false
+   },
+   {
+    "title": "Replace harness-exit proxy test-to-pass with a direct validate_spec() fixture assertion",
+    "target_file": "design.md",
+    "anchor": "design.md:632 row 10 Test to pass: 'python3 formal_verification_merged.py exits 0 (all 34 checks pass)'",
+    "change_type": "add-detail",
+    "change": "The Phase-0 test-to-pass for spec_validator.py (design.md:632, component #10) is the STATIC 34-assertion harness exit code; the harness contains zero validate_spec/spec_validator references (grep confirms), so it never exercises the NLP parse, EARS encoding, the four consistency/completeness/vacuity/independence checks, or the four-field return. Change the test-to-pass to invoke validate_spec() on a fixture spec containing a known contradiction, a known UNMAPPED item, and a vague adjective, asserting the returned {contradictions, ambiguities, uncovered, violation_count} matches expected counts; keep the harness run as a separate check.",
+    "severity": "underspecified",
+    "dedup_key": "unique:validator-test-to-pass-proxy",
+    "adds_wiring": false
+   },
+   {
+    "title": "Amend glossary 'Complex' EARS pattern to a documented composition of the five base patterns",
+    "target_file": "requirements.md",
+    "anchor": "requirements.md:31 glossary 'EARS ... Patterns: Ubiquitous, Event-driven, State-driven, Unwanted behaviour, Optional, Complex' vs requirements.md:65 (Req 1.4 'exactly one of the five EARS patterns')",
+    "change_type": "resolve-inconsistency",
+    "change": "requirements.md:31 lists SIX patterns including 'Complex' while Req 1.4 (line 65) says 'exactly one of the five EARS patterns' \u2014 internally contradictory within requirements.md. Annotate the glossary 'Complex' entry at line 31 as a documented composition of the five base patterns (not a 6th assignable enum value), matching design.md:1188 and the schema ears_pattern enum (design.md:347, which lists only the five). This makes requirements.md internally consistent and aligns with what spec_validator.py and Property 16 actually assign.",
+    "severity": "inconsistency",
+    "dedup_key": "unique:complex-six-vs-five-pattern",
+    "adds_wiring": true
+   },
+   {
+    "title": "State the authoritative 7-element vague-adjective set in the requirements layer",
+    "target_file": "requirements.md",
+    "anchor": "requirements.md:63 (Req 1.2) 'non-deterministic adjective (e.g., \"fast\", \"secure\", \"scalable\", \"optimized\")'",
+    "change_type": "add-detail",
+    "change": "Req 1.2 gives a 4-element 'e.g.' example set {fast, secure, scalable, optimized}, but the implemented Property 17 (design.md:1012) and Task 4.4 (tasks.md:87) use the 7-element set {fast, secure, scalable, optimized, efficient, reliable, performant}. The requirement never states the authoritative full set, so the scanner's coverage is only test-backed. State the 7-element set once in Req 1.2 (or the Req 20 threshold registry) and reference it from Property 17 and Task 4.4 so the implemented set is requirement-backed.",
+    "severity": "underspecified",
+    "dedup_key": "unique:vague-adjective-set",
+    "adds_wiring": false
+   },
+   {
+    "title": "Define the analysis-pass \u2192 four-return-field mapping in the EARS\u2192SMT section",
+    "target_file": "design.md",
+    "anchor": "design.md:554-563 'Consistency Checks Run Per Spec' (four checks) vs design.md:133 four-field return {contradictions, ambiguities, uncovered, violation_count}",
+    "change_type": "add-detail",
+    "change": "The four analysis passes (Consistency/Completeness/Vacuity/Independence, design.md:554-563) are never mapped to the four return fields (design.md:133), and violation_count's composition is undefined. Add a one-line mapping after design.md:563: contradictions = unsat-core count (Consistency); uncovered = UNMAPPED count (Completeness); ambiguities = vacuity hits + vague-adjective hits; violation_count = sum of the three (>=0), or -1 on Z3 timeout (per design.md:814). This fully defines the four-field contract from Property 14 / Req 4.1.",
+    "severity": "underspecified",
+    "dedup_key": "unique:validator-output-field-mapping",
+    "adds_wiring": false
+   },
+   {
+    "title": "Assign prior-pass violation_count storage (prev_violation_count) for Property 15 convergence",
+    "target_file": "design.md",
+    "anchor": "design.md:231 'Runs spec_validator.py after every elaboration pass'; Property 15 (design.md:994-998); run_state schema (design.md:481-496, no prev field)",
+    "change_type": "add-wiring",
+    "change": "Property 15 (strict-decrease-or-HANDOFF, design.md:994-998) and Req 4.3 require comparing the current pass's violation_count against the prior pass's, but no run_state field stores the prior value (run_state schema design.md:481-496 has violation_count but no prev_violation_count). Add a run_state.prev_violation_count field and specify in the Initializer key-behaviors (design.md:231) / Task 10.1 that the loop compares current vs prior to enforce strict-decrease-or-HANDOFF. Mirror with a column in migration 005_run_state.sql (Task 28.5).",
+    "severity": "missing-wiring",
+    "dedup_key": "unique:convergence-state-prev-violation",
+    "adds_wiring": true
+   },
+   {
+    "title": "Fix validate_spec() signature gap \u2014 Completeness/UNMAPPED check needs the domain-baseline item set as input",
+    "target_file": "design.md",
+    "anchor": "design.md:133 / tasks.md:66 signature 'validate_spec(requirements: list[dict]) -> dict'; design.md:559 Completeness check 'for each domain-baseline item'",
+    "change_type": "fix-defect",
+    "change": "The Completeness check (design.md:559) flags UNMAPPED 'for each domain-baseline item', but the domain-baseline checklist set is NOT a parameter of validate_spec(requirements: list[dict]) (signature at design.md:133, tasks.md:66) \u2014 it lives in domain_baseline_checklists / the checklist file. As written the validator cannot compute 'uncovered' from its inputs. Either extend the signature to validate_spec(requirements: list[dict], baseline_items: list[dict]) -> dict (and update Task 4.1, Property 14, the design.md:632 test) or specify how validate_spec loads the baseline set, so the uncovered/UNMAPPED field has a defined source.",
+    "severity": "defect",
+    "dedup_key": "unique:validate-spec-baseline-input",
+    "adds_wiring": false
+   },
+   {
+    "title": "Define the 'without a numeric bound' bound-detection predicate for the vague-adjective scanner",
+    "target_file": "design.md",
+    "anchor": "requirements.md:63 'without a quantified numeric bound'; design.md:1010-1014 (Property 17 'without an associated numeric bound'); tasks.md:68,87 'without a numeric bound'",
+    "change_type": "add-detail",
+    "change": "Req 1.2, Property 17 (design.md:1010-1014), and Task 4.4 (tasks.md:68,87) all hinge the scanner's accept/reject on a vague adjective appearing 'without a numeric bound', but no doc defines how the presence of a numeric bound is detected (digit regex? unit grammar? proximity window to the adjective? a parsed comparison predicate?). Specify the bound-detection rule in the EARS\u2192SMT section (e.g. a numeric literal with an optional unit within the same clause / N-token window of the flagged adjective) so the core accept/reject decision is reproducible rather than implementation-defined.",
+    "severity": "underspecified",
+    "dedup_key": "unique:vague-adjective-bound-detection",
+    "adds_wiring": false
+   },
+   {
+    "title": "Specify variable-construction mechanism for the Independence check inside validate_spec(), or scope it out of the per-spec checks",
+    "target_file": "design.md",
+    "anchor": "design.md:561 Independence: 'confirms gate decisions are independent of prediction variables by asserting predA != predB AND gateA = gateB is SAT'",
+    "change_type": "resolve-inconsistency",
+    "change": "Independence is listed as one of the four per-spec checks run by validate_spec (design.md:561), but a plain requirements: list[dict] contains no gate/prediction variables, and design.md:561 describes it only generically with no mechanism to construct gateA/gateB/predA/predB from an arbitrary EARS spec. The harness CHECK-5 (formal_verification_merged.py:255-261) tests this against fixed completion-gate variables, NOT against validate_spec output, and Property 4 is tested via test_completion_gate.py (tasks.md:658-662), not test_spec_validator.py. Either specify how validate_spec derives gate/prediction variables from a requirements list, or move Independence out of the four per-spec validate_spec checks and document it as the static design-time harness check it actually is (design.md:561 / CHECK-5), reconciling design.md:554-563 with the harness scope.",
+    "severity": "inconsistency",
+    "dedup_key": "unique:validator-independence-check-mechanism",
+    "adds_wiring": false
+   }
+  ],
+  "refuted": [
+   {
+    "item": "Critic 'missing': Req 29 Structured Omission Declaration (REQ-SPEC-018, Property 30, CHECK-13a/13b) absent from the validator's scope",
+    "why": "Not a gap in the canonical artifacts. Req 29 is fully EARS-defined (requirements.md:474-478), with Property 30 (design.md:1124-1130), the SubagentStop omission_guard component (design.md:148, hook-wiring row design.md:218), and Task 54 (tasks.md:974). The validator (spec_validator.py) does NOT itself emit omission_declaration \u2014 it is the Initializer (the validator's caller) whose subagent OUTPUT carries the field, and that is the SubagentStop hook's concern, already fully specified. The finding flags the draft's ears_stories omission, not a defect in requirements/design/tasks. Nothing for spec_validator.py to fix."
+   },
+   {
+    "item": "Critic 'overstatement': draft marks Req 1.1 'addressed' by spec_validator.py and implies the validator enforces the atomic-requirement schema (unique ID, EARS pattern, priority, >=1 acceptance criterion)",
+    "why": "This critiques the DRAFT's own ears_stories, not the canonical artifacts. The artifacts are already internally consistent and correct: Task 4.1 (tasks.md:70) maps to _Requirements: 1.2, 1.4, 4.1, 4.2, 4.3 (no 1.1), and Req 1.1 is mapped to Task 10.1 (the Initializer, tasks.md:206). None of the four Z3 analyses verify ID/priority/AC presence and the docs never claim they do. No edit to the artifacts is warranted \u2014 the requested 'fix' would be to the draft, which is out of scope for the canonical edit set."
+   },
+   {
+    "item": "ears_needing_work Req 4.2 (REQ-SPEC-021) \u2014 partial: Stop hook reads run_state.violation_count but producer is never specified",
+    "why": "Real, but a DUPLICATE of open-gap #1 (violation_count-producer-wiring). The same producer\u2192consumer wiring edit under dedup_key violation_count-producer-wiring resolves it; the EARS criterion 4.2 itself is present (requirements.md:106) and the consumer (stop_hook design.md:722-726) is present \u2014 only the writer is missing. Emitted once, not twice."
+   },
+   {
+    "item": "ears_needing_work Req 4.4 \u2014 partial: 7-pass cap enforced in agent loop, not the Stop hook (which checks 25-turn MAX_TURNS_PER_SLICE)",
+    "why": "DUPLICATE of the cap-conflation inconsistency (dedup_key unique:spec-pass-cap-vs-slice-cap). Req 4.4 (requirements.md:108) and the Initializer-loop bound (design.md:232, Task 10.1) exist; the unrealizable-as-written issue is the counter conflation already captured in that confirmed edit."
+   },
+   {
+    "item": "ears_needing_work Req 4.6 (lex specialis) \u2014 partial: tiebreak keys on iteration_count < SPEC_COMPLETION_HARD_CAP but Stop-hook code keys on MAX_TURNS_PER_SLICE",
+    "why": "DUPLICATE of dedup_key unique:spec-pass-cap-vs-slice-cap. The lex-specialis criterion is present (requirements.md:110, design.md:842); the counter mismatch is the same defect already captured in the cap-conflation confirmed edit, which explicitly fixes requirements.md:110 and design.md:842 to name the same counter."
+   },
+   {
+    "item": "ears_needing_work Req 1.4 \u2014 partial: validator assigns five base patterns, glossary's sixth 'Complex' is a documented composition",
+    "why": "DUPLICATE of dedup_key unique:complex-six-vs-five-pattern. Req 1.4 itself (requirements.md:65) correctly says 'five' and Property 16 / schema enum (design.md:347) operate over five; the only unfixed artifact is the glossary line (requirements.md:31), captured by the Complex-pattern confirmed edit."
+   },
+   {
+    "item": "ears_needing_work Glossary: EARS lists SIX patterns",
+    "why": "DUPLICATE of dedup_key unique:complex-six-vs-five-pattern \u2014 this IS the glossary line (requirements.md:31) the confirmed Complex-pattern edit amends. Same underlying artifact, emitted once."
+   },
+   {
+    "item": "ears_needing_work Phase-0 spine test (design #10) \u2014 partial: test-to-pass is harness exit code, not a direct validate_spec() test",
+    "why": "DUPLICATE of dedup_key unique:validator-test-to-pass-proxy (open-gap #4). Same design.md:632 anchor and same fix (replace harness-exit proxy with a direct validate_spec fixture assertion). Emitted once."
+   }
+  ],
+  "confirmed_count": 11,
+  "refuted_count": 8
+ },
+ {
+  "component": "evidence_collector.py",
+  "confirmed_edits": [
+   {
+    "title": "collect() must emit timezone-aware ISO-8601, not datetime.utcnow()",
+    "target_file": "tasks.md",
+    "anchor": "Task 3.1, tasks.md:45 \u2014 'capture ISO-8601 `collected_at` from `datetime.utcnow()`'",
+    "change_type": "fix-defect",
+    "change": "Change the collect() spec at tasks.md:45 from `datetime.utcnow()` to `datetime.now(timezone.utc).isoformat()` (timezone-aware, emits a '+00:00' offset). Rationale to add inline: the EvidenceRecord schema requires `format: date-time` (RFC 3339) at design.md:407 and the `evidence_records.collected_at` column is `TIMESTAMPTZ NOT NULL` (design.md:472) with an `evidence_complete` CHECK requiring `collected_at IS NOT NULL` (design.md:476). A naive utcnow() string has no offset, can fail strict date-time validation, and would be coerced to a different instant on Postgres insert \u2014 breaking Property 19's 'all four fields shall match the original capture values without loss' (design.md:1028). Mirror the same correction in the unit-test task 3.3 (tasks.md:56-61) so a test asserts the emitted timestamp carries an offset.",
+    "severity": "defect",
+    "dedup_key": "evidence-collected-at-tz-aware",
+    "adds_wiring": false
+   },
+   {
+    "title": "validate_evidence_record() must validate output_hash/collected_at formats, not just presence",
+    "target_file": "tasks.md",
+    "anchor": "Task 3.1, tasks.md:46 \u2014 'validate_evidence_record(record: dict) -> bool that checks all four fields present and non-empty'",
+    "change_type": "fix-defect",
+    "change": "Strengthen validate_evidence_record() at tasks.md:46 to validate `output_hash` against the anchored pattern `^sha256:[a-f0-9]{64}$` and `collected_at` as a parseable ISO-8601/RFC-3339 timestamp (or run jsonschema against the EvidenceRecord definition, design.md:387-411), not merely presence+non-emptiness. Reason: the SubagentStop hook calls this same validator (tasks.md:179), so a non-empty but malformed output_hash (uppercase hex, missing `sha256:` prefix, wrong length) currently passes both the validator and the SubagentStop gate (only the separate JSON-Schema path in the PreToolUse status guard catches it). This also closes the requirements.md:521 deferral rationale, which justifies skipping Pydantic/BAML runtime enforcement by asserting 'the SubagentStop schema-validation gate (REQ-COV-006) already enforces Evidence_Record structure at the hook layer' \u2014 a claim that is false while tasks.md:46/179 wire the hook to a presence-only validator. Cite design.md:402 (canonical sha256 pattern).",
+    "severity": "defect",
+    "dedup_key": "evidence-validator-format-check",
+    "adds_wiring": false
+   },
+   {
+    "title": "store_to_feature_list() and PreToolUse status-guard task text must admit the failed-state transitions",
+    "target_file": "tasks.md",
+    "anchor": "Task 3.1, tasks.md:47 ('flips status to `proven`') and task 6.1, tasks.md:135 ('validate proposed transition is `unproven \u2192 proven` only')",
+    "change_type": "resolve-inconsistency",
+    "change": "Update tasks.md:47 and tasks.md:135 to match the 2026-06-15 reconciliation that widened permitted transitions. tasks.md:135 currently says 'validate proposed transition is `unproven \u2192 proven` only' \u2014 change to: permit {unproven\u2192proven, unproven\u2192failed, failed\u2192unproven}; only any transition *into* proven additionally requires a complete Evidence_Record (unproven\u2192failed and failed\u2192unproven require none). Align tasks.md:47's store_to_feature_list() description to the same edge set. This reconciles the stale task text with requirements.md:123,129, design.md:215 (PreToolUse status guard) and design.md:372,374 (status enum {unproven,proven,failed}) and Property 3 (design.md:900).",
+    "severity": "inconsistency",
+    "dedup_key": "status-transition-failed-edges",
+    "adds_wiring": true
+   },
+   {
+    "title": "Property 19 over-claims Postgres round-trip while filed as a Phase-0 collector subtask",
+    "target_file": "tasks.md",
+    "anchor": "Task 3.2, tasks.md:50-54 \u2014 '**Property 19: Evidence Round-Trip (Store and Retrieve)** ... Validates: Requirements 16.2'",
+    "change_type": "resolve-inconsistency",
+    "change": "Property 19 (design.md:1026-1030) asserts the record is 'stored in Postgres ... retrievable by requirement_id and commit_sha', but task 3.2 is a Phase-0 collector subtask with NO Postgres (store_to_postgres is Phase-2 task 30.1, tasks.md:476). Split the property: keep a Phase-0 in-memory/file round-trip (collect\u2192validate\u2192hash-match, no Postgres) under task 3.2 and validate against 5.3/5.6 not 16.2; add the Phase-2 Postgres store/retrieve round-trip assertion under task 30.2 (tasks.md:480) validating 16.2. Reconcile the 'stored in Postgres' wording in the Phase-0 portion of Property 19 at design.md:1028 accordingly.",
+    "severity": "inconsistency",
+    "dedup_key": "property19-phase-split",
+    "adds_wiring": false
+   },
+   {
+    "title": "actor_agent: add as a store_to_postgres parameter (NOT to the 4-field JSON record) and fix stale acting_agent name",
+    "target_file": "tasks.md",
+    "anchor": "Task 30.1, tasks.md:477 ('store_to_postgres(record: EvidenceRecord, req_id: str, commit_sha: str)') and Property 24 test, tasks.md:655 ('acting_agent == \"implementer.md\"')",
+    "change_type": "add-wiring",
+    "change": "Property 24 requires actor_agent (= verifier.md, never implementer.md) on every evidence row (design.md:473,1068), but store_to_postgres()'s signature (tasks.md:477) carries no verifier identity, so the role-separation invariant has no enforcement point at the collector boundary. Add `actor_agent` as a parameter: `store_to_postgres(record, req_id, commit_sha, actor_agent)`, asserting it equals 'verifier.md' and rejecting implementer-authored evidence at write time. CRITICAL CONSTRAINT: do NOT add actor_agent to the EvidenceRecord JSON object \u2014 that schema is `additionalProperties: false` over exactly the four fields (design.md:390; requirements.md:29), so adding a fifth field would break Property 2/CHECK-7 and be rejected by the SubagentStop and PreToolUse status-guard validators. actor_agent lives only on the 7-column evidence_records Postgres row (design.md:464-478). Separately fix the stale name at tasks.md:655: the Property 24 test still references `acting_agent`, but design.md:473 declares 'Canonical name is actor_agent everywhere (no acting_agent)' \u2014 rename `acting_agent` \u2192 `actor_agent` in the task-655 test description.",
+    "severity": "missing-wiring",
+    "dedup_key": "evidence-actor-agent-store-not-schema",
+    "adds_wiring": true
+   },
+   {
+    "title": "Add a design subsection defining output_hash byte-source, canonicalization, and artifact retention",
+    "target_file": "design.md",
+    "anchor": "Component inventory row evidence_collector.py (design.md:134) and Phase 0 list row 11 (design.md:633); no narrative subsection exists",
+    "change_type": "add-detail",
+    "change": "design.md covers evidence_collector in only inventory cells (134, 263, 633) plus one test line (859) with no narrative on the load-bearing hashing semantics. Add a design subsection (near the EvidenceRecord data model, design.md:387-423) defining: (1) the exact byte source for output_hash \u2014 raw test stdout vs the Playwright trace file vs a normalized artifact; (2) a canonicalization rule so non-deterministic test output (timestamps, ordering, temp paths) rehashes identically across runs; (3) whether/where the raw artifact is retained (blob store vs hash-only) \u2014 requirements.md:297 says 'artifact OR content-addressed reference', leaving retention unspecified. Without this, output_hash is not reproducibly verifiable and OPA's zero-evidence query cannot detect a fabricated hash (design.md:1052).",
+    "severity": "underspecified",
+    "dedup_key": "evidence-hash-byte-source",
+    "adds_wiring": false
+   },
+   {
+    "title": "Decide empty/zero-byte artifact validity in collect()",
+    "target_file": "tasks.md",
+    "anchor": "Task 3.3, tasks.md:57 \u2014 'collect() with empty bytes still produces valid sha256 hash'",
+    "change_type": "add-detail",
+    "change": "tasks.md:57 asserts empty bytes 'still produces valid sha256 hash' (sha256('') = e3b0c442...), but the spec never decides whether a zero-byte artifact is a VALID proof \u2014 such a hash is well-formed and passes all four-field and schema checks, so the gate would silently accept an empty/short-circuited test as proof. Decide and specify one of: (a) collect() raises on empty output_bytes; or (b) the Verifier must assert the artifact is non-trivial before calling collect(). Then make tasks.md:57's test assert the chosen behavior (reject-empty, or document why empty is acceptable) rather than blessing the meaningless hash. Add a matching EARS criterion or note under Requirement 5.3 / 9.3 if option (a) changes the collector contract.",
+    "severity": "underspecified",
+    "dedup_key": "evidence-empty-bytes-validity",
+    "adds_wiring": false
+   },
+   {
+    "title": "Wire REQ-EXEC-012 / 8.3 WIRING integration-test evidence into the collector scope",
+    "target_file": "tasks.md",
+    "anchor": "Task 3.1, tasks.md:44-48 (_Requirements: 5.3, 5.6, 9.3_) and task 47, tasks.md:959 (WIRING integration-test evidence)",
+    "change_type": "add-wiring",
+    "change": "Requirement 8.3 (requirements.md:174: 'WHEN a WIRING item is claimed proven, THE System SHALL require an integration test exercising the real execution path as the attached Evidence_Record') and the schema note 'WIRING items require integration-test evidence' (design.md:334) bear directly on evidence_collector.py \u2014 it is the assembler of that integration-test Evidence_Record. Task 47 (tasks.md:959) names the obligation but the collector task 3.1 only frames output_bytes around behavioral/Playwright output. Add 8.3 to task 3.1's `_Requirements:` line and a sub-point that collect() must accept and assemble an integration-test artifact (not only a behavioral/Playwright one), so the WIRING-proof path has an explicit assembly point.",
+    "severity": "missing-wiring",
+    "dedup_key": "evidence-wiring-integration-test-8.3",
+    "adds_wiring": true
+   },
+   {
+    "title": "Wire REQ-VERIFY-007/008 (Req 25.1/25.2) NFR Evidence_Record assembly into the collector",
+    "target_file": "tasks.md",
+    "anchor": "Task 3.1, tasks.md:44-48 (_Requirements: 5.3, 5.6, 9.3_) and task 51, tasks.md:966 (perf_a11y_verifier emits NFR Evidence_Records)",
+    "change_type": "add-wiring",
+    "change": "Requirements 25.1/25.2 (requirements.md:447-448) require performance verification to 'attach the result as the Evidence_Record' (k6/Lighthouse) and accessibility verification (axe-core) to produce evidence; task 51 (tasks.md:966) emits these as 'NFR Evidence_Records.' These records are assembled by evidence_collector.py, but task 3.1 frames collect()/output_bytes only around behavioral test output. Add REQ-VERIFY-007/008 to the collector's bearing-requirements and a note that output_bytes for NFR items is the k6/Lighthouse/axe-core result artifact \u2014 which makes resolving the byte-source question (dedup evidence-hash-byte-source) mandatory for non-test artifacts.",
+    "severity": "missing-wiring",
+    "dedup_key": "evidence-nfr-record-verify-007-008",
+    "adds_wiring": true
+   },
+   {
+    "title": "store_to_postgres fallback must be flagged as an N-25 gate-consistency obligation (never fail-open)",
+    "target_file": "tasks.md",
+    "anchor": "Task 30.1, tasks.md:477 ('fall back to feature_list.json update if DB unavailable') and task 30.2, tasks.md:482",
+    "change_type": "add-wiring",
+    "change": "store_to_postgres's feature_list.json fallback (tasks.md:477,482) is specified only mechanically. Per the N-25 reconciliation obligation (tasks.md:730), when db_connection.health_check() fails the file-backed fallback MUST reach the SAME allow/block decision as Postgres and NEVER fail-open, taking the more conservative (blocking) result on divergence. Add this gate-consistency constraint to task 30.1/30.2 and cite REQ-STORE-001/003 (requirements.md:296,298 \u2014 Postgres single source of truth, reconstructable independently of any model session). A fail-open or divergent collector fallback would silently weaken the OPA zero-evidence gate.",
+    "severity": "missing-wiring",
+    "dedup_key": "evidence-store-fallback-n25-consistency",
+    "adds_wiring": true
+   },
+   {
+    "title": "Add evidence-quality caveat: no Z3 check exercises collect()'s real sha256/datetime/format behavior",
+    "target_file": "tasks.md",
+    "anchor": "Task 3.3, tasks.md:56-61 (unit tests for evidence_collector.py) and the CHECK-7 family in verification/formal_verification_merged.py:301-338",
+    "change_type": "add-detail",
+    "change": "CHECK-7a/7b/7c (formal_verification_merged.py:311-338) operate purely on abstract booleans (`evidenceComplete == And(evidenceHasHash, evidenceHasTestFile, ...)`, line 302) \u2014 they model the four-field GATE LOGIC, not the collector's hashing/timestamp behavior. NO Z3 check exercises collect()'s actual sha256 computation, datetime output, or the `^sha256:[a-f0-9]{64}$` format; those are only unit-tested (task 3.3, tasks.md:57-59). Add an explicit caveat to task 3.3 (or the testing-strategy note) stating that the sha256/timestamp/format correctness is unit-test-verified only and is NOT in the Z3 coverage, so the Z3 'evidence schema enforced' claim is not mistaken for runtime hash-format coverage.",
+    "severity": "underspecified",
+    "dedup_key": "evidence-z3-coverage-caveat",
+    "adds_wiring": false
+   }
+  ],
+  "refuted": [
+   {
+    "item": "ears_needing_work: REQ-VERIFY-003 (Req 9.3) is only partially wired to the collector",
+    "why": "The mapping already genuinely exists. Task 3.1's `_Requirements:` line at tasks.md:48 reads `5.3, 5.6, 9.3` \u2014 Requirement 9.3 (requirements.md:188, 'WHEN a behavioral check runs, THE Verifier SHALL produce a captured artifact ... attached as an Evidence_Record') is explicitly cited on the collector task, and the verifier subagent (design.md:260,263) feeds the captured artifact into evidence_collector.py. The artifact-bytes\u2192collect()\u2192EvidenceRecord path is mapped; there is no missing wiring to add for the behavioral case. (The distinct WIRING-8.3 and NFR-25 cases ARE genuinely unmapped and are emitted as separate add-wiring edits.)"
+   },
+   {
+    "item": "critic 'weak' finding: validate_evidence_record() over-scoped as the sole Req 9.5 enforcement; SubagentStop is now a compound gate (four-field evidence AND omission_declaration)",
+    "why": "Not an evidence_collector defect \u2014 the critic itself concedes 'Not a collector defect.' The omission-declaration guard is already fully and correctly specified as a separate SubagentStop capability: Req 29/REQ-SPEC-018 (requirements.md:474-478), the omission-declaration guard hook row (design.md:218), the omission_guard component (design.md:148), Property 30 (design.md:1124-1130), and task 54 (tasks.md:974). The collector's validate_evidence_record() correctly owns only the four-field evidence portion; the compound nature of the SubagentStop gate is already documented elsewhere, so no edit to the collector's artifacts is warranted."
+   },
+   {
+    "item": "open_gap fix as written: 'Add actor_agent to collect()/the EvidenceRecord'",
+    "why": "The EvidenceRecord JSON Schema is `additionalProperties: false` over exactly the four required fields (design.md:390; requirements.md:29,127), so adding actor_agent to the JSON record would be rejected by the very SubagentStop and PreToolUse status-guard validators it must pass, breaking Property 2/CHECK-7. The underlying need (enforce Property 24 at write time) is real and CONFIRMED, but only via the Postgres-row/store_to_postgres path \u2014 captured in the rescoped edit dedup_key 'evidence-actor-agent-store-not-schema'. The literal 'add to EvidenceRecord' phrasing is refuted as self-contradicting."
+   }
+  ],
+  "confirmed_count": 11,
+  "refuted_count": 3
+ },
+ {
+  "component": "wiring_checker.py",
+  "confirmed_edits": [
+   {
+    "title": "No ingestion path turns the WIRING candidate into a feature_list.json coverage item (8.1 second clause)",
+    "target_file": "tasks.md",
+    "anchor": "Task 19.1 body, tasks.md:329 \"For each dead-code finding, emit a WIRING coverage item candidate (JSON to stdout)\" \u2014 the candidate stops at stdout",
+    "change_type": "add-wiring",
+    "change": "Add a subtask (e.g. 19.3) OR extend post_tool_use_hook.py task 18.1 specifying the ingestion path that satisfies criterion 8.1's second clause ('SHALL represent each wiring obligation as a WIRING coverage item in feature_list.json'). State the actor and the write path: the implementer/initializer, on receiving the wiring_checker.py candidate as PostToolUse next-turn feedback, MUST add a type:'WIRING' CoverageItem (status default 'unproven', in_scope true, \u22651 acceptance criterion per Property 1) to feature_list.json via the PreToolUse status-guard-permitted creation path (design.md:215). Cite REQ-EXEC-010. Today the data path stops at stdout/next-turn text and no task creates the item.",
+    "severity": "missing-wiring",
+    "dedup_key": "wiring-candidate-ingestion-path",
+    "adds_wiring": true
+   },
+   {
+    "title": "Criterion 8.2 (Verifier marks WIRING item failed on unreachable symbol) has no mechanism",
+    "target_file": "design.md",
+    "anchor": "verifier.md key-behaviors list, design.md:257-266 (Runs structural/semantic/behavioral/security/perf checks) \u2014 no WIRING/unreachable behavior listed",
+    "change_type": "add-wiring",
+    "change": "Add a verifier.md key-behavior bullet: 'On each slice, the Verifier consumes wiring_checker.py findings (or re-runs it); for any WIRING item whose symbol is reported unreachable from a real execution path, performs the unproven\u2192failed transition (permitted by the PreToolUse status guard, design.md:215).' Pair it with a tasks.md subtask wiring the checker's unreachable-symbol finding to a Verifier-authored unproven\u2192failed transition, citing REQ-EXEC-011. Currently the Verifier definition never reads wiring_checker output, never mentions WIRING items, and no task connects the finding to a failed transition.",
+    "severity": "missing-wiring",
+    "dedup_key": "wiring-verifier-failed-transition",
+    "adds_wiring": true
+   },
+   {
+    "title": "Task 19.1 falsely claims criterion 8.2 coverage its body does not deliver",
+    "target_file": "tasks.md",
+    "anchor": "Task 19.1 traceability line tasks.md:331 \"_Requirements: 8.1, 8.2_\" vs body tasks.md:326-330 (AST analysis + stdout candidate + 'Exit 0 even when findings exist')",
+    "change_type": "fix-defect",
+    "change": "Resolve the false traceability: either (a) remove 8.2 from task 19.1's _Requirements_ line, leaving it _Requirements: 8.1_ (since the body only builds AST analysis + a stdout candidate and explicitly exits 0, performing no Verifier unproven\u2192failed transition), and route 8.2 to the new Verifier-side task created for the failed-transition mechanism; or (b) extend the 19.1 body to actually deliver the 8.2 mechanism. Option (a) is the minimal fix. This is an internal contradiction between the task's traceability claim and its body.",
+    "severity": "inconsistency",
+    "dedup_key": "wiring-verifier-failed-transition",
+    "adds_wiring": false
+   },
+   {
+    "title": "Requirement 8 / wiring_checker.py is pinned by no Z3 CHECK and no correctness Property",
+    "target_file": "design.md",
+    "anchor": "Correctness Properties section (Properties 1-30, design.md:882-1130) \u2014 none addresses call-graph/dead-code/wiring; and verification/formal_verification_merged.py has no REQ-EXEC-010..012 check (grep: zero wiring/dead-code/reachability assertions, CHECKs run only 1..13b)",
+    "change_type": "add-detail",
+    "change": "Pick one and apply: (a) add a new Property (e.g. 'Property 31: Wiring / Dead-Code Detection \u2014 for any file with a defined-but-never-called non-test symbol, wiring_checker.py emits exactly one WIRING candidate naming that symbol; for any reachable handler, zero candidates') with a Hypothesis test seeded in the PBT suite; OR (b) explicitly document in design.md that wiring detection is a runtime/example-tested property with no Z3 model (mirroring the audit-log note at design.md:1110 'no Z3 check \u2014 runtime/CI verified'). Today the absence is silent while every other major gate carries a CHECK or Property; the integration claim rests solely on example tests 19.2 and 26.1.",
+    "severity": "underspecified",
+    "dedup_key": "unique:wiring-property-or-z3-note",
+    "adds_wiring": false
+   },
+   {
+    "title": "No design narrative defines reachability scope (per-file vs repo-wide) for wiring_checker.py \u2014 cross-file false-positive risk",
+    "target_file": "design.md",
+    "anchor": "Component inventory single row design.md:135 (`wiring_checker.py` ... 'Static call-graph / dead-code analysis; emits WIRING coverage items') \u2014 no B07/Requirement-8 narrative subsection anywhere",
+    "change_type": "add-detail",
+    "change": "Add a B07 design subsection for wiring_checker.py specifying: (1) the definition of 'real execution path'; (2) entry-point seeding (CLI mains, route/handler decorators, registered callbacks; test files excluded); (3) whether reachability is whole-repo or per-file \u2014 and reconcile against tasks.md:327 which says 'build a call graph for each file'. A per-file AST graph structurally cannot distinguish 'defined-but-never-called-in-this-file' from 'called-from-another-file', so per-file scope false-positives on every public/exported symbol; the analysis likely must be repo-wide, or per-file with an explicit exported-symbol exemption. Today there is zero narrative/interface/algorithm description.",
+    "severity": "underspecified",
+    "dedup_key": "wiring-reachability-scope-definition",
+    "adds_wiring": false
+   },
+   {
+    "title": "Division of labor between wiring_checker.py (AST) and wiring_dead_code.yml (Semgrep, task 24.1) is unresolved",
+    "target_file": "tasks.md",
+    "anchor": "Task 19.1 body tasks.md:328 (AST 'never called' detection) vs task 24.1 tasks.md:385-386 (Semgrep route/handler decorators + registered-but-uninvoked callbacks); both carry _Requirements: 8.1, 8.2_",
+    "change_type": "resolve-inconsistency",
+    "change": "Add a one-line division-of-labor note (in task 19.1 and cross-referenced in 24.1): 'wiring_checker.py (AST) covers plain defined-but-never-called functions; wiring_dead_code.yml (Semgrep) covers decorator-routed handlers/routes and registered-but-uninvoked callbacks; both emit type:WIRING candidates, de-duplicated by symbol before ingestion.' This resolves which tool authoritatively detects the route/handler/callback obligations named in criterion 8.2 and prevents double-reporting. Currently both tools claim the same 8.1/8.2 scope with no de-dup or boundary stated.",
+    "severity": "inconsistency",
+    "dedup_key": "wiring-ast-vs-semgrep-division",
+    "adds_wiring": false
+   },
+   {
+    "title": "Changed-files input contract between post_tool_use_hook.py and wiring_checker.py is unspecified (incl. MultiEdit)",
+    "target_file": "tasks.md",
+    "anchor": "Task 18.1 tasks.md:310 'Triggered on Write, Edit, MultiEdit completion' / tasks.md:313 'Run python3 tools/wiring_checker.py on changed files'; and task 19.1 tasks.md:326 'Accept a list of changed files as CLI args'",
+    "change_type": "add-detail",
+    "change": "Specify the handoff contract on both sides: in task 18.1 state how the PostToolUse hook derives the changed-file list from the hook payload (e.g. tool_input.file_path for Write/Edit; the set of edited paths for MultiEdit, since one MultiEdit call can mutate multiple files) and passes them as argv; in task 19.1 state the exact argv format (one file path per positional arg). The matcher is Write|Edit|MultiEdit (design.md:178,216) so the MultiEdit multi-file case must be handled. Today neither side pins the format.",
+    "severity": "underspecified",
+    "dedup_key": "unique:wiring-changed-files-argv-contract",
+    "adds_wiring": false
+   }
+  ],
+  "refuted": [
+   {
+    "item": "open_gap: wiring_checker.py output is invisible to observability/audit (no OTel span, no audit entry)",
+    "why": "Not a defect in the current artifacts. The finding's own fix concedes the path is already in scope: task 36.1 (tasks.md:539) extends 'all six hooks' \u2014 including PostToolUse, which runs the wiring check \u2014 to emit OTel gate-decision events, and the PostToolUse row (design.md:216) is non-gating/informational by design, so it is correctly NOT audit-chained (audit_log.append is wired only to the three gating hooks stop/pre_tool_use/subagent_stop per REQ-AUDIT-004 / design.md:217-218). Wiring findings surfacing via the PostToolUse OTel event is the designed behavior; nothing additional is missing."
+   },
+   {
+    "item": "critic 'missing': draft omits task 42.1 as a third verification artifact tracing 8.1",
+    "why": "This is a complaint about the draft findings file's own enumeration being incomplete, not a gap in requirements/design/tasks. Task 42.1 (tasks.md:718) already exists and correctly lists 8.1 in its _Requirements_ line and gates the full PBT suite. No edit to the canonical artifacts is warranted."
+   },
+   {
+    "item": "critic 'missing': draft never cites Property 1 (Coverage Item Schema Invariant) as governing WIRING items",
+    "why": "Property 1 already exists and is correct as written (design.md:882-886, 'Validates: Requirements 5.1, 5.4'): every item has type \u2208 {functional,NFR,WIRING}, \u22651 acceptance criterion, status default unproven. It already governs ingested WIRING items. The criticism is that the draft did not name it \u2014 a meta-observation about the findings file, not a defect in the canonical artifacts. The substantive wiring gap (that no item is ever ingested for Property 1 to govern) is captured by the wiring-candidate-ingestion-path edit."
+   },
+   {
+    "item": "critic 'missing': no ears_story for criterion 13.2 (REQ-STEER-002) on the PostToolUse wiring path",
+    "why": "13.2 is already fully wired into this component's path in the canonical artifacts: the Hook Wiring Table PostToolUse row maps to REQ-VERIFY-004 AND REQ-STEER-002 (design.md:216), task 18.1 carries _Requirements: 9.4, 13.2_ (tasks.md:316), and task 26.1 includes 13.2 (tasks.md:410). The criticism targets the draft's missing ears_story, not a missing mapping in requirements/design/tasks. Nothing to fix in the artifacts."
+   },
+   {
+    "item": "critic 'weak': 8.3 ears_story omits the design.md:334 schema note ('WIRING items require integration-test evidence')",
+    "why": "The schema note already exists at design.md:334 and criterion 8.3 is already tasked (task 47, tasks.md:959 \u2014 'a WIRING item flips proven only with an integration test attached as Evidence_Record', _Requirements: 8.3_). 8.3 is genuinely covered. The criticism is that the draft under-cited an already-present anchor \u2014 a draft-completeness note, not an artifact defect."
+   },
+   {
+    "item": "ears_needing_work: criterion 8.3 (REQ-EXEC-012) status 'partial'",
+    "why": "Covered. Task 47 (tasks.md:959) implements the WIRING-item integration-test Evidence_Record gate and the schema note at design.md:334 anchors it. The finding itself states 8.3 is the generic Evidence_Record gate that does not involve wiring_checker.py at proof time \u2014 i.e. no wiring_checker.py-specific mapping is missing. No add-wiring edit needed."
+   },
+   {
+    "item": "ears_needing_work: Property 11 (Orphan Detection) status 'gap' relative to wiring_checker.py",
+    "why": "Correctly does NOT bear on wiring_checker.py. Property 11 (design.md:962-966, tasks.md:347-350) validates orphan_detector.py (REQ-6.3), a different Phase-1 tool. The finding itself records this as informational. The genuine gap \u2014 that wiring_checker.py has no dedicated Property \u2014 is captured by the unique:wiring-property-or-z3-note edit; no separate fix for Property 11."
+   },
+   {
+    "item": "ears_needing_work: criterion 5.4 (REQ-COV-004) status 'partial'",
+    "why": "Duplicate of the 8.1 ingestion gap, not a separate defect. The 'first-class coverage item in feature_list.json, not informal afterthought' obligation is satisfied for WIRING once the candidate is ingested; the only missing piece is the ingestion path, already captured by the wiring-candidate-ingestion-path confirmed edit. The CoverageItem type enum {functional,NFR,WIRING} already exists (requirements.md:122, design.md:333, tasks.md:27), so 5.4's representation requirement is met at the schema level."
+   },
+   {
+    "item": "ears_needing_work: Glossary WIRING status 'partial'",
+    "why": "The glossary entry (requirements.md:35) is accurate and complete as a definition. Its 'partial' rating stems entirely from the route/handler/callback decorator detection being split between AST and Semgrep tools \u2014 which is the same underlying issue as the unresolved division-of-labor, already captured by the wiring-ast-vs-semgrep-division confirmed edit. No separate glossary edit is warranted."
+   }
+  ],
+  "confirmed_count": 7,
+  "refuted_count": 9
+ },
+ {
+  "component": "orphan_detector.py",
+  "confirmed_edits": [
+   {
+    "title": "Wire orphan_detector.py as a blocking traceability gate to satisfy REQ-6.3 'block the run'",
+    "target_file": "tasks.md",
+    "anchor": "Task 20.1 'Implement tools/orphan_detector.py' (tasks.md:339-344), _Requirements: 6.3; and task 14.2 required-checks list (tasks.md:270)",
+    "change_type": "add-wiring",
+    "change": "Add a blocking caller for orphan_detector. Create a new task (e.g. 20.x / 40.x) 'traceability-gate CI workflow': add `.github/workflows/traceability-gate.yml` that runs `python3 tools/orphan_detector.py` and fails the merge (non-zero exit) when any orphan is found; register `traceability-gate` as a REQUIRED status check. Add `traceability-gate` to the required-checks list at tasks.md:270 (`docs/github-ruleset.md`) alongside formal-verification/coverage-gate/secrets-scan/audit-chain-verify. State the exit-code-to-block contract (CI required check fails merge; equivalently a PreToolUse exit-2 gate). This is the production mechanism the REQ-6.3 'block the run' obligation currently lacks \u2014 orphan_detector's non-zero exit is consumed by nothing but a test (task 26.1).",
+    "severity": "missing-wiring",
+    "dedup_key": "orphan-detector-blocking-caller",
+    "adds_wiring": true
+   },
+   {
+    "title": "REQ-6.3 'block the run' vs exit-non-zero altitude mismatch \u2014 pin the gate altitude in the requirement and task",
+    "target_file": "requirements.md",
+    "anchor": "Requirement 6.3 (requirements.md:143): 'THEN THE System SHALL fail the orphan-detection check and block the run.'",
+    "change_type": "resolve-inconsistency",
+    "change": "Resolve the enforcement-altitude mismatch: REQ-6.3 mandates blocking the run (an enforcement-layer action like PreToolUse exit-2 or a required CI check) but tasks.md:343 only specifies 'exit non-zero + JSON' (reporting). Amend REQ-6.3 to name the blocking caller and its exit-code contract \u2014 classify orphan detection as a BLOCKING gate (required CI status check failing the merge, OR PreToolUse exit 2), explicitly NOT advisory PostToolUse feedback (which is non-blocking, exit 1 never exit 2, per tasks.md:314 and REQ-STEER-002). Cross-reference the new traceability-gate caller. Mirror this in task 20.1.",
+    "severity": "inconsistency",
+    "dedup_key": "orphan-detector-blocking-caller",
+    "adds_wiring": true
+   },
+   {
+    "title": "Define the authoritative store for the backward-orphan 'maps to no verification' lookup",
+    "target_file": "tasks.md",
+    "anchor": "Task 20.1, bullets at tasks.md:341-342 ('Read feature_list.json for all known requirement IDs' / 'requirement IDs with no source file or verification artifact')",
+    "change_type": "resolve-inconsistency",
+    "change": "Specify the authoritative source for the backward-orphan verification-artifact link. Postgres is the declared single source of truth for coverage queries (requirements.md:298) and the requirement<->evidence graph lives in traceability_links + evidence_records (design.md:453-478), yet task 20.1 reads feature_list.json (tasks.md:341), which can diverge. Add a bullet: query evidence_records / traceability_links (link_type IN ('test','evidence')) for the verification-artifact lookup, with a documented feature_list.json fallback consistent with the Postgres-unavailable fallback rule (design.md:815, tasks.md:730 N-25). Reconcile with REQ-16.3.",
+    "severity": "inconsistency",
+    "dedup_key": "orphan-detector-backward-source-of-truth",
+    "adds_wiring": false
+   },
+   {
+    "title": "Define 'verification artifact' concretely for the backward-orphan check",
+    "target_file": "tasks.md",
+    "anchor": "Task 20.1 bullet (tasks.md:342) and Property 11 (design.md:962-966)",
+    "change_type": "add-detail",
+    "change": "Define what counts as a 'verification artifact' so the backward-orphan pass/fail boundary is implementable. The Postgres schema already provides the exact candidate definition (design.md:457-458 fixes traceability_links.link_type to the closed set including 'test'/'evidence'; design.md:465-477 defines evidence_records) but it is never bound to task 20's rule. Add to task 20.1 AND Property 11: a backward orphan = a requirement ID with NO traceability_links row of link_type IN ('test','evidence') AND/OR no evidence_records row. State this is the canonical definition the check keys on.",
+    "severity": "underspecified",
+    "dedup_key": "orphan-detector-verification-artifact-def",
+    "adds_wiring": false
+   },
+   {
+    "title": "Pin orphan_detector run scope, file glob, language scope, and excludes",
+    "target_file": "tasks.md",
+    "anchor": "Task 20.1 bullet (tasks.md:340) 'Scan all source files...'",
+    "change_type": "add-detail",
+    "change": "Resolve scan-scope ambiguity. tasks.md:340 says 'all source files' (full-repo, CI-suited) while the sibling wiring_checker/PostToolUse pipeline operates on changed files (tasks.md:313,326). Add bullets to task 20.1: (1) state full-repo scope (recommended, since it is wired as a CI blocking gate per the traceability-gate edit); (2) define the file glob and exclude list (e.g. exclude tests/, generated dirs, __init__.py, migrations); (3) state the language scope (Python source). This determines where it can be wired and bounds false positives.",
+    "severity": "underspecified",
+    "dedup_key": "orphan-detector-scan-scope",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add an orphan-exemption / allowlist mechanism to bound forward-orphan false positives",
+    "target_file": "tasks.md",
+    "anchor": "Task 20.1 bullet (tasks.md:342) 'source files/functions with no requirement ref (forward orphans)' and Property 11 (design.md:962-966)",
+    "change_type": "add-detail",
+    "change": "Add an exemption mechanism so the forward-orphan rule does not fail-noisy on legitimately un-annotated units (helpers, __init__.py, config, generated code). Add to task 20.1 and Property 11: an explicit ignore mechanism \u2014 a `# orphan-exempt: <reason>` inline marker AND/OR a config file of excluded paths \u2014 and define granularity (file-level vs function-level). Without this the check is unimplementable as a non-noisy blocking gate.",
+    "severity": "underspecified",
+    "dedup_key": "orphan-detector-exemption-allowlist",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add a design.md subsection for orphan_detector defining its full contract",
+    "target_file": "design.md",
+    "anchor": "Component inventory row (design.md:136) 'orphan_detector.py ... Detects implementation units with no requirement ref and vice versa'; add a new subsection peer to 'No-Progress Watchdog' (design.md:640)",
+    "change_type": "add-detail",
+    "change": "Add a design.md subsection (peer to the No-Progress Watchdog / plan-approved gate subsections) for orphan_detector, since the component currently has only one inventory line plus Property 11 \u2014 no CLI signature, no output schema, no caller, no blocking semantics, no data source, and it is absent from the Phase 0 spine list. The subsection must define: the CLI signature; the structured JSON report schema (forward_orphans[], backward_orphans[]); the data source for each orphan class (feature_list.json for forward; traceability_links/evidence_records for backward per the source-of-truth edit); the caller (the traceability-gate CI check); the exit-code-to-block mapping; the run scope and excludes. This consolidates the dedup'd detail edits into one design home.",
+    "severity": "underspecified",
+    "dedup_key": "orphan-detector-design-subsection",
+    "adds_wiring": false
+   },
+   {
+    "title": "Factor commit-trailer ID extraction into one shared helper and state ownership",
+    "target_file": "tasks.md",
+    "anchor": "Task 20.1 bullet (tasks.md:340, commit-trailer scan) and task 29.1 (tasks.md:464-466, parse_commit_trailers / assert_commit_has_req_id)",
+    "change_type": "resolve-inconsistency",
+    "change": "Two tools implement the same `[A-Z]+-[A-Z]+-[0-9]{3}` commit-trailer scan with no division of labor: orphan_detector (tasks.md:340) and traceability_writer.parse_commit_trailers/assert_commit_has_req_id (tasks.md:464,466). Add a bullet factoring trailer-ID extraction into one shared helper (e.g. tools/req_id_scan.py) imported by both, and state authority: traceability_writer.assert_commit_has_req_id owns the commit-has-req-id gate (REQ-6.2 / Property 10); orphan_detector owns bidirectional orphan detection (REQ-6.3 / Property 11). Prevents regex drift / double-maintenance.",
+    "severity": "inconsistency",
+    "dedup_key": "commit-trailer-shared-helper",
+    "adds_wiring": false
+   },
+   {
+    "title": "Fix task 26.1 _Requirements mapping to include 6.3 (the only task that runs orphan_detector)",
+    "target_file": "tasks.md",
+    "anchor": "Task 26.1 _Requirements line (tasks.md:410): '_Requirements: 8.1, 8.2, 9.4, 10.3, 13.2_'",
+    "change_type": "fix-defect",
+    "change": "Add `6.3` to the _Requirements line of task 26.1. Task 26.1 (tasks.md:404-410) is the ONLY task whose body actually runs orphan_detector.py ('run orphan_detector.py; assert exit non-zero and report contains both orphan types', tasks.md:406) yet its mapping omits 6.3. Conversely task 33.1 lists 6.3 (tasks.md:507) but its body never invokes orphan_detector \u2014 it tests parse_commit_trailers/migrations/evidence/run-state only. The spec's own forward 6.3->task link points at the wrong task. Add 6.3 to 26.1; optionally drop 6.3 from 33.1's mapping (or keep for parse_commit_trailers' 6.x coverage but note 26.1 owns the orphan-detection assertion).",
+    "severity": "defect",
+    "dedup_key": "unique:task-26-1-req-mapping-6.3",
+    "adds_wiring": true
+   },
+   {
+    "title": "Wire a blocking enforcer for REQ-6.2 commit-trailer obligation (shares orphan_detector's unwired-gate defect)",
+    "target_file": "tasks.md",
+    "anchor": "Task 29.1 (tasks.md:466) 'assert_commit_has_req_id(commit_sha): raise TraceabilityError if no requirement ID found in trailer'; REQ-6.2 (requirements.md:142)",
+    "change_type": "add-wiring",
+    "change": "REQ-6.2 ('WHEN a commit is created, require >=1 referenced requirement ID in the commit trailer', requirements.md:142) has no blocking enforcer wired: assert_commit_has_req_id (tasks.md:466) only raises TraceabilityError with no stated caller/hook/CI gate. Both 6.2 and 6.3 share the same unwired-enforcement defect. Add a bullet naming the caller for assert_commit_has_req_id \u2014 fold it into the same traceability-gate CI check (or a commit-msg/PreToolUse hook) so a single shared commit-trailer gate satisfies both REQ-6.2 and REQ-6.3's trailer obligation.",
+    "severity": "missing-wiring",
+    "dedup_key": "req-6.2-commit-trailer-enforcer",
+    "adds_wiring": true
+   },
+   {
+    "title": "Document the deliberate assurance level for orphan detection (no Z3, audit-log routing if it blocks)",
+    "target_file": "design.md",
+    "anchor": "New orphan_detector design subsection (peer to No-Progress Watchdog, design.md:640); Property 11 (design.md:962-966)",
+    "change_type": "add-detail",
+    "change": "State orphan detection's assurance level explicitly. It has zero Z3 coverage (confirmed: no orphan/trace/6.3 hits in formal_verification_merged.py) and, being unwired, produces no gate_audit_log entry (audit producers are stop/pre_tool_use/subagent_stop hooks only, design.md:144,460). Document one of: (a) runtime-only hypothesis Property 11 is the deliberate assurance level (weaker than peer Z3-backed gates) \u2014 state this in design.md; OR (b) if orphan detection becomes a blocking gate per the traceability-gate edit, route its allow/block decision through audit_log.append(...) like the other gate producers so the block is tamper-evidently logged.",
+    "severity": "underspecified",
+    "dedup_key": "orphan-detector-assurance-level",
+    "adds_wiring": false
+   },
+   {
+    "title": "Disambiguate the requirement-ID regex for multi-segment IDs in the orphan scan",
+    "target_file": "tasks.md",
+    "anchor": "Task 20.1 bullet (tasks.md:340) regex `[A-Z]+-[A-Z]+-[0-9]{3}`; CoverageItem.id pattern `^[A-Z]+-[A-Z]+-[0-9]{3}$` (design.md:328)",
+    "change_type": "add-detail",
+    "change": "Clarify the ID regex's match scope. The detector scans for unanchored `[A-Z]+-[A-Z]+-[0-9]{3}` (tasks.md:340) and ties it to CoverageItem.id `^[A-Z]+-[A-Z]+-[0-9]{3}$` (design.md:328), but the actual feature_list.json IDs are multi-segment (REQ-TRACE-001, REQ-VERIFY-007, REQ-SPEC-018; requirements.md:137, design.md:146,148) and the EARS dotted short-IDs (e.g. 6.3) are a different namespace the same regex cannot match. Add a bullet stating the regex matches the canonical 3-segment CoverageItem.id form (unanchored within comments/trailers), explicitly NOT the dotted EARS criterion numbers, and confirm it matches all REQ-<DOMAIN>-NNN IDs present in feature_list.json.",
+    "severity": "underspecified",
+    "dedup_key": "orphan-detector-id-regex-scope",
+    "adds_wiring": false
+   },
+   {
+    "title": "Bind REQ-TRACE-001..004 bidirectional-link obligation to orphan_detector + traceability_links store",
+    "target_file": "tasks.md",
+    "anchor": "Task 20.1 (tasks.md:339-344) and task 29 (tasks.md:462-467); REQ-6.1 bidirectional links in Postgres (requirements.md:141)",
+    "change_type": "add-wiring",
+    "change": "Wire the REQ-TRACE-001..004 / REQ-6.1 bidirectional-link obligation (requirement<->implementation<->test<->evidence<->commit<->owner, durable in traceability_links, requirements.md:141) to the orphan check. Add a bullet to task 20.1 stating orphan_detector enforces forward+backward link existence AGAINST the traceability_links graph written by traceability_writer (task 29), not only feature_list.json \u2014 closing the gap where the detector reads feature_list.json while the durable bidirectional graph it should check lives in Postgres (design.md:453-462).",
+    "severity": "missing-wiring",
+    "dedup_key": "orphan-detector-backward-source-of-truth",
+    "adds_wiring": true
+   }
+  ],
+  "refuted": [
+   {
+    "item": "DESIGN THINNESS framed as needing both a design subsection AND separately-listed CLI/schema/caller edits (open_gap 'DESIGN THINNESS')",
+    "why": "Not refuted as a gap, but collapsed: the thinness gap and its sub-items (CLI signature, JSON output schema, data source, caller, blocking semantics, run scope) are all satisfied by the single confirmed 'orphan-detector-design-subsection' edit plus the scope/verification-artifact/source-of-truth detail edits. Kept as one design-subsection edit rather than emitting the thinness complaint as a separate standalone edit to avoid duplication."
+   },
+   {
+    "item": "Citation issue: tasks.md:312 cited as the wiring_checker line (citation_issues[0])",
+    "why": "Confirmed off-by-one but NOT a defect in the canonical artifacts \u2014 it is a defect in the FINDINGS draft's own citation. Verified: tasks.md:312 is the semgrep line, tasks.md:313 is 'Run python3 tools/wiring_checker.py on changed files'. The underlying claim (wiring_checker IS wired in post_tool_use, orphan_detector is NOT) is correct and already captured by the orphan-detector-blocking-caller edit. No artifact edit needed for the miscitation itself."
+   },
+   {
+    "item": "Critic finding (weak): Verifier five-layer exclusion should cite design.md:257-262 as positive evidence",
+    "why": "Confirmed accurate (design.md:257-262 enumerates exactly structural/semantic/behavioral/security/perf+a11y, with orphan detection provably absent) but this is evidence-strengthening for the missing-wiring claim, not an independent artifact defect. It supports the orphan-detector-blocking-caller edit; no separate canonical edit is warranted."
+   },
+   {
+    "item": "Critic finding (missing): coverage-gate overlap \u2014 coverage-gate as the 'block the run' host (tasks.md:265 defers full policy to Phase 1 task 20)",
+    "why": "Verified tasks.md:265 defers the full Postgres-backed rego to 'Phase 1 task 20', but task 20 IS orphan_detector and task 21 is the full coverage_query.rego. The coverage gate enforces the zero-EVIDENCE policy (REQ-10.3 / Property 22), a distinct obligation from orphan detection (REQ-6.3 / Property 11). Co-tasking is a plausible host but the analysis is exploratory, not a concrete artifact defect; the actual fix (a blocking caller for orphan_detector) is already the orphan-detector-blocking-caller edit. No additional edit."
+   },
+   {
+    "item": "Critic finding (weak): 'verification artifact undefined' understates that the schema already defines the candidate (design.md:457-458, 465-477)",
+    "why": "This is a refinement of the same underlying gap, already captured by the orphan-detector-verification-artifact-def edit which explicitly cites design.md:457-458/465-477 as the candidate definition to bind into task 20.1 and Property 11. Duplicate of that confirmed edit; not emitted separately."
+   },
+   {
+    "item": "ears_needing_work REQ-6.2 / Property 10 (commit-trailer scan overlap) treated as a separate add-wiring story",
+    "why": "Collapsed: its two concerns are already covered \u2014 the regex-drift/division-of-labor concern by the commit-trailer-shared-helper edit, and the missing blocking enforcer by the req-6.2-commit-trailer-enforcer edit. Property 10 itself (design.md:954-958) is fully specified and correctly maps to REQ-6.2; no gap in the Property. No additional edit."
+   }
+  ],
+  "confirmed_count": 13,
+  "refuted_count": 6
+ },
+ {
+  "component": "coverage_query.rego",
+  "confirmed_edits": [
+   {
+    "title": "Resolve the feature_list.json-vs-evidence_records input-model contradiction for the Rego policy",
+    "target_file": "design.md",
+    "anchor": "### Property 22: OPA Zero-Evidence Policy at Merge \u2014 '*For any* merge attempt, the OPA/Conftest policy shall deny the merge if the query `SELECT COUNT(*) FROM evidence_records WHERE requirement_id = ANY(approved_req_ids)` returns fewer rows...' (design.md:1052)",
+    "change_type": "resolve-inconsistency",
+    "change": "Pick the feature_list.json Conftest-document model as canonical (it matches the actual `conftest test feature_list.json` invocation at tasks.md:264 and all integration tests at tasks.md:407-408). REWRITE Property 22's statement to express the rule over `input.items` (Conftest document input) rather than a SQL `SELECT ... FROM evidence_records`: e.g. 'the policy shall deny the merge if any in_scope item in input.items is not status==\"proven\", or any proven item lacks a complete four-field Evidence_Record.' Also rewrite tasks.md:354 first bullet ('deny merge if any requirement ID in the approved set has zero rows in `evidence_records`') to the same document model, and add one sentence to the design.md:137 Component-Inventory row (or a new subsection) stating the single canonical input is the feature_list.json document evaluated by Conftest, not a live Postgres table.",
+    "severity": "inconsistency",
+    "dedup_key": "coverage-rego-input-model",
+    "adds_wiring": false
+   },
+   {
+    "title": "Make the Rego deny rule honor in_scope, so it matches the Stop gate",
+    "target_file": "tasks.md",
+    "anchor": "Task 21.1 \u2014 'policy reads `items[_].status == \"unproven\"` and denies if any found' (tasks.md:355)",
+    "change_type": "fix-defect",
+    "change": "Amend task 21.1 (and Property 22 in design.md:1052) so the policy filters `input.items` on `in_scope == true` before applying the status/evidence checks, mirroring evaluate_stop's `in_scope_items = [i for i in feature_list.items if i.in_scope]` (design.md:690) and Requirement 5.7 (requirements.md:128). Without this filter a naive `items[_].status == \"unproven\"` rule blocks merge on an out-of-scope unproven item, diverging from the Stop gate. State: 'deny rules iterate only over items where in_scope == true.'",
+    "severity": "defect",
+    "dedup_key": "coverage-rego-in-scope-filter",
+    "adds_wiring": false
+   },
+   {
+    "title": "Close the fail-open hole on `failed` status: deny if status != proven",
+    "target_file": "tasks.md",
+    "anchor": "Task 21.1 \u2014 'policy reads `items[_].status == \"unproven\"` and denies if any found' (tasks.md:355)",
+    "change_type": "fix-defect",
+    "change": "Change the deny rule in task 21.1 (and Property 22) from 'deny if status == \"unproven\"' to 'deny if status != \"proven\"' (anything not exactly proven blocks), so a `failed` in-scope item also blocks merge. The status enum is {unproven, proven, failed} (design.md:372) but the policy only references unproven/proven, leaving a `failed` item to silently pass a status==unproven rule. This mirrors the Stop hook's `not_proven = [i for i in in_scope_items if i.status != \"proven\"]` logic (design.md:731).",
+    "severity": "defect",
+    "dedup_key": "coverage-rego-failed-status",
+    "adds_wiring": false
+   },
+   {
+    "title": "Specify fail-closed / default-deny posture for the Rego merge policy",
+    "target_file": "design.md",
+    "anchor": "Error Handling \u2192 Hook Failure Modes table (design.md:809-816); add a coverage-gate row / note near design.md:137 or 815",
+    "change_type": "add-detail",
+    "change": "Add a design note giving coverage_query.rego the same fail-closed posture REQ-GATE-005 mandates (requirements.md:207) and that design.md:811-816 already specifies for stop_hook.py / pre_tool_use_hook.py. State default-deny semantics explicitly: an empty `input.items` array, a parse failure, or a missing/malformed feature_list.json MUST produce a deny / non-zero Conftest exit; the coverage-gate.yml CI step MUST treat any Conftest error (non-zero for reasons other than a clean pass) as a merge block, never default-allow. Closes REQ-GATE-005 (ears_needing_work 10.5, status=gap) for the OPA leg.",
+    "severity": "underspecified",
+    "dedup_key": "coverage-rego-fail-closed",
+    "adds_wiring": true
+   },
+   {
+    "title": "Enumerate the four Evidence_Record fields in the Rego proven-without-evidence rule",
+    "target_file": "tasks.md",
+    "anchor": "Task 21.1 \u2014 'Add second rule: deny if any item has `status == \"proven\"` but `evidence` object is missing or has empty fields' (tasks.md:356)",
+    "change_type": "resolve-inconsistency",
+    "change": "Make task 21.1 Rule 2 assert all four Evidence_Record fields (`test_file`, `test_name`, `output_hash`, `collected_at`) are present and non-empty, mirroring the schema `required` list (design.md:389) and the SubagentStop four-field check (design.md:217, Property 2). Current wording 'evidence object missing or has empty fields' is vague and could pass a proven item carrying a partial 1-field evidence object that the hook layer (Property 2 / Glossary Evidence_Record, requirements.md:29) would reject \u2014 an inconsistency between the merge gate and the in-session gate.",
+    "severity": "inconsistency",
+    "dedup_key": "coverage-rego-four-field-evidence",
+    "adds_wiring": false
+   },
+   {
+    "title": "Fix the forward-reference defect: 'deferred to Phase 1 task 20' should be task 21",
+    "target_file": "tasks.md",
+    "anchor": "Task 14.1 \u2014 'full Postgres-backed policy deferred to Phase 1 task 20' (tasks.md:265)",
+    "change_type": "fix-defect",
+    "change": "Change 'deferred to Phase 1 task 20' to 'deferred to Phase 1 task 21' in task 14.1. Task 20 (tasks.md:338) is `orphan_detector.py`, NOT the coverage policy; the full coverage_query.rego policy is task 21 (tasks.md:352). The build chain currently misroutes the component's own forward reference to the wrong task.",
+    "severity": "defect",
+    "dedup_key": "coverage-rego-task20-misroute",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add a Phase-1 subtask to re-confirm coverage-gate.yml invokes the swapped policy and stays a required check",
+    "target_file": "tasks.md",
+    "anchor": "Task 21 \u2014 '`coverage_query.rego` \u2014 Full OPA Zero-Evidence Merge Policy' (tasks.md:352-358)",
+    "change_type": "add-wiring",
+    "change": "Add a subtask under task 21 to (a) confirm `.github/workflows/coverage-gate.yml` (created in task 14.1) invokes the Phase-1 full policy after the stub\u2192full swap, and (b) confirm `coverage-gate` remains in the GitHub repository ruleset's required checks (cross-ref task 14.2 at tasks.md:270, whose required-checks list `formal-verification`, `coverage-gate`, `secrets-scan`, `audit-chain-verify` is the only place coverage-gate is named as required). Task 21 currently replaces the .rego content with no task verifying the swapped policy is still the gating one. Also note in task 14.1/21 that the Phase-0 stub (status-only, passes on zero unproven) is intentionally weaker than the Phase-1 full policy (adds evidence presence), so Phase-0 green does NOT imply Phase-1 green \u2014 the required-status-check registration must survive the swap (re-register, do not assume continuity).",
+    "severity": "missing-wiring",
+    "dedup_key": "coverage-rego-workflow-rereg",
+    "adds_wiring": true
+   },
+   {
+    "title": "Document that coverage-gate.yml is an overloaded workflow gating three tools, not OPA-only",
+    "target_file": "tasks.md",
+    "anchor": "Task 14.2 \u2014 required status checks list naming `coverage-gate` as a single required check (tasks.md:270); cross-ref tasks.md:264 (OPA), 274 (Playwright), 371 (SonarQube) all in coverage-gate.yml",
+    "change_type": "add-detail",
+    "change": "Add a note (in task 14.2 or task 21) that the single required status check `coverage-gate` co-hosts three independent tools in `.github/workflows/coverage-gate.yml`: OPA/Conftest (task 14.1/15... tasks.md:264), Playwright (task 15.1, tasks.md:274), and SonarQube (task 22.1, tasks.md:371). Because all three run under one check name, a Playwright or SonarQube failure blocks merge under the same name, so the OPA policy is NOT independently gating and REQ-GATE-003's 'THE OPA_Conftest required CI status check SHALL run' is satisfied only as a co-tenant. Either (a) document this co-tenancy explicitly so the OPA leg's gating role is traceable, or (b) split the OPA policy into its own job/required check so it gates independently.",
+    "severity": "inconsistency",
+    "dedup_key": "coverage-rego-overloaded-workflow",
+    "adds_wiring": false
+   },
+   {
+    "title": "Resolve the Postgres-fallback contradiction with the file-document input model",
+    "target_file": "tasks.md",
+    "anchor": "Notes \u2014 'when `db_connection.health_check()` fails ... the OPA merge policy MUST fall back to the file-backed state (feature_list.json + claude-progress.txt) and reach the SAME allow/block decision it would on Postgres' (tasks.md:730)",
+    "change_type": "resolve-inconsistency",
+    "change": "Reconcile tasks.md:730 with the canonical input model. As written, 'falling back to feature_list.json' presumes the OPA policy's PRIMARY input is the Postgres evidence_records table (design.md:1052) \u2014 but a Conftest .rego policy already takes feature_list.json as its ONLY input (tasks.md:264), making the fallback a no-op under the document model. Once the coverage-rego-input-model edit makes the feature_list.json document canonical, remove the OPA merge policy from the Postgres-fallback clause at tasks.md:730 (its input is already file-backed), OR if a separate SQL-backed merge check is kept, name it as a distinct non-Conftest gate so the fallback statement is coherent.",
+    "severity": "inconsistency",
+    "dedup_key": "coverage-rego-input-model",
+    "adds_wiring": false
+   },
+   {
+    "title": "Fix the formal_verification_merged.py CI-invocation path mismatch",
+    "target_file": "design.md",
+    "anchor": "Phase 0 Component List row 10 \u2014 '`python3 formal_verification_merged.py` exits 0 (all 34 checks pass)' (design.md:632); same bare path in tasks.md:252 and tasks.md:301",
+    "change_type": "fix-defect",
+    "change": "Update the invocation path from `python3 formal_verification_merged.py` to `python3 verification/formal_verification_merged.py` in design.md:632 and tasks.md:252-254 / task 17.1 (tasks.md:301), because the harness actually lives at `verification/formal_verification_merged.py` (verified: no file at repo root). The spec wires a bare repo-root path into CI (task 13.1) that does not match the file's real location \u2014 a CI-wiring defect that would make the formal-verification required check fail to find the harness.",
+    "severity": "defect",
+    "dedup_key": "harness-path-mismatch",
+    "adds_wiring": false
+   },
+   {
+    "title": "Add a dedicated 'Coverage Merge Policy' design subsection for coverage_query.rego",
+    "target_file": "design.md",
+    "anchor": "Component Inventory row '`coverage_query.rego` | `.github/policies/coverage_query.rego` | 1 | OPA/Conftest policy; denies merge if any requirement has zero passing evidence.' (design.md:137) \u2014 the ONLY dedicated mention; no subsection exists",
+    "change_type": "add-detail",
+    "change": "Add a 'Coverage Merge Policy' design subsection bringing coverage_query.rego to parity with the stop_hook.py / plan-approved.json code-bearing subsections. It must state: (1) the canonical input model (feature_list.json Conftest document); (2) an example Rego policy body with the two deny rules over `input.items`; (3) the in_scope filter, the `status != \"proven\"` rule (covers failed+unproven), and the four-field Evidence_Record completeness rule; (4) default-deny error semantics (empty/missing/parse-error => deny); (5) the workflow wiring (coverage-gate.yml co-tenancy + required-check registration). This consolidates dedup_keys coverage-rego-input-model / in-scope-filter / failed-status / four-field-evidence / fail-closed into one authoritative location; the individual tasks.md edits remain the task-level mirrors.",
+    "severity": "underspecified",
+    "dedup_key": "coverage-rego-design-subsection",
+    "adds_wiring": false
+   }
+  ],
+  "refuted": [
+   {
+    "item": "open_gap: 'OPA merge decisions are NOT audit-logged' (REQ-AUDIT-001 producer wiring missing for the OPA/Conftest merge gate; cit requirements.md:457,460, design.md:144, tasks.md:970)",
+    "why": "Not a coverage_query.rego defect and already addressed at the audit-log layer. REQ-AUDIT-001.4 (requirements.md:460), design.md:144, and task 52.3 (tasks.md:970) scope the audit-log PRODUCER explicitly to the three hooks (stop_hook.py, pre_tool_use_hook.py, subagent_stop_hook.py). The merge-time chain-verification side IS gated: task 40.3 / 52.2 register `audit-chain-verify` as a required CI check at merge (tasks.md:700-703, 969). Whether CI-side gate decisions (OPA, SonarQube, Playwright) should also be audit-log producers is a cross-cutting REQ-AUDIT-001 scope question about the audit_log component, not a coverage_query.rego gap \u2014 it belongs to the audit-log component's findings, not this one. Refuted here to avoid mis-scoping it onto the .rego file."
+   },
+   {
+    "item": "open_gap: ''approved set' provenance undefined' \u2014 no component defines how the policy obtains the approved requirement set; suggests binding to plan-approved.json.feature_list_sha (cit requirements.md:205, design.md:1052,762-769)",
+    "why": "Largely dissolves once the input-model contradiction is fixed, and is over-engineered as stated. Under the canonical feature_list.json document model (see coverage-rego-input-model edit), the 'approved set' is simply the in_scope items in the feature_list.json that Conftest evaluates \u2014 there is no separate SQL 'approved_req_ids' to source. The plan-approved.json.feature_list_sha binding (design.md:792) is already enforced at the PreToolUse plan gate, which blocks writes when feature_list.json diverges from the approved SHA; by merge time the gated file is the approved one. Adding a second SHA-binding inside the Rego policy duplicates an existing gate. The residual ('approved set = in_scope items') is already folded into the coverage-rego-in-scope-filter and coverage-rego-design-subsection edits, so no separate edit is warranted."
+   },
+   {
+    "item": "critic overstatement: 'the draft claims REQ-GATE-001 (10.1) is addressed indirectly and Property 4/22 cover it, but Property 22 Validates 10.3 only and Property 4 covers prediction-independence only' (cit design.md:1050-1054, 906-910)",
+    "why": "This is a critique of the DRAFT findings file's own ears_stories trace, not a defect in the canonical artifacts. The artifacts are internally consistent: Property 22 correctly Validates 10.3 (design.md:1054) and Property 4 correctly Validates 10.1/13.6/19.2 on the prediction-independence axis (design.md:910). There is no text in requirements.md/design.md/tasks.md to fix here. The substantive residue \u2014 that the OPA policy cannot observe live 'passing tests' (REQ-GATE-001's middle limb) \u2014 is captured separately below."
+   },
+   {
+    "item": "critic weak finding: 'REQ-GATE-001 passing-tests limb is structurally unobservable to a Conftest document policy' (a Rego policy over static feature_list.json can read status/evidence but cannot observe live passing tests; cit requirements.md:203)",
+    "why": "Not a defect in the current artifacts and not a coverage_query.rego responsibility gap. REQ-GATE-001 (requirements.md:203) computes the verdict from THREE facts across MULTIPLE gates, not one: 'passing tests' is observed by the Verifier's semantic layer (design.md:259, REQ-VERIFY-001) and recorded into the Evidence_Record's output_hash before an item is flipped proven; the OPA policy then checks for present, complete evidence. The Completion_Gate is explicitly a multi-component layer (Glossary: 'Stop hook + OPA/Conftest CI check + GitHub required status check', requirements.md:21). No single gate is required to observe all three limbs; expecting the .rego file to observe live test execution misreads the architecture. The evidence-presence check the policy DOES owe is already covered by the coverage-rego-four-field-evidence edit."
+   }
+  ],
+  "confirmed_count": 11,
+  "refuted_count": 4
+ }
+]

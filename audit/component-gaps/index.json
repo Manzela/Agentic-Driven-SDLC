@@ -1,0 +1,302 @@
+[
+ {
+  "idx": 0,
+  "component": "feature_list.json",
+  "file_path": "/feature_list.json",
+  "gapfile": "audit/component-gaps/00.json",
+  "n_gaps": 8,
+  "n_critic": 9,
+  "n_ears": 6,
+  "cite_flag": true
+ },
+ {
+  "idx": 1,
+  "component": "stop_hook.py",
+  "file_path": ".claude/hooks/stop_hook.py",
+  "gapfile": "audit/component-gaps/01.json",
+  "n_gaps": 11,
+  "n_critic": 6,
+  "n_ears": 7,
+  "cite_flag": false
+ },
+ {
+  "idx": 2,
+  "component": "pre_tool_use_hook.py",
+  "file_path": ".claude/hooks/pre_tool_use_hook.py",
+  "gapfile": "audit/component-gaps/02.json",
+  "n_gaps": 12,
+  "n_critic": 11,
+  "n_ears": 11,
+  "cite_flag": false
+ },
+ {
+  "idx": 3,
+  "component": "session_start_hook.py",
+  "file_path": ".claude/hooks/session_start_hook.py",
+  "gapfile": "audit/component-gaps/03.json",
+  "n_gaps": 7,
+  "n_critic": 7,
+  "n_ears": 4,
+  "cite_flag": false
+ },
+ {
+  "idx": 4,
+  "component": "subagent_stop_hook.py",
+  "file_path": ".claude/hooks/subagent_stop_hook.py",
+  "gapfile": "audit/component-gaps/04.json",
+  "n_gaps": 8,
+  "n_critic": 7,
+  "n_ears": 8,
+  "cite_flag": true
+ },
+ {
+  "idx": 5,
+  "component": "post_tool_use_hook.py",
+  "file_path": ".claude/hooks/post_tool_use_hook.py",
+  "gapfile": "audit/component-gaps/05.json",
+  "n_gaps": 7,
+  "n_critic": 7,
+  "n_ears": 4,
+  "cite_flag": true
+ },
+ {
+  "idx": 6,
+  "component": "pre_compact_hook.py",
+  "file_path": ".claude/hooks/pre_compact_hook.py",
+  "gapfile": "audit/component-gaps/06.json",
+  "n_gaps": 7,
+  "n_critic": 8,
+  "n_ears": 2,
+  "cite_flag": false
+ },
+ {
+  "idx": 7,
+  "component": "spec_validator.py",
+  "file_path": "tools/spec_validator.py",
+  "gapfile": "audit/component-gaps/07.json",
+  "n_gaps": 8,
+  "n_critic": 5,
+  "n_ears": 6,
+  "cite_flag": false
+ },
+ {
+  "idx": 8,
+  "component": "evidence_collector.py",
+  "file_path": "tools/evidence_collector.py",
+  "gapfile": "audit/component-gaps/08.json",
+  "n_gaps": 7,
+  "n_critic": 8,
+  "n_ears": 3,
+  "cite_flag": false
+ },
+ {
+  "idx": 9,
+  "component": "wiring_checker.py",
+  "file_path": "tools/wiring_checker.py",
+  "gapfile": "audit/component-gaps/09.json",
+  "n_gaps": 7,
+  "n_critic": 6,
+  "n_ears": 6,
+  "cite_flag": false
+ },
+ {
+  "idx": 10,
+  "component": "orphan_detector.py",
+  "file_path": "tools/orphan_detector.py",
+  "gapfile": "audit/component-gaps/10.json",
+  "n_gaps": 9,
+  "n_critic": 6,
+  "n_ears": 3,
+  "cite_flag": true
+ },
+ {
+  "idx": 11,
+  "component": "coverage_query.rego",
+  "file_path": ".github/policies/coverage_query.rego",
+  "gapfile": "audit/component-gaps/11.json",
+  "n_gaps": 10,
+  "n_critic": 6,
+  "n_ears": 5,
+  "cite_flag": false
+ },
+ {
+  "idx": 12,
+  "component": "feature_list.schema.json (schema/)",
+  "file_path": "schema/feature_list.schema.json",
+  "gapfile": "audit/component-gaps/12.json",
+  "n_gaps": 10,
+  "n_critic": 7,
+  "n_ears": 9,
+  "cite_flag": true
+ },
+ {
+  "idx": 13,
+  "component": "plan-approved.json",
+  "file_path": "/plan-approved.json",
+  "gapfile": "audit/component-gaps/13.json",
+  "n_gaps": 9,
+  "n_critic": 7,
+  "n_ears": 3,
+  "cite_flag": false
+ },
+ {
+  "idx": 14,
+  "component": "db/migrations/ (all 8 tables 001-008)",
+  "file_path": "db/migrations/*.sql",
+  "gapfile": "audit/component-gaps/14.json",
+  "n_gaps": 11,
+  "n_critic": 7,
+  "n_ears": 9,
+  "cite_flag": false
+ },
+ {
+  "idx": 15,
+  "component": "db/migrations/007_requirement_versions.sql",
+  "file_path": "db/migrations/007_requirement_versions.sql",
+  "gapfile": "audit/component-gaps/15.json",
+  "n_gaps": 9,
+  "n_critic": 6,
+  "n_ears": 6,
+  "cite_flag": true
+ },
+ {
+  "idx": 16,
+  "component": "db/migrations/008_gate_audit_log.sql",
+  "file_path": "db/migrations/008_gate_audit_log.sql",
+  "gapfile": "audit/component-gaps/16.json",
+  "n_gaps": 9,
+  "n_critic": 6,
+  "n_ears": 7,
+  "cite_flag": false
+ },
+ {
+  "idx": 17,
+  "component": "state_integrity.py",
+  "file_path": "tools/state_integrity.py",
+  "gapfile": "audit/component-gaps/17.json",
+  "n_gaps": 10,
+  "n_critic": 8,
+  "n_ears": 5,
+  "cite_flag": true
+ },
+ {
+  "idx": 18,
+  "component": "audit_log.py",
+  "file_path": "tools/audit_log.py",
+  "gapfile": "audit/component-gaps/18.json",
+  "n_gaps": 9,
+  "n_critic": 9,
+  "n_ears": 6,
+  "cite_flag": true
+ },
+ {
+  "idx": 19,
+  "component": "audit_verify.py",
+  "file_path": "tools/audit_verify.py",
+  "gapfile": "audit/component-gaps/19.json",
+  "n_gaps": 9,
+  "n_critic": 6,
+  "n_ears": 2,
+  "cite_flag": false
+ },
+ {
+  "idx": 20,
+  "component": "perf_a11y_verifier (capability in verifier.md)",
+  "file_path": ".claude/agents/verifier.md",
+  "gapfile": "audit/component-gaps/20.json",
+  "n_gaps": 10,
+  "n_critic": 5,
+  "n_ears": 8,
+  "cite_flag": true
+ },
+ {
+  "idx": 21,
+  "component": "secrets-scan.yml",
+  "file_path": ".github/workflows/secrets-scan.yml",
+  "gapfile": "audit/component-gaps/21.json",
+  "n_gaps": 8,
+  "n_critic": 6,
+  "n_ears": 4,
+  "cite_flag": false
+ },
+ {
+  "idx": 22,
+  "component": "omission_guard (capability in subagent_stop_hook.py)",
+  "file_path": ".claude/hooks/subagent_stop_hook.py",
+  "gapfile": "audit/component-gaps/22.json",
+  "n_gaps": 11,
+  "n_critic": 8,
+  "n_ears": 8,
+  "cite_flag": false
+ },
+ {
+  "idx": 23,
+  "component": "deepeval_gate.py",
+  "file_path": "tools/deepeval_gate.py",
+  "gapfile": "audit/component-gaps/23.json",
+  "n_gaps": 10,
+  "n_critic": 9,
+  "n_ears": 6,
+  "cite_flag": false
+ },
+ {
+  "idx": 24,
+  "component": "zap-baseline.yml",
+  "file_path": ".github/workflows/zap-baseline.yml",
+  "gapfile": "audit/component-gaps/24.json",
+  "n_gaps": 8,
+  "n_critic": 5,
+  "n_ears": 6,
+  "cite_flag": false
+ },
+ {
+  "idx": 25,
+  "component": "flagd",
+  "file_path": "flagd/ (self-hosted service)",
+  "gapfile": "audit/component-gaps/25.json",
+  "n_gaps": 10,
+  "n_critic": 3,
+  "n_ears": 5,
+  "cite_flag": true
+ },
+ {
+  "idx": 26,
+  "component": "initializer.md",
+  "file_path": ".claude/agents/initializer.md",
+  "gapfile": "audit/component-gaps/26.json",
+  "n_gaps": 12,
+  "n_critic": 7,
+  "n_ears": 13,
+  "cite_flag": true
+ },
+ {
+  "idx": 27,
+  "component": "implementer.md",
+  "file_path": ".claude/agents/implementer.md",
+  "gapfile": "audit/component-gaps/27.json",
+  "n_gaps": 9,
+  "n_critic": 7,
+  "n_ears": 12,
+  "cite_flag": false
+ },
+ {
+  "idx": 28,
+  "component": "verifier.md",
+  "file_path": ".claude/agents/verifier.md",
+  "gapfile": "audit/component-gaps/28.json",
+  "n_gaps": 10,
+  "n_critic": 8,
+  "n_ears": 16,
+  "cite_flag": false
+ },
+ {
+  "idx": 29,
+  "component": "research.md",
+  "file_path": ".claude/agents/research.md",
+  "gapfile": "audit/component-gaps/29.json",
+  "n_gaps": 12,
+  "n_critic": 7,
+  "n_ears": 7,
+  "cite_flag": false
+ }
+]

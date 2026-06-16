@@ -1,0 +1,129 @@
+{
+ "idx": 24,
+ "component": "zap-baseline.yml",
+ "file_path": ".github/workflows/zap-baseline.yml",
+ "phase": "2",
+ "what": "`zap-baseline.yml` is a GitHub Actions CI workflow (component-inventory file path `.github/workflows/zap-baseline.yml`, Phase 2) that runs an OWASP ZAP **baseline passive** DAST scan against the application on every pull request. It is configured to invoke the pinned action `zaproxy/action-baseline@v0.12.0` with the input `fail_action: true`, so the workflow (and therefore the PR) fails if the baseline scan surfaces findings. Its status is registered under the CI check name `zap-baseline`, which is mandated to be a REQUIRED status check at merge. Scope is explicitly limited to the baseline passive scan; active/full ZAP scans are OUT OF SCOPE for v1. It is the single concrete artifact for Req\u2026",
+ "open_gaps": [
+  {
+   "gap": "Baseline-block collision: Requirement 31 (DAST) is tagged to baseline block B15, but B15 is defined as 'Durable storage' (mapped to Requirement 16 / REQ-STORE-001..003). A DAST security scan is mis-filed under the storage block in BOTH the traceability matrix (line 418) and the requirement header (line 487).",
+   "severity": "inconsistency",
+   "fix": "Reassign Requirement 31 / REQ-SEC-008 to a security baseline block (e.g. the SAST/secrets/SLSA security family near B16/B17 used by the kill-switch, or a dedicated security block). Update both requirements.md:418 (matrix) and requirements.md:487 (header) to the corrected block, and verify the corrected block is defined in the baseline-block list (requirements.md:397).",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:418"
+  },
+  {
+   "gap": "Missing wiring to the merge gate: REQ-SEC-008.2 mandates `zap-baseline` be a REQUIRED status check, but it is absent from the canonical required-status-checks enumeration in docs/github-ruleset.md (listed at tasks.md:270, which names only formal-verification, coverage-gate, secrets-scan, audit-chain-verify + human reviewer). Sibling required checks each have a task-40.x subtask that creates the workflow AND adds it to the ruleset (40.2 secrets-scan, 40.3 audit-chain-verify); zap-baseline has no such subtask \u2014 task 56 says 'register' with no registration mechanism. deepeval-gate (REQ-EVAL-001) has the identical omission.",
+   "severity": "missing-wiring",
+   "fix": "Add `zap-baseline` (and `deepeval-gate`) to the required-status-checks list at tasks.md:270, and add a task-40.x subtask (e.g. 40.4) that creates `.github/workflows/zap-baseline.yml` and registers `zap-baseline` in the GitHub repository ruleset + docs/github-ruleset.md, mirroring task 40.3 for audit-chain-verify.",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:270"
+  },
+  {
+   "gap": "No `on:` trigger specified: REQ-SEC-008.1 says 'on every PR' in prose, but no canonical file defines an `on: pull_request` block, branch filter, or event scope. The literal trigger appears nowhere (grep-confirmed).",
+   "severity": "underspecified",
+   "fix": "Specify the workflow trigger in the design row or task 56, e.g. `on: pull_request` (optionally with target-branch filter for the protected branch), matching how secrets-scan/property-tests workflows describe their PR triggers (tasks.md:707).",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:488"
+  },
+  {
+   "gap": "Scan target undefined: nothing specifies WHAT ZAP scans \u2014 no target URL, no ephemeral app stand-up, no docker-compose/localhost target, no auth context. The rationale even concedes 'active scan added post-v1 when an authenticated target exists' (requirements.md:490), implying even the baseline target is unsettled. A DAST scan with no defined target cannot run.",
+   "severity": "underspecified",
+   "fix": "Define the v1 baseline scan target in design.md (e.g. spin up the app in CI against a known localhost URL, or scan a deployed preview/ephemeral environment) and document how the action's target input is populated. Without this, task 56 is not implementable as written.",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:490"
+  },
+  {
+   "gap": "Design thinness: this component exists ONLY as (a) a single 1-line component-inventory row (design.md:150), (b) the 3-clause EARS block (requirements.md:486-490), and (c) one tasks.md task (976) with no subtasks. design.md provides NO detail on trigger, target, report/SARIF handling, artifact retention, failure semantics, or ruleset wiring. Critically, the design.md 'New / changed components' Phase-2 reconciliation list (design.md:1179-1185) \u2014 which DOES enumerate the other Phase-2 P3 additions (state_integrity, audit_log/audit_verify, perf_a11y_verifier, REASONING span, research fact-check) \u2014 OMITS zap-baseline entirely, as well as deepeval_gate, flagd, and omission_guard. The component is \u2026",
+   "severity": "underspecified",
+   "fix": "Add a design.md subsection (under 'New / changed components' or a CI-workflows section) describing zap-baseline's trigger, scan target, fail_action semantics, report handling, and ruleset registration, parallel to the treatment given to audit_log/audit_verify (design.md:1168-1181). At minimum, add zap-baseline (and deepeval_gate, flagd, omission_guard) to the design.md:1179 'New / changed components' list so the Phase-2 inventory is complete.",
+   "cit": ".kiro/specs/spec-to-evidence-control/design.md:1179"
+  },
+  {
+   "gap": "'DAST' acronym used but never defined in the Glossary (requirements.md:15-48), unlike the related security terms Semgrep_CodeQL and SLSA which ARE defined. Used in the Requirement 31 title and criterion 31.2.",
+   "severity": "underspecified",
+   "fix": "Add a Glossary entry: 'DAST: Dynamic Application Security Testing \u2014 black-box scanning of a running application; here the OWASP ZAP baseline passive scan (REQ-SEC-008).' at requirements.md:48.",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:489"
+  },
+  {
+   "gap": "No formal-verification coverage and no statement that this is intentional. REQ-SEC-008 has no Property and no Z3 CHECK (grep-confirmed in formal_verification_merged.py). While consistent with peer CI gates, the spec never declares REQ-SEC-008 as a [DET]-only obligation outside the Z3 harness scope, leaving ambiguity about whether the absence is intentional or an oversight.",
+   "severity": "underspecified",
+   "fix": "Annotate Requirement 31 as a [DET] CI-gate obligation explicitly outside the formal-verification harness scope (as is implicitly true for secrets-scan, coverage-gate, deepeval-gate), so the absence of a CHECK is documented intent rather than a gap. Add a one-line note at requirements.md:486.",
+   "cit": "verification/formal_verification_merged.py:144"
+  },
+  {
+   "gap": "The physical artifact does not exist: `.github/workflows/zap-baseline.yml` is not present in the repo (find confirmed no such file; .github/workflows/ directory yields nothing for zap), and task 56 is an unchecked `[ ]` item. This is expected for a spec-stage component, but combined with the missing ruleset registration and undefined target, the REQUIRED-check claim (31.2) is currently unbacked by any buildable mechanism.",
+   "severity": "missing-wiring",
+   "fix": "Track as not-yet-built; ensure the build task (56) and a ruleset-registration subtask are both completed before REQ-SEC-008.2 can be claimed satisfied. Cross-link task 56 to the docs/github-ruleset.md update.",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:976"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "overstatement",
+   "detail": "The draft behavior 'Participate in merge-gate security set' asserts zap-baseline 'acts as the DAST member of the CI / Merge-Gate security-check set alongside OPA/Conftest, Semgrep+CodeQL (SAST), secrets-scan, and SLSA provenance' and cites design.md:50. Independently verified: the design.md CI subgraph (design.md:50-55) lists ONLY four nodes \u2014 OPA, SAST (Semgrep+CodeQL), SLSA, GH_RULESET. Neither zap-baseline NOR secrets-scan appears in that diagram, and grep finds no prose anywhere naming a 'security-check set' or 'DAST member.' The cited line does not support a membership/co-participation claim; zap-baseline is not wired into any depicted gate set. The behavior overstates the spec's actual\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/design.md:50"
+  },
+  {
+   "kind": "missing",
+   "detail": "Cross-phase required-check timing contradiction the draft does not flag. Task 56 (zap-baseline) is a Phase 2 component (design.md:150; dependency-graph wave id 47, tasks.md:931). But ALL required-status-check CI wiring is done under task 40 'Integrate ... as required CI check (Phase 4 hardening)' (tasks.md:689), whose subtasks 40.1/40.2/40.3 create-and-register the formal-verification/secrets-scan/audit-chain-verify checks and are listed together in the dependency graph at tasks.md:875. Because zap-baseline has no 40.x subtask, its REQUIRED-check registration (REQ-SEC-008.2) is not scheduled in ANY phase \u2014 the Phase-2 build task cannot itself register a Phase-4 ruleset gate. The draft's open\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:689"
+  },
+  {
+   "kind": "missing",
+   "detail": "deepeval-gate (REQ-EVAL-001, task 55) is also absent from the canonical required-status-checks enumeration at tasks.md:270 and also lacks a task-40.x create-and-register subtask \u2014 identical to the zap-baseline omission. The draft mentions deepeval-gate's parallel omission only in passing inside one open_gap's suggested_fix and never verifies it as a standalone confirmed defect. Independently confirmed: tasks.md:270 names only formal-verification, coverage-gate, secrets-scan, audit-chain-verify + human reviewer; tasks.md:484 mandates 'deepeval-gate' as a REQUIRED check at merge but tasks.md:975 (task 55) gives it no 40.x wiring. This corroborates the draft's missing-wiring finding for zap-bas\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:270"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "Property-count inconsistency adjacent to the draft's 'no Property covers this component' claim. The draft's properties_and_checks section asserts the canonical set is 'Properties 1-30 (design.md:1034-1124).' But tasks.md:732 states 'The 29 correctness properties in Phase 4 ... Properties 1-24 from the original phases; Properties 25-29 authored under tasks 48-52' (i.e. 29, ending at Property 29), while requirements.md:514, the omission_guard rows (design.md:148, design.md:218), and the Property block header (design.md:1066 onward through Property 30) treat it as 30 properties including Property 30 (omission-declaration). The draft never flags that the property-count is itself contradictory be\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/tasks.md:732"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's traceability/header B15 gap is correct but understates the verification value of the FIX target. The draft suggests reassigning REQ-SEC-008 to 'a security baseline block (e.g. ... near B16/B17 used by the kill-switch).' Independently verified: B16 is 'Supply-chain & security gates' mapped to Requirement 17 / REQ-SEC-001..005 (requirements.md:398), which is the precise correct home for a DAST security scan, whereas B17 is 'Human-in-the-loop approval' (requirements.md:399) and is NOT a security-scan block \u2014 the kill-switch (Req 32) is dual-tagged B16/B17 only because it spans gates+approval. The draft's 'B16/B17' phrasing risks mis-tagging REQ-SEC-008 to B17; the correct single tar\u2026",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:398"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-SEC-008 / Requirement 31.1",
+   "criterion": "THE System SHALL run an OWASP ZAP baseline passive scan on every PR via `zaproxy/action-baseline@v0.12.0` with `fail_action: true`.",
+   "how": "Addressed at the artifact-naming level: design.md component-inventory row and tasks.md task 56 both name the workflow file, the pinned action version, and the fail_action flag. NOT addressed at the mechanism level: no canonical file specifies the workflow's `on:` trigger (the 'on every PR' obligatio\u2026",
+   "status": "partial",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:488"
+  },
+  {
+   "req_id": "REQ-SEC-008 / Requirement 31.2",
+   "criterion": "THE DAST scan SHALL be registered as a REQUIRED CI status check at merge (`zap-baseline` check name).",
+   "how": "Stated as an obligation in requirements/design/tasks (check name `zap-baseline`), but the actual wiring is missing: the canonical required-status-checks list in docs/github-ruleset.md (enumerated at tasks.md:270) does NOT include `zap-baseline`. There is also no task 40.x subtask creating the workfl\u2026",
+   "status": "gap",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:489"
+  },
+  {
+   "req_id": "Traceability matrix row 31",
+   "criterion": "Row '31 DAST Baseline Security Scan | B15 | REQ-SEC-008' maps Requirement 31 to baseline block B15 and PRD ref REQ-SEC-008.",
+   "how": "The REQ-SEC-008 PRD mapping is correct, but the baseline-block assignment B15 is wrong: B15 is defined as 'Durable storage' (requirements.md:397, mapped to Requirement 16 / REQ-STORE-001..003). A DAST security scan does not belong to the durable-storage block \u2014 this is a mis-tagged citation / incons\u2026",
+   "status": "gap",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:418"
+  },
+  {
+   "req_id": "Requirement 31 header baseline-block",
+   "criterion": "'**Baseline block:** B15 | **PRD references:** REQ-SEC-008' on the Requirement 31 header.",
+   "how": "Same B15 collision as the matrix row: the header repeats the incorrect B15 ('Durable storage') assignment for a security-scan requirement. Both the header (line 487) and the matrix (line 418) carry the same wrong block.",
+   "status": "gap",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:487"
+  },
+  {
+   "req_id": "Glossary term 'DAST'",
+   "criterion": "Glossary defines all domain terms used in requirements (System, Verifier, SLSA, Semgrep_CodeQL, etc.).",
+   "how": "GAP: 'DAST' is used in the Requirement 31 title and criterion 31.2 but is never defined in the Glossary (lines 15-48), unlike SAST-adjacent terms Semgrep_CodeQL and SLSA which ARE defined. Acronym used without definition.",
+   "status": "gap",
+   "cit": ".kiro/specs/spec-to-evidence-control/requirements.md:489"
+  },
+  {
+   "req_id": "Z3 CHECK / Property coverage",
+   "criterion": "Logic-checkable requirements cite the unified harness formal_verification_merged.py (34/34).",
+   "how": "No Property and no Z3 CHECK pins this component \u2014 confirmed by exhaustive grep of formal_verification_merged.py (zero hits for zap/dast/REQ-SEC-008; the only 'REQ-SEC' hit is REQ-SEC-004 at line 144, the unrelated maintenance-mode write rule). This is expected for a CI-YAML obligation (like secrets-\u2026",
+   "status": "partial",
+   "cit": "verification/formal_verification_merged.py:144"
+  }
+ ],
+ "citation_issues": []
+}

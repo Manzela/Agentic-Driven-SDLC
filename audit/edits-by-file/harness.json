@@ -1,0 +1,82 @@
+[
+ {
+  "title": "Model the three-state status-transition graph in the Z3 harness or soften the machine-checked claim",
+  "anchor": "Section 1 coverage/completion Booleans (lines 73-92); harness has no {unproven,proven,failed} enum or edge graph",
+  "change": "The harness models coverage with standalone Booleans (unproven/passed/evidence*) and never encodes the {unproven,proven,failed} three-state machine or the permitted-edge set (unproven\u2192proven, unproven\u2192failed, failed\u2192unproven) with all other edges UNSAT, so Req 5.8/Property 3's 'machine-checked status graph' is overstated. Add a CHECK group (e.g. CHECK-14a..n) using an Int/enum status variable that asserts each permitted edge is SAT and every non-permitted edge (e.g. proven\u2192failed, proven\u2192unproven without amendment, failed\u2192proven without evidence) is UNSAT, and reference it from requirements.md:123/129. Until added, soften 'machine-checked' wording for the status graph in requirements.md and design.md.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Add a standalone Z3 check for the budget HANDOFF trigger (blocking-UNSAT and routing-SAT)",
+  "anchor": "CHECK-5b (lines 266-269) and CHECK-5c (lines 272-275) \u2014 the cap/no-progress HANDOFF-exit-0 UNSAT checks; CHECK-3b (line 207-212) the cap routing-SAT check",
+  "change": "budgetExceeded appears only inside the core_axioms disjunction (line 152) and as a negated literal in CHECK-1/3b/8b/10b; it has NEITHER a standalone blocking-UNSAT check (mirroring CHECK-5b/5c: `core_axioms + [budgetExceeded, hookExitsBlocking]` expected UNSAT) NOR a routing-SAT check (mirroring CHECK-3b: `core_axioms + [budgetExceeded, handoff, Not(complete), Not(hookExitsBlocking)]` expected SAT). It is the only one of the three HANDOFF triggers with no dedicated check. Add CHECK-5d (budget blocking-UNSAT) and optionally CHECK-3c (budget routing-SAT). Update the harness self-count banner (currently 34: 14 core) and the requirements.md:9 / design.md:1191 '34/34' figure accordingly.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "stop_hook.py"
+  ]
+ },
+ {
+  "title": "Add a Z3 CHECK family modeling the status-transition edge set including the failed state",
+  "anchor": "New 8 checks section (CHECK-10a..13b, lines 409-500); model variables section (lines 121-131)",
+  "change": "Add a CHECK family (e.g. CHECK-14a/b/c) introducing booleans for the status-transition guard: declare edge enums or booleans {edgeUnprovenProven, edgeUnprovenFailed, edgeFailedUnproven, edgeOther} plus evidenceComplete, and assert: (a) any transition into proven without evidenceComplete is UNSAT; (b) edgeOther (any transition not in the permitted set) is UNSAT; (c) edgeUnprovenFailed and edgeFailedUnproven WITHOUT evidence are SAT (the widened edges are reachable). The harness currently has no boolean for the `failed` status or the transition edge set, so the most-recently-widened guard logic (req 5.8 / Property 3) is unverified by the formal model. Update the header self-count comment accordingly.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "pre_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "Add Z3 evidence-at-SubagentStop-acceptance assertion (CHECK-7d)",
+  "anchor": "evidence_schema_axioms block `Implies(passed, evidenceComplete)` (line 308) and CHECK-7a/7c (lines 312-338); model the SubagentStop omission gate at lines 481-500 (subagentAccepted13)",
+  "change": "Add a CHECK-7d-style assertion that machine-checks the four-field evidence schema at the SubagentStop ACCEPTANCE boundary, symmetric with the omission gate (CHECK-13a). Introduce a `subagentAcceptedEvidence` (or reuse a SubagentStop-acceptance) bool and axiom `Implies(Not(evidenceComplete), Not(subagentAcceptedEvidence))`, then assert `(Not(evidenceComplete) AND subagentAcceptedEvidence)` is UNSAT. Currently the schema is only tied to the `passed` transition variable via `Implies(passed, evidenceComplete)`, never to the SubagentStop accept decision \u2014 so this hook's Phase-0 raison d'etre is not formally checked at its own gate. Update the harness self-count/group comments and the requirements.md/design.md '34 assertions' figures accordingly.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "subagent_stop_hook.py"
+  ]
+ },
+ {
+  "title": "Zero Z3 coverage for the PostToolUse never-blocks invariant",
+  "anchor": "New CHECK in the 'New checks' section after CHECK-13b (formal_verification_merged.py:500), parallel to the HANDOFF exit-0 checks CHECK-5b/5c/8c (lines 266-275, 364-370)",
+  "change": "Add a CHECK pinning the PostToolUse 'cannot block' invariant, parallel to CHECK-5b/5c/8c which pin the Stop-hook HANDOFF exit-0 invariant. Confirmed gap: grep of formal_verification_merged.py for post_tool_use/postHook/lint/sast/wiring returns NO MATCH; the invariant 'PostToolUse MUST exit 1 / never exit 2 / cannot undo' (requirements.md:251, REQ-STEER-002) lives only in prose plus the generic Property 21. Add e.g. a Bool `postHookBlocks` with axiom `Not(postHookBlocks)` (PostToolUse is non-blocking by contract) and a check that `postHookBlocks` (a PostToolUse path that exits 2) is UNSAT \u2014 formally pinning the prevention(PreToolUse)/feedback(PostToolUse) split on both sides. Update the self-counting group comment/total accordingly (the harness self-counts checks_run, so no hardcoded figure needs changing, but add the new CHECK label to the printed group description).",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "post_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "Model the feature_list_sha-mismatch block path in Z3 and scope Invariant 3 wording",
+  "anchor": "CHECK-4f at lines 250-253 (`codeWrite, Not(planApproved)` \u2192 unsat); Bool decls at lines 68-69",
+  "change": "Add a Boolean `shaMatches = Bool(\"shaMatches\")` and a core axiom that an implementation write requires BOTH presence and a matching SHA, e.g. `Implies(codeWrite, And(planApproved, shaMatches))`. Add CHECK-4g asserting `codeWrite \u2227 planApproved \u2227 \u00acshaMatches` is UNSAT (the SHA-mismatch block path). Then narrow Critical Invariant 3 (requirements.md:369) and the CHECK-4f description so the existing CHECK-4f claim is scoped to the PRESENCE branch only, and the new CHECK-4g covers the SHA bind \u2014 so the docs no longer imply the whole gate (including the cryptographic SHA core) is proven by CHECK-4f alone.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "plan-approved.json"
+  ]
+ },
+ {
+  "title": "No machine-checked invariant / Correctness Property pins the kill-switch",
+  "anchor": "Harness self-count: 'Groups: core-14 (CHECK-1..5c) + Kiro-12 (CHECK-6a..9c) + new-8 (CHECK-10a..13b)' (verification/formal_verification_merged.py:520); highest CHECK is CHECK-13b \u2014 grep confirms zero flagd/OpenFeature/CTRL-001/Requirement-32 references",
+  "change": "Decide and document the verification posture for REQ-CTRL-001. Either (a) add a new CHECK (e.g. CHECK-14a/14b) and a numbered Correctness Property pinning the kill-switch invariant \u2014 e.g. 'a set kill-switch flag implies the gated capability is disabled' and 'flagd-unreachable implies disabled (fail-closed)' \u2014 updating the harness self-count and the design.md Correctness Properties list (Property 31); OR (b) explicitly state in design.md/requirements.md that REQ-CTRL-001 is runtime/CI-verified only (like Property 28 audit-chain and Property 29 research-authority, which carry 'no Z3 check' notes) with the \u226430 s propagation verified by task 57's integration test rather than Z3. Pick one and record it so the kill-switch is not silently unverified.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "flagd"
+  ]
+ },
+ {
+  "title": "Make CHECK-9a citation tag cite the canonical UNMAPPED criterion",
+  "anchor": "], \"unsat\", \"CHECK-9a: Advancement while UNMAPPED items exist is UNSAT [REQ-SPEC-011]\")",
+  "change": "CHECK-9a's description tag reads '[REQ-SPEC-011]', but the prose criterion for UNMAPPED-blocks-advancement is Requirement 2.2, mapped to the REQ-SPEC-010..012 range (requirements.md:78,384). REQ-SPEC-011 is within range but is not the canonical single criterion ID. Change the tag to '[REQ-SPEC-012 / Requirement 2.2]' (or '[Requirement 2.2 / REQ-SPEC-010..012]') to remove the dangling-citation ambiguity. Minor.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "initializer.md"
+  ]
+ }
+]

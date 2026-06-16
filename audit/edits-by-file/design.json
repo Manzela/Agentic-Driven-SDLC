@@ -1,0 +1,1478 @@
+[
+ {
+  "title": "Add conditional schema rule enforcing Evidence_Record when status=proven",
+  "anchor": "definitions.CoverageItem JSON block (design.md:322-385); required list at line 324; evidence property at 381-383",
+  "change": "Add an allOf/if-then to CoverageItem in the design.md schema block: `\"allOf\": [{\"if\": {\"properties\": {\"status\": {\"const\": \"proven\"}}, \"required\": [\"status\"]}, \"then\": {\"required\": [\"evidence\"]}}]` so a schema-valid item cannot be status=proven with no evidence object. Update the Phase-0 schema test row (design.md:623) to also assert a status=proven item with NO evidence object is rejected (today it only rejects a missing output_hash inside an existing evidence object). Add a note in Req 5.3/5.6 and Property 2 that the four-field gate is jointly schema- AND hook-enforced.",
+  "severity": "defect",
+  "adds_wiring": true,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Resolve status/in_scope required-vs-default contradiction in CoverageItem schema",
+  "anchor": "CoverageItem.required at design.md:324; status default 'unproven' at 373; in_scope default true at 378",
+  "change": "A JSON-Schema `default` never populates a value for a `required` property, so 'status defaults to unproven' (Req 5.1/Property 1) and 'in_scope DEFAULT true' (Req 5.7) are not realized by the file schema even though they ARE realized by the Postgres DEFAULTs (design.md:447-448), making a hand/tool-written file that omits status schema-INVALID while the equivalent DB row is valid-and-defaulted. Pick one: (a) drop `status` and `in_scope` from CoverageItem.required and let the schema `default` annotate, OR (b) keep them required, remove the misleading `default` keywords, and reword Req 5.1/Property 1 to 'every item is WRITTEN with status=unproven by the Initializer' and Req 5.7 likewise. Note the DB-vs-file default divergence so the conservative-merge rule (tasks.md:730) stays consistent.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Add append-only ordering/length preservation check and property",
+  "anchor": "'Never deleted or reordered' (design.md:126, 288); Property 3 Identity-Mutation Blockade (design.md:898-902)",
+  "change": "Property 3 blocks mutation of id/type/acceptance_criteria of an existing item but does NOT catch a pure reorder or a deletion that leaves surviving items' id/type/AC intact. Extend Property 3 (and the PreToolUse status/artifact guard at design.md:214-215) to diff the incoming items[] id-sequence and length against the prior committed version of feature_list.json and block on any deletion, truncation, or reorder. Add the corresponding assertion to tasks.md task 6.1 (check_artifact_guard / a new check_append_only) and its property test (tasks.md 6.4 / Property 3).",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Extend amendment re-entry to flip the feature_list.json item, not only Postgres coverage_items",
+  "anchor": "'On amendment: insert a version row AND reset coverage_items.status to unproven' (design.md:1152); REQ-COV-007 / Property 25",
+  "change": "REQ-COV-007/Property 25/CHECK-10 reset only Postgres coverage_items.status; on a Postgres-down amendment (the file is the Phase-0 source of truth and DB-down fallback, design.md:815) the feature_list.json item stays proven while the model is logically unproven. Extend Req 22 / the amendment design step / task 48 to ALSO flip the corresponding feature_list.json item to unproven and invalidate its plan-approval binding (re-block via feature_list_sha) on amendment, and add a Postgres-down amendment test under task 39.15.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Enforce ears_pattern (and conditionally provenance) at the file level or relocate the guarantee to spec_validator",
+  "anchor": "CoverageItem.required at design.md:324; ears_pattern at 345-349; provenance at 365-369",
+  "change": "`ears_pattern` and `provenance` are schema-optional, yet Req 1.4/Property 16 require exactly one EARS pattern per item and Req 2.3 requires provenance on every inferred requirement, so both guarantees are unenforced at the file level. Either add `ears_pattern` to CoverageItem.required and add an allOf making `provenance` required when provenance=='inferred' is in play (or unconditionally), OR explicitly state in Req 1.4 and Req 2.3 that these are enforced by spec_validator.py at authoring time (not by the file schema) and add the corresponding spec_validator check + task. Pick one and make schema, requirements, and Property 16 agree.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Add an NFR subtype field so the Verifier can route performance vs accessibility deterministically",
+  "anchor": "CoverageItem schema (design.md:331-385), type enum at 331-335; Req 25.1/25.2 (requirements.md:447-448)",
+  "change": "Req 25.1/25.2 route an NFR item to k6/Lighthouse vs axe-core by subtype `performance`/`accessibility`, but CoverageItem has only `type \u2208 {functional,NFR,WIRING}` and no machine-readable subtype, so perf_a11y_verifier cannot select its evidence tool from the coverage model. Add an optional `nfr_subtype` property (enum e.g. {performance, accessibility, reliability, security}) to CoverageItem, required-when type=='NFR' via an allOf, mirror it in the Postgres requirements table, and reference it from Req 25.1/25.2 and the verifier component (design.md:146).",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Tie WIRING-type items to an integration-test Evidence_Record at the schema/Property level",
+  "anchor": "type description 'WIRING items require integration-test evidence' (design.md:334); EvidenceRecord schema (design.md:387-411); Req 8.3 (requirements.md:174)",
+  "change": "Req 8.3 demands an integration test exercising the real execution path as the Evidence_Record for a proven WIRING item, but EvidenceRecord is a uniform 4-field shape with no marker distinguishing an integration test from a unit test, and no schema rule/Property ties WIRING\u2192integration evidence. Add an `evidence_kind`/`test_kind` enum field (e.g. {unit, integration, behavioral, perf, a11y}) to EvidenceRecord, add an allOf requiring evidence_kind=='integration' when the item type=='WIRING' transitions to proven, and add a Property (or extend Property 2) asserting it. Wire it to task 47.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Block COMPLETE/merge on an empty (zero-item) feature_list.json",
+  "anchor": "items array (no minItems) design.md:315-319; evaluate_stop completion gate design.md:728-736; OPA zero-evidence policy",
+  "change": "tools/feature_list_init.py writes `items: []` (tasks.md:239) and the items array has no minItems, so an all-empty coverage model trivially satisfies the Stop gate (not_proven is empty \u2192 allow \u2192 COMPLETE) and the OPA zero-evidence policy, reading as COMPLETE before discovery has run. Add a precondition: gates (Stop completion path and OPA merge policy) must additionally require that discovery has run / items is non-empty (or that no domain-baseline item is UNMAPPED) before a COMPLETE verdict; document that `items: []` is a valid INIT state but not a valid COMPLETE state, and add a test asserting an empty file blocks COMPLETE.",
+  "severity": "defect",
+  "adds_wiring": true,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Reconcile feature_list_sha raw-byte binding with the expected in-place status-flip mutation",
+  "anchor": "plan-approval gate compute_sha256(read_bytes()) design.md:791-792; 'status flip is the expected mutation' design.md:288",
+  "change": "The plan-approval gate binds approval to sha256 over the literal file BYTES (design.md:791-792), but the design EXPECTS in-place status flips unproven\u2192proven (design.md:288) which change those bytes \u2014 so after the first legitimate status flip the SHA no longer matches and every subsequent implementation Write is re-blocked, forcing a fresh human approval; whitespace/key-reorder changes also re-block. Specify a canonical comparison: compute feature_list_sha over a canonicalized projection of the item set (e.g. sorted (id,type,priority,dependencies,acceptance_criteria,in_scope) excluding the mutable status/evidence fields), so status flips do NOT invalidate approval while id/type/AC/scope changes do. Update Property 6 and design.md:789-801 accordingly.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Define MAX_TURNS_PER_SLICE constant and reconcile run_state.budget_exceeded / token_budget_usd against the DDL",
+  "anchor": "evaluate_stop pseudocode lines 699-707: `if run_state.iteration_count >= MAX_TURNS_PER_SLICE:` and `if run_state.budget_exceeded:           # token_cost_usd >= token_budget_usd`",
+  "change": "MAX_TURNS_PER_SLICE is used at design.md:699/701 but never defined as a module constant (only N_PROGRESS_WINDOW=3 and SPEC_COMPLETION_HARD_CAP=7 are). Add a module-constant block near line 654 (e.g. `MAX_TURNS_PER_SLICE = 25  # DEFAULT, bound to the task-44 execution-bounds config module`). Also `run_state.budget_exceeded` and `token_budget_usd` (line 704) have NO backing column: the run_state DDL (481-496) defines only `token_cost_usd NUMERIC(10,4)`. Either add a `token_budget_usd` column to the run_state DDL, or replace `run_state.budget_exceeded` with a computed predicate `run_state.token_cost_usd >= TOKEN_BUDGET` where TOKEN_BUDGET is a config constant bound to the Requirement-20 registry (req:357). Bind MAX_TURNS_PER_SLICE and the budget threshold to task 44 (Execution-bounds config module).",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "stop_hook.py",
+   "stop_hook.py"
+  ]
+ },
+ {
+  "title": "Wire with_reentrancy_guard into a stop_hook main() entrypoint",
+  "anchor": "`def with_reentrancy_guard(fn):` block at design.md:741-753 (immediately after the evaluate_stop pseudocode)",
+  "change": "with_reentrancy_guard(fn) is defined but no code composes it with evaluate_stop, so the guard is dead. Add a `main()` entrypoint showing `result = with_reentrancy_guard(lambda: evaluate_stop(event)); save_run_state(run_state); sys.exit(0 if result.decision=='allow' else 2)`. This wires Req 10.4 (REQ-GATE-004) into the component. Mirror in tasks.md:100/126 (task 5.1 names with_reentrancy_guard and task 5.5 names the reentrancy unit test, but neither shows the composition).",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "stop_hook.py"
+  ]
+ },
+ {
+  "title": "Amend Property 5 and design rows 209/624 to include the HANDOFF-allow carve-out",
+  "anchor": "Property 5 (design.md:914-916 'Termination is permitted only when zero items are `unproven`'); Hook-Wiring row design.md:209 'Termination while any in-scope item is `unproven` or `violation_count > 0`'; Phase-0 test row design.md:624 'With one unproven item \u2192 blocks'",
+  "change": "Property 5, the Stop hook-wiring 'What it blocks' cell (209), and the Phase-0 test-to-pass row (624) all state the pure 'unproven blocks' rule WITHOUT the REQ-LOOP-005 HANDOFF override. At HANDOFF (cap/budget/no-progress) in-scope items are EXPECTED to remain unproven yet the hook MUST allow (exit 0); a naive implementer following Property 5/row-624 alone reproduces the infinite-block defect. Amend all three to read: 'blocks termination while any in-scope item is unproven AND no HANDOFF trigger (cap/budget/no-progress) is active.' tasks.md:948 already extends this caveat to Properties 8/9 \u2014 extend the same caveat to Property 5 and update the property-test spec at tasks.md:104-108 (5.2) which currently asserts unconditional exit-2 on any unproven mix.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "stop_hook.py",
+   "stop_hook.py"
+  ]
+ },
+ {
+  "title": "Mark the Stop-hook audit_log.append call as a Phase-2 addition (guarded/no-op until task 52.3)",
+  "anchor": "Hook-Wiring table Stop row, design.md:209 'calls `audit_log.append(...)` on the allow/block decision'",
+  "change": "design.md:209 and Req 27.4 present `audit_log.append(...)` as always-on in the Phase-0 Stop hook, but `audit_log.py` (the producer) is Phase 2 and its wiring into stop_hook.py is task 52.3 (Phase 2). A Phase-0 hook cannot call a Phase-2 producer. Annotate the Stop row (and the SubagentStop/PreToolUse audit rows at 217/218/210) to say the audit_log.append call is a Phase-2 addition (no-op/absent until task 52.3 wires it), matching the staging already implied by tasks.md:970. Keeps the Phase-0 spine self-consistent.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "stop_hook.py"
+  ]
+ },
+ {
+  "title": "Add a run_state.phase discriminator and specify per-phase cap/no-progress routing in evaluate_stop",
+  "anchor": "run_state DDL design.md:481-496 (no `phase` column); evaluate_stop pseudocode design.md:685-737 (single undifferentiated cap/no-progress path)",
+  "change": "stop_hook serves BOTH the spec-completion loop (Req 4: violation_count, cap=7 passes, pass-level strict-decrease no-progress) AND the implementation loop (Req 10/14: slice completion, cap=25 turns/slice, slice-level N=3 no-progress, design.md:840). The design never states how one Stop hook discriminates the two phases, yet they have different caps and different no-progress semantics. Add a `phase TEXT CHECK (phase IN ('spec','implementation'))` column to the run_state DDL and branch evaluate_stop: in spec phase apply SPEC_COMPLETION_HARD_CAP=7 + pass-level no-progress; in implementation phase apply MAX_TURNS_PER_SLICE=25 + slice-level check_no_progress. Cite design.md:832-842.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "stop_hook.py"
+  ]
+ },
+ {
+  "title": "State that an in-scope item in `failed` status also blocks the Stop completion gate",
+  "anchor": "evaluate_stop completion gate design.md:731 `not_proven = [i for i in in_scope_items if i.status != \"proven\"]` and Property 5 (design.md:914-916)",
+  "change": "With Req 5.8 / Property 3 making `failed` a first-class status, the completion gate `i.status != \"proven\"` means a `failed` in-scope item ALSO blocks termination (it is not-proven), exactly like `unproven`. Property 5 and the Stop hook-wiring row (design.md:209) describe the gate only in terms of `unproven`, never stating that `failed` likewise blocks. Update Property 5 / the design narrative to say 'any in-scope item whose status is not exactly `proven` (i.e. `unproven` OR `failed`) blocks termination', so the implementer does not special-case only `unproven`. Cite requirements.md:129; design.md:731,900.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "stop_hook.py"
+  ]
+ },
+ {
+  "title": "Add a live PreToolUse secret-block gate (REQ-SEC-005 / 17.5) to the hook table and task 6",
+  "anchor": "Hook Wiring Table, after the `PreToolUse` \u2014 status guard row (design.md:215); and tasks.md task 6.1 check list (tasks.md:131-136)",
+  "change": "Add a 7th PreToolUse sub-gate row to the hook-wiring table: `PreToolUse` \u2014 secret-block guard | Trigger: any tool call carrying a prompt/span-attribute/URL/Bash-arg | scans args+prompt against secret regexes (API keys, tokens, passwords, connection strings) | blocks (exit 2) any call that would carry a secret | REQ-SEC-005 (17.5), Property 20. Then add `check_secret_block(event)` to task 6.1's chained checks and cite 17.5 in task 6's `_Requirements:` line. This is the live prevention gate 17.5 mandates ('NOT only via an offline test'); Property 20 (offline test, task 39.11) and task 45 (CI gitleaks, 17.2) do not satisfy it.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "pre_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "Fix Property 26 dangling cross-reference 'Validates: Requirements 27'",
+  "anchor": "Property 26, 'Validates: Requirements 27 (REQ-STATE-005)' (design.md:1090)",
+  "change": "Change 'Validates: Requirements 27 (REQ-STATE-005)' to 'Validates: Requirements 23 (REQ-STATE-005)'. Requirement 27 is the Tamper-Evident Gate-Decision Audit Log; REQ-STATE-005 is Requirement 23 (Resumed-State Integrity), which is the requirement Property 26 / the PreToolUse integrity guard actually validates. The parenthetical REQ-ID is correct; the bare requirement number is wrong.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "pre_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "Pin the artifact guard's protected-path globs and destructive-Bash regex set canonically",
+  "anchor": "Hook-wiring artifact-guard row (design.md:214) and task 6.3 (tasks.md:134)",
+  "change": "Define an explicit canonical PROTECTED_PATHS glob set (e.g. feature_list.json, schema/feature_list.schema.json, tests/**, .github/workflows/**, .github/policies/**) and a DESTRUCTIVE_BASH regex set covering bypass-equivalent forms (rm -rf, DROP TABLE, git reset --hard, git push --force/-f, truncate, find ... -delete, > redirection over protected paths) in design.md, and reference them from task 6.3. Also reconcile the membership disagreement: the design hook-table row (design.md:214) lists only `rm -rf` and `DROP TABLE` while task 6.3 (tasks.md:134) adds `git reset --hard` \u2014 make the two sources agree. Add a property test enumerating bypass-equivalent destructive commands.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "pre_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "Fix systematic Property\u2192Requirement off-numbering (Property 26 mislabeled Req 27)",
+  "anchor": "design.md:1090 '**Validates: Requirements 27 (REQ-STATE-005). Machine-checked: CHECK-11...**' (and the same family: L1080 Property 25, L1100 Property 27, L1110 Property 28)",
+  "change": "The canonical addendum mapping (requirements.md:507-512) makes REQ-STATE-005 = Requirement 23, but Property 26 cites 'Requirements 27' (Req 27 is the Tamper-Evident Audit Log). This mislabels THIS component's own correctness Property. Change 'Requirements 27' \u2192 'Requirement 23' on L1090. The off-by-N is systematic across the block: Property 25 'Requirements 26' \u2192 Requirement 22 (REQ-COV-007); Property 27 'Requirements 25' \u2192 Requirement 24 (REQ-SPEC-016); Property 28 'Requirements 28' \u2192 Requirement 27 (REQ-AUDIT). Fix all four to match the requirements.md:505-512 cross-reference table.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "session_start_hook.py"
+  ]
+ },
+ {
+  "title": "Annotate SessionStart hook-wiring row + inventory that integrity compute is a Phase-2 augmentation",
+  "anchor": "Hook Wiring Table SessionStart row (design.md:219) and Component Inventory rows for session_start_hook.py (design.md:129, Phase 0) and state_integrity.py (design.md:143, Phase 2)",
+  "change": "The SessionStart hook-wiring row presents the hash-compute as part of SessionStart from day one, but state_integrity.py is Phase 2 while session_start_hook.py is Phase 0. A reader building the Phase-0 spine would believe resume_integrity_ok is written from the start. Annotate the row's 'What it does' cell: 'load (git/progress/coverage): Phase 0; integrity compute + resume_integrity_ok write: Phase 2 via state_integrity.py'. Mirror the note in the session_start_hook.py inventory row (design.md:129).",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "session_start_hook.py"
+  ]
+ },
+ {
+  "title": "Specify the resumed-state hash inputs / algorithm / baseline-store location",
+  "anchor": "Property 26 (design.md:1088-1090), Hook Wiring SessionStart row (design.md:219), state_integrity.py inventory + 'New / changed components' note (design.md:143, design.md:1180); Requirement 23 (requirements.md:437-438)",
+  "change": "Neither requirements.md nor design.md defines WHICH state is hashed (feature_list.json items only? + run_state fields? + git HEAD?), the hash algorithm, or where the baseline 'durable store's recorded hash' it is compared against is persisted \u2014 yet SessionStart is credited with the compute. Add a short spec near Property 26 / the state_integrity.py note: exact byte-set (canonical JSON of in_scope feature_list.json items + named run_state fields), algorithm sha256 (consistent with the evidence/audit-log sha256 convention), and the run_state column holding the baseline hash, so SessionStart's compute is implementable from the spec alone.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "session_start_hook.py"
+  ]
+ },
+ {
+  "title": "Note REQ-STATE-003 base load is example-test-verified only (no invariant)",
+  "anchor": "Property 26 block (design.md:1084-1090) and the Hook Wiring SessionStart row (design.md:219); REQ-STATE-003 / criterion 11.3 (requirements.md:221)",
+  "change": "The reconciliation-added integrity half has Property 26 + CHECK-11, but the component's PRIMARY purpose \u2014 REQ-STATE-003 base load (git status + progress + coverage so a session re-orients) \u2014 has NO correctness Property and NO Z3 CHECK; it is exercised only by example tests (7.2, 16.1, 17.1). Either add a property ('for any populated feature_list.json, the SessionStart summary reports the exact unproven/proven counts') or add a one-line design note that REQ-STATE-003 is intentionally example-test-verified only (no invariant), so the absence is documented rather than an oversight.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "session_start_hook.py"
+  ]
+ },
+ {
+  "title": "Scope the base evidence-schema gate to verifier results (skip-when-no-evidence)",
+  "anchor": "Hook Wiring Table row: `| `SubagentStop` | Subagent result returned | Validates Evidence_Record schema (all four fields present and non-empty); calls `audit_log.append(...)` ... | REQ-VERIFY-005, REQ-COV-006, REQ-AUDIT-001 |` (design.md:217)",
+  "change": "Clarify that the base evidence-schema gate applies ONLY to subagent results that CARRY an `evidence` field (verifier results): the hook locates evidence field(s) and, when none are present (initializer/research results, which produce specs/checklists not Evidence_Records), it SKIPS the four-field validation rather than failing closed. State explicitly that REQ-VERIFY-005's 'required evidence markers' for NON-verifier subagents are enforced by the omission-declaration guard (omission_declaration field), not the four-field schema. Mirror this in tasks.md task 8.1 (add a 'skip when result has no evidence field' bullet). This resolves the universal-over-'a subagent's result' wording (requirements.md:190) vs the verifier-only schema gate (design.md:217).",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "subagent_stop_hook.py"
+  ]
+ },
+ {
+  "title": "Author a per-subagent output schema so REQ-SPEC-018 (29.3) has a concrete mechanism",
+  "anchor": "Component Inventory rows for `omission_guard` (design.md:148) and `schema/` (design.md:138); plus tasks.md task 54 'add omission_declaration as a required non-nullable field to each subagent output schema (initializer, research, verifier)' (tasks.md:974)",
+  "change": "Add a `schema/subagent_output.schema.json` (or per-role schemas) to the Component Inventory and a task to author it, declaring `omission_declaration` as a required, non-nullable field per requirement 29.3 (requirements.md:478). Define the subagent-result ENVELOPE once in the Data Models section with documented top-level keys (`evidence[]`, `omission_declaration`, `actor_agent`, `requirement_id`) so BOTH the evidence-schema gate and the omission_guard read the same documented JSON path from the stdin payload. Reference this schema from subagent_stop_hook.py. This closes the gap that 29.3 mandates a schema field with no schema artifact to validate against, AND the field-location drift (no canonical statement of WHERE omission_declaration lives) between task 8.1 and task 54.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "subagent_stop_hook.py"
+  ]
+ },
+ {
+  "title": "Fix omission_guard phase label (Phase 0 -> phase of task 54)",
+  "anchor": "Component Inventory row `| `omission_guard` | (capability within `.claude/hooks/subagent_stop_hook.py`) | 0 | Omission-declaration gate ... |` (design.md:148); subagent_stop_hook.py inventory row labelled '0/1' (design.md:130)",
+  "change": "Re-label the `omission_guard` Phase from `0` to the phase of task 54, which is scheduled in dependency-graph wave 45 (tasks.md:923, :974) \u2014 effectively post-Phase-4, NOT Phase 0. Split/annotate the subagent_stop_hook.py inventory row (design.md:130, currently '0/1') so the Phase-0 deliverable is strictly the base evidence-schema validator (task 8), while the omission_guard (task 54), the audit_log.append wiring (task 52.3, Phase 2/3), and the OTel hook.decision span (task 36.1, Phase 3) are flagged as LATER additions. The hook is genuinely a 0/2/3 multi-phase component and the single '0/1' label understates this.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "subagent_stop_hook.py"
+  ]
+ },
+ {
+  "title": "Add a dedicated design subsection assembling the full subagent_stop_hook.py obligation set",
+  "anchor": "No dedicated subsection exists for subagent_stop_hook.py (contrast the 'No-Progress Watchdog' subsection at design.md:640 which fully narrates stop_hook.py); only inventory line :130 + wiring rows :217-218",
+  "change": "Add a dedicated design subsection for subagent_stop_hook.py (parallel to 'No-Progress Watchdog') specifying: the stdin parse contract; skip-when-no-evidence semantics; ordering of the omission_guard check vs the evidence-schema check; the audit_log.append call site/ordering; and exception handling (exit 2 fail-closed). Currently the hook's full obligation set is scattered across tasks 8, 52.3, and 54 with no single assembling task, and task 8.1 tags only requirement 9.5. Update tasks.md task 8.1 to also reference REQ-COV-006, REQ-SPEC-018, and REQ-AUDIT-001, and cross-link tasks 52.3 and 54 as completing the same component.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "subagent_stop_hook.py"
+  ]
+ },
+ {
+  "title": "Enforce Property 24 (actor_agent != implementer) at the SubagentStop acceptance gate",
+  "anchor": "Property 24 (design.md:1066-1070); evidence_records.actor_agent column with 'MUST be the Verifier, never the Implementer' (design.md:473); SubagentStop wiring row (design.md:217); PBT task 39.13 (tasks.md:652-656)",
+  "change": "Add an actor_agent runtime check to subagent_stop_hook.py: BLOCK (exit 2) any evidence-bearing subagent result whose `actor_agent` is `implementer.md`, enforcing Property 24 ('implementer cannot self-verify') at the acceptance choke point rather than only at the DB column (design.md:473) + property test (task 39.13). Document this in the SubagentStop wiring row (design.md:217) and add it to task 8.1 / the new design subsection. The SubagentStop gate is the natural runtime enforcement point and currently nothing tasks the hook with this check.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "subagent_stop_hook.py"
+  ]
+ },
+ {
+  "title": "PostToolUse Semgrep-only scope (CodeQL is CI-only) is nowhere stated",
+  "anchor": "Hook Wiring Table, PostToolUse row (design.md:216): \"Runs lint, type check, SAST (Semgrep), wiring check on changed files\"",
+  "change": "Add a clause to the PostToolUse hook-wiring row (and mirror in task 18.1, tasks.md:312) stating the in-loop hook runs Semgrep ONLY for SAST; CodeQL is the CI gate (task 23 / REQ-SEC-001), not run at edit time. This prevents the glossary term Semgrep_CodeQL (requirements.md:47) and REQ-VERIFY-001 (requirements.md:186) from being misread as requiring the hook to run CodeQL. Suggested: append '(Semgrep only at edit time; CodeQL runs in CI per REQ-SEC-001)'.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "post_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "No dedicated PostToolUse design subsection: changed-file parsing, stdout feedback schema, and MultiEdit handling unspecified",
+  "anchor": "After the '`plan-approved.json` Gate' subsection (ends ~design.md:801), before '## Error Handling' (design.md:805) \u2014 mirror depth of 'No-Progress Watchdog' / 'plan-approved.json Gate'",
+  "change": "Add a 'PostToolUse Feedback Hook' design subsection (parallel to the Stop-hook and PreToolUse sections) defining: (a) how changed-file path(s) are parsed from the PostToolUse event payload for Write/Edit/MultiEdit \u2014 every sibling hook documents its input parsing (e.g. subagent_stop_hook task 8.1, tasks.md:178 'Parse subagent result from stdin (JSON)'; pre_tool_use reads tool input) but task 18.1 (tasks.md:309-316) uniquely says only 'on changed files' with no stdin-parsing step; (b) the JSON/text schema of the structured feedback emitted to stdout that the agent consumes next turn; (c) how a MultiEdit batch (multiple files in one event) is fanned out to the per-file lint/type/SAST/wiring runs. Also add a matching bullet to task 18.1 spelling out the stdin payload parse step.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "post_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "No timeout specified for PostToolUse despite shelling out to four external processes",
+  "anchor": "Error Handling > Hook Failure Modes table, '`post_tool_use_hook.py` crashes' row (design.md:813)",
+  "change": "Add a timeout behavior for post_tool_use_hook.py. The Req 20.1 60s validator timeout (requirements.md:354) is documented only for spec_validator.py (design.md:814) and silent for this hook, yet semgrep --config auto on a large changeset can exceed 60s. Add a Hook Failure Modes row (or extend the existing post_tool_use_hook row) and a task 18.1 bullet: apply the 60s validator-timeout default per external tool (or a dedicated post-hook budget); on timeout still exit 1 with a 'post-hook timeout' finding in the structured feedback \u2014 never exit 2, never block. This is also the concrete site to connect the N-25 'never fail-open' family note (tasks.md:730): when telemetry/DB is down (task 36.1 OTel forwarding) the hook MUST still exit 1 and not crash the edit loop.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "post_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "PostToolUse intentionally NOT an audit-log producer \u2014 state it explicitly to reconcile with OTel forwarding",
+  "anchor": "Component Inventory, post_tool_use_hook.py row (design.md:131); cross-ref audit producer list at design.md:144 (audit_log.py) and req 27.4 (requirements.md:460)",
+  "change": "Req 27.4 (requirements.md:460) and task 52.3 (tasks.md:970) wire audit_log.append into stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py only \u2014 PostToolUse is deliberately excluded \u2014 yet task 36.1 forwards PostToolUse events to OTel, so the audit log and the OTel trace appear to disagree on whether PostToolUse events are recorded. State explicitly (in the design.md:131 inventory row or the audit_log.py row at design.md:144) that PostToolUse is intentionally NOT a gate-audit-log producer because it issues no allow/block gate decision, and that its OTel forwarding is informational feedback telemetry (paired with the 'hook.feedback' span from the OBS-003 fix), not a gate-decision audit entry.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "post_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "Req 8.1 wiring-analysis EARS story not mapped to the PostToolUse trigger role",
+  "anchor": "Hook Wiring Table, PostToolUse row (design.md:216), 'Requirement enforced' column currently 'REQ-VERIFY-004, REQ-STEER-002'",
+  "change": "Add REQ-EXEC-010 (Req 8.1) to the PostToolUse hook-wiring row's enforced-requirement list and note the trigger/engine split: PostToolUse invokes wiring_checker.py on changed files (task 18.1, tasks.md:313) which performs the static call-graph/dead-code analysis and emits WIRING coverage-item candidates (task 19, tasks.md:325-331). The hook is the trigger; wiring_checker is the engine. Integration test 26.1 (tasks.md:404-410) already exercises the hook+wiring_checker path together under Req 8.1/8.2, so the mapping is testably bound \u2014 make it explicit in the wiring row rather than leaving Req 8.1 traced only through the wiring_checker engine task.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "post_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "Req 20.1 SAST-threshold EARS story: PostToolUse reports HIGH/CRITICAL but does not enforce \u2014 mapping unstated",
+  "anchor": "Hook Wiring Table, PostToolUse row (design.md:216), 'What it blocks' column currently 'Nothing (exit 1 = non-blocking)'",
+  "change": "Clarify the Req 20.1 (0 HIGH/CRITICAL SAST findings) mapping for PostToolUse: the hook filters semgrep output for HIGH/CRITICAL findings (task 18.1, tasks.md:312) but only REPORTS them via next-turn feedback (exit 1) \u2014 it does NOT enforce/block on the 0-HIGH/CRITICAL threshold. Enforcement of that threshold is the CI SAST gate (REQ-SEC-001, CodeQL/Semgrep workflows, task 23). Add a clause to the PostToolUse 'What it blocks' cell (and a task 18.1 bullet) stating PostToolUse surfaces SAST findings as feedback only; the 0-HIGH/CRITICAL threshold (Req 20.1) is enforced at the CI gate, not at edit time.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "post_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "Resolve PreCompact phase contradiction (Phase 1 vs Phase 2)",
+  "anchor": "design.md:132 row `| `pre_compact_hook.py` | `.claude/hooks/pre_compact_hook.py` | 2 |` AND design.md:15 `| **Phase 2 (durable state)** | Postgres traceability graph + PreCompact checkpoints + SLSA attestations |`",
+  "change": "Pick ONE phase for pre_compact_hook.py. The build task (task 25) sits under '### Phase 1 \u2014 Verification Depth' (tasks.md:306, tasks 18-26), Notes line 725 bounds 'Phase 1 task (18-26)', and the wave graph schedules 25.1 in wave 17 (tasks.md:810-812) between Phase-1 wave 16 (21.2-24.1) and Phase-2 wave 19 (27.1). Since PreCompact depends only on file+git artifacts (no Postgres), make it Phase 1: change design.md:132 '2'->'1' and remove 'PreCompact checkpoints' from the Phase-2 overview row (design.md:15). Alternatively move task 25 into Phase 2 (after task 26) to match design.md \u2014 but the wave graph + Notes already commit it to Phase 1, so renaming design.md is the lower-churn fix.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "pre_compact_hook.py"
+  ]
+ },
+ {
+  "title": "Add pre_compact_hook.py row to the Hook Failure Modes table + pin the commit worktree",
+  "anchor": "design.md:809-816 Hook Failure Modes table (currently covers stop_hook.py, pre_tool_use_hook.py, post_tool_use_hook.py, spec_validator.py, Postgres, plan-approved.json \u2014 no PreCompact row)",
+  "change": "Add a `pre_compact_hook.py` failure-mode row: 'On any exception (git index lock, detached HEAD, mid-rebase, unreadable feature_list.json), log to stderr and exit 0 \u2014 a failed checkpoint must NEVER block the run (non-blocking by REQ-STATE-002).' Also specify which ref/worktree the checkpoint commits to: the MAIN worktree, never a per-slice worktree, so the `chore: PreCompact checkpoint [skip ci]` commit (tasks.md:394) cannot collide mid-slice with the one-atomic-commit-per-slice invariant (REQ-EXEC-003 / requirements.md:158) or the implementer's 'exactly one atomic commit' rule (design.md:248). Note the checkpoint commit carries no requirement-ID trailer and is exempt from the REQ-TRACE-002 commit-trailer gate (it is a chore, not a slice commit).",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "pre_compact_hook.py"
+  ]
+ },
+ {
+  "title": "REQ-STATE-002 has no Z3 check and no Correctness Property \u2014 state the verification basis explicitly",
+  "anchor": "design.md:220 PreCompact row (REQ-STATE-002) AND the Correctness Properties list (design.md ~1084-1130, which contains Property 26 for REQ-STATE-005 but no PreCompact/REQ-STATE-002 property)",
+  "change": "REQ-STATE-002 is the sole reason this component exists yet is verified by nothing in formal_verification_merged.py (a grep shows only the CHECK-11 family covers REQ-STATE, and that maps to REQ-STATE-005, not 002) and by no Correctness Property. This is defensible (a non-blocking checkpoint has no SAT/UNSAT gating invariant) but must be stated, not silent. Add a one-line note near the PreCompact design row / Property list: 'REQ-STATE-002 is verified by unit + integration test (task 25.2), not Z3 \u2014 a checkpoint write has no gating invariant.' Optionally add an integration test asserting that after a simulated PreCompact the checkpoint files + commit exist and SessionStart reads them back.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "pre_compact_hook.py"
+  ]
+ },
+ {
+  "title": "Wire REQ-STATE-001 (persist run state outside model context) to PreCompact as a contributing writer",
+  "anchor": "design.md:220 PreCompact row (Requirement enforced column currently lists only REQ-STATE-002)",
+  "change": "PreCompact partially realizes REQ-STATE-001 (requirements.md:219: 'persist all mutable run state outside model context, in files, git history') \u2014 it is the write-side that persists progress + evidence to files and git before compaction. The current PreCompact row maps only REQ-STATE-002. Add REQ-STATE-001 to the PreCompact row's Requirement-enforced column (as a contributing writer alongside REQ-STATE-002) so the file+git persistence obligation is traced to this component, not only to the durable-Postgres path. (Note: this is a partial mapping \u2014 Postgres persistence under REQ-STATE-001 is covered by Phase 2 tasks 31.x.)",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "pre_compact_hook.py"
+  ]
+ },
+ {
+  "title": "Specify the producer that copies validate_spec() violation_count into run_state.violation_count",
+  "anchor": "design.md:231-232 initializer Key behaviors: 'Runs spec_validator.py after every elaboration pass' / 'Loops (bounded to DEFAULT=7 passes) until violation_count == 0'",
+  "change": "Add an explicit producer step to the Initializer key-behaviors (design.md:231-232) AND to Task 10.1 (tasks.md:204): on each elaboration pass call save_run_state(run_state with violation_count = validate_spec(...)['violation_count']) \u2014 including the -1 timeout sentinel \u2014 so the Stop hook's run_state.violation_count (design.md:490, read at design.md:722-725, REQ-SPEC-021) has a specified writer. Currently validate_spec RETURNS violation_count and stop_hook READS run_state.violation_count, but no step wires producer\u2192consumer (Task 31.1 only wires save_run_state mechanically, never with the validator's output).",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Reconcile spec 7-pass cap vs 25-turn slice cap \u2014 Stop hook keys HANDOFF on the wrong counter for the lex-specialis tiebreak",
+  "anchor": "design.md:699 'if run_state.iteration_count >= MAX_TURNS_PER_SLICE' vs design.md:842 / requirements.md:110 keying on 'iteration_count < SPEC_COMPLETION_HARD_CAP'",
+  "change": "Introduce a distinct run_state field spec_pass_count (separate from iteration_count which counts the 25-turn MAX_TURNS_PER_SLICE) and add a Stop-hook (or Initializer-loop) HANDOFF branch firing when spec_pass_count >= SPEC_COMPLETION_HARD_CAP (7), independent of the MAX_TURNS_PER_SLICE check at design.md:699. Fix design.md:842 and requirements.md:110 (Req 4.6) which currently say the exit-2 block applies while 'iteration_count < SPEC_COMPLETION_HARD_CAP' \u2014 iteration_count is the 25-turn counter (design.md:487), so as written the 7-pass lex-specialis tiebreak is not realizable. Name the same counter in the tiebreak that the cap-HANDOFF branch checks.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Replace harness-exit proxy test-to-pass with a direct validate_spec() fixture assertion",
+  "anchor": "design.md:632 row 10 Test to pass: 'python3 formal_verification_merged.py exits 0 (all 34 checks pass)'",
+  "change": "The Phase-0 test-to-pass for spec_validator.py (design.md:632, component #10) is the STATIC 34-assertion harness exit code; the harness contains zero validate_spec/spec_validator references (grep confirms), so it never exercises the NLP parse, EARS encoding, the four consistency/completeness/vacuity/independence checks, or the four-field return. Change the test-to-pass to invoke validate_spec() on a fixture spec containing a known contradiction, a known UNMAPPED item, and a vague adjective, asserting the returned {contradictions, ambiguities, uncovered, violation_count} matches expected counts; keep the harness run as a separate check.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Define the analysis-pass \u2192 four-return-field mapping in the EARS\u2192SMT section",
+  "anchor": "design.md:554-563 'Consistency Checks Run Per Spec' (four checks) vs design.md:133 four-field return {contradictions, ambiguities, uncovered, violation_count}",
+  "change": "The four analysis passes (Consistency/Completeness/Vacuity/Independence, design.md:554-563) are never mapped to the four return fields (design.md:133), and violation_count's composition is undefined. Add a one-line mapping after design.md:563: contradictions = unsat-core count (Consistency); uncovered = UNMAPPED count (Completeness); ambiguities = vacuity hits + vague-adjective hits; violation_count = sum of the three (>=0), or -1 on Z3 timeout (per design.md:814). This fully defines the four-field contract from Property 14 / Req 4.1.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Assign prior-pass violation_count storage (prev_violation_count) for Property 15 convergence",
+  "anchor": "design.md:231 'Runs spec_validator.py after every elaboration pass'; Property 15 (design.md:994-998); run_state schema (design.md:481-496, no prev field)",
+  "change": "Property 15 (strict-decrease-or-HANDOFF, design.md:994-998) and Req 4.3 require comparing the current pass's violation_count against the prior pass's, but no run_state field stores the prior value (run_state schema design.md:481-496 has violation_count but no prev_violation_count). Add a run_state.prev_violation_count field and specify in the Initializer key-behaviors (design.md:231) / Task 10.1 that the loop compares current vs prior to enforce strict-decrease-or-HANDOFF. Mirror with a column in migration 005_run_state.sql (Task 28.5).",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Fix validate_spec() signature gap \u2014 Completeness/UNMAPPED check needs the domain-baseline item set as input",
+  "anchor": "design.md:133 / tasks.md:66 signature 'validate_spec(requirements: list[dict]) -> dict'; design.md:559 Completeness check 'for each domain-baseline item'",
+  "change": "The Completeness check (design.md:559) flags UNMAPPED 'for each domain-baseline item', but the domain-baseline checklist set is NOT a parameter of validate_spec(requirements: list[dict]) (signature at design.md:133, tasks.md:66) \u2014 it lives in domain_baseline_checklists / the checklist file. As written the validator cannot compute 'uncovered' from its inputs. Either extend the signature to validate_spec(requirements: list[dict], baseline_items: list[dict]) -> dict (and update Task 4.1, Property 14, the design.md:632 test) or specify how validate_spec loads the baseline set, so the uncovered/UNMAPPED field has a defined source.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Define the 'without a numeric bound' bound-detection predicate for the vague-adjective scanner",
+  "anchor": "requirements.md:63 'without a quantified numeric bound'; design.md:1010-1014 (Property 17 'without an associated numeric bound'); tasks.md:68,87 'without a numeric bound'",
+  "change": "Req 1.2, Property 17 (design.md:1010-1014), and Task 4.4 (tasks.md:68,87) all hinge the scanner's accept/reject on a vague adjective appearing 'without a numeric bound', but no doc defines how the presence of a numeric bound is detected (digit regex? unit grammar? proximity window to the adjective? a parsed comparison predicate?). Specify the bound-detection rule in the EARS\u2192SMT section (e.g. a numeric literal with an optional unit within the same clause / N-token window of the flagged adjective) so the core accept/reject decision is reproducible rather than implementation-defined.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Specify variable-construction mechanism for the Independence check inside validate_spec(), or scope it out of the per-spec checks",
+  "anchor": "design.md:561 Independence: 'confirms gate decisions are independent of prediction variables by asserting predA != predB AND gateA = gateB is SAT'",
+  "change": "Independence is listed as one of the four per-spec checks run by validate_spec (design.md:561), but a plain requirements: list[dict] contains no gate/prediction variables, and design.md:561 describes it only generically with no mechanism to construct gateA/gateB/predA/predB from an arbitrary EARS spec. The harness CHECK-5 (formal_verification_merged.py:255-261) tests this against fixed completion-gate variables, NOT against validate_spec output, and Property 4 is tested via test_completion_gate.py (tasks.md:658-662), not test_spec_validator.py. Either specify how validate_spec derives gate/prediction variables from a requirements list, or move Independence out of the four per-spec validate_spec checks and document it as the static design-time harness check it actually is (design.md:561 / CHECK-5), reconciling design.md:554-563 with the harness scope.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Add a design subsection defining output_hash byte-source, canonicalization, and artifact retention",
+  "anchor": "Component inventory row evidence_collector.py (design.md:134) and Phase 0 list row 11 (design.md:633); no narrative subsection exists",
+  "change": "design.md covers evidence_collector in only inventory cells (134, 263, 633) plus one test line (859) with no narrative on the load-bearing hashing semantics. Add a design subsection (near the EvidenceRecord data model, design.md:387-423) defining: (1) the exact byte source for output_hash \u2014 raw test stdout vs the Playwright trace file vs a normalized artifact; (2) a canonicalization rule so non-deterministic test output (timestamps, ordering, temp paths) rehashes identically across runs; (3) whether/where the raw artifact is retained (blob store vs hash-only) \u2014 requirements.md:297 says 'artifact OR content-addressed reference', leaving retention unspecified. Without this, output_hash is not reproducibly verifiable and OPA's zero-evidence query cannot detect a fabricated hash (design.md:1052).",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "evidence_collector.py"
+  ]
+ },
+ {
+  "title": "Criterion 8.2 (Verifier marks WIRING item failed on unreachable symbol) has no mechanism",
+  "anchor": "verifier.md key-behaviors list, design.md:257-266 (Runs structural/semantic/behavioral/security/perf checks) \u2014 no WIRING/unreachable behavior listed",
+  "change": "Add a verifier.md key-behavior bullet: 'On each slice, the Verifier consumes wiring_checker.py findings (or re-runs it); for any WIRING item whose symbol is reported unreachable from a real execution path, performs the unproven\u2192failed transition (permitted by the PreToolUse status guard, design.md:215).' Pair it with a tasks.md subtask wiring the checker's unreachable-symbol finding to a Verifier-authored unproven\u2192failed transition, citing REQ-EXEC-011. Currently the Verifier definition never reads wiring_checker output, never mentions WIRING items, and no task connects the finding to a failed transition.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "wiring_checker.py",
+   "wiring_checker.py"
+  ]
+ },
+ {
+  "title": "Requirement 8 / wiring_checker.py is pinned by no Z3 CHECK and no correctness Property",
+  "anchor": "Correctness Properties section (Properties 1-30, design.md:882-1130) \u2014 none addresses call-graph/dead-code/wiring; and verification/formal_verification_merged.py has no REQ-EXEC-010..012 check (grep: zero wiring/dead-code/reachability assertions, CHECKs run only 1..13b)",
+  "change": "Pick one and apply: (a) add a new Property (e.g. 'Property 31: Wiring / Dead-Code Detection \u2014 for any file with a defined-but-never-called non-test symbol, wiring_checker.py emits exactly one WIRING candidate naming that symbol; for any reachable handler, zero candidates') with a Hypothesis test seeded in the PBT suite; OR (b) explicitly document in design.md that wiring detection is a runtime/example-tested property with no Z3 model (mirroring the audit-log note at design.md:1110 'no Z3 check \u2014 runtime/CI verified'). Today the absence is silent while every other major gate carries a CHECK or Property; the integration claim rests solely on example tests 19.2 and 26.1.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "wiring_checker.py"
+  ]
+ },
+ {
+  "title": "No design narrative defines reachability scope (per-file vs repo-wide) for wiring_checker.py \u2014 cross-file false-positive risk",
+  "anchor": "Component inventory single row design.md:135 (`wiring_checker.py` ... 'Static call-graph / dead-code analysis; emits WIRING coverage items') \u2014 no B07/Requirement-8 narrative subsection anywhere",
+  "change": "Add a B07 design subsection for wiring_checker.py specifying: (1) the definition of 'real execution path'; (2) entry-point seeding (CLI mains, route/handler decorators, registered callbacks; test files excluded); (3) whether reachability is whole-repo or per-file \u2014 and reconcile against tasks.md:327 which says 'build a call graph for each file'. A per-file AST graph structurally cannot distinguish 'defined-but-never-called-in-this-file' from 'called-from-another-file', so per-file scope false-positives on every public/exported symbol; the analysis likely must be repo-wide, or per-file with an explicit exported-symbol exemption. Today there is zero narrative/interface/algorithm description.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "wiring_checker.py"
+  ]
+ },
+ {
+  "title": "Add a design.md subsection for orphan_detector defining its full contract",
+  "anchor": "Component inventory row (design.md:136) 'orphan_detector.py ... Detects implementation units with no requirement ref and vice versa'; add a new subsection peer to 'No-Progress Watchdog' (design.md:640)",
+  "change": "Add a design.md subsection (peer to the No-Progress Watchdog / plan-approved gate subsections) for orphan_detector, since the component currently has only one inventory line plus Property 11 \u2014 no CLI signature, no output schema, no caller, no blocking semantics, no data source, and it is absent from the Phase 0 spine list. The subsection must define: the CLI signature; the structured JSON report schema (forward_orphans[], backward_orphans[]); the data source for each orphan class (feature_list.json for forward; traceability_links/evidence_records for backward per the source-of-truth edit); the caller (the traceability-gate CI check); the exit-code-to-block mapping; the run scope and excludes. This consolidates the dedup'd detail edits into one design home.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "orphan_detector.py"
+  ]
+ },
+ {
+  "title": "Document the deliberate assurance level for orphan detection (no Z3, audit-log routing if it blocks)",
+  "anchor": "New orphan_detector design subsection (peer to No-Progress Watchdog, design.md:640); Property 11 (design.md:962-966)",
+  "change": "State orphan detection's assurance level explicitly. It has zero Z3 coverage (confirmed: no orphan/trace/6.3 hits in formal_verification_merged.py) and, being unwired, produces no gate_audit_log entry (audit producers are stop/pre_tool_use/subagent_stop hooks only, design.md:144,460). Document one of: (a) runtime-only hypothesis Property 11 is the deliberate assurance level (weaker than peer Z3-backed gates) \u2014 state this in design.md; OR (b) if orphan detection becomes a blocking gate per the traceability-gate edit, route its allow/block decision through audit_log.append(...) like the other gate producers so the block is tamper-evidently logged.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "orphan_detector.py"
+  ]
+ },
+ {
+  "title": "Resolve the feature_list.json-vs-evidence_records input-model contradiction for the Rego policy",
+  "anchor": "### Property 22: OPA Zero-Evidence Policy at Merge \u2014 '*For any* merge attempt, the OPA/Conftest policy shall deny the merge if the query `SELECT COUNT(*) FROM evidence_records WHERE requirement_id = ANY(approved_req_ids)` returns fewer rows...' (design.md:1052)",
+  "change": "Pick the feature_list.json Conftest-document model as canonical (it matches the actual `conftest test feature_list.json` invocation at tasks.md:264 and all integration tests at tasks.md:407-408). REWRITE Property 22's statement to express the rule over `input.items` (Conftest document input) rather than a SQL `SELECT ... FROM evidence_records`: e.g. 'the policy shall deny the merge if any in_scope item in input.items is not status==\"proven\", or any proven item lacks a complete four-field Evidence_Record.' Also rewrite tasks.md:354 first bullet ('deny merge if any requirement ID in the approved set has zero rows in `evidence_records`') to the same document model, and add one sentence to the design.md:137 Component-Inventory row (or a new subsection) stating the single canonical input is the feature_list.json document evaluated by Conftest, not a live Postgres table.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "coverage_query.rego",
+   "coverage_query.rego"
+  ]
+ },
+ {
+  "title": "Specify fail-closed / default-deny posture for the Rego merge policy",
+  "anchor": "Error Handling \u2192 Hook Failure Modes table (design.md:809-816); add a coverage-gate row / note near design.md:137 or 815",
+  "change": "Add a design note giving coverage_query.rego the same fail-closed posture REQ-GATE-005 mandates (requirements.md:207) and that design.md:811-816 already specifies for stop_hook.py / pre_tool_use_hook.py. State default-deny semantics explicitly: an empty `input.items` array, a parse failure, or a missing/malformed feature_list.json MUST produce a deny / non-zero Conftest exit; the coverage-gate.yml CI step MUST treat any Conftest error (non-zero for reasons other than a clean pass) as a merge block, never default-allow. Closes REQ-GATE-005 (ears_needing_work 10.5, status=gap) for the OPA leg.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "coverage_query.rego"
+  ]
+ },
+ {
+  "title": "Fix the formal_verification_merged.py CI-invocation path mismatch",
+  "anchor": "Phase 0 Component List row 10 \u2014 '`python3 formal_verification_merged.py` exits 0 (all 34 checks pass)' (design.md:632); same bare path in tasks.md:252 and tasks.md:301",
+  "change": "Update the invocation path from `python3 formal_verification_merged.py` to `python3 verification/formal_verification_merged.py` in design.md:632 and tasks.md:252-254 / task 17.1 (tasks.md:301), because the harness actually lives at `verification/formal_verification_merged.py` (verified: no file at repo root). The spec wires a bare repo-root path into CI (task 13.1) that does not match the file's real location \u2014 a CI-wiring defect that would make the formal-verification required check fail to find the harness.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "coverage_query.rego"
+  ]
+ },
+ {
+  "title": "Add a dedicated 'Coverage Merge Policy' design subsection for coverage_query.rego",
+  "anchor": "Component Inventory row '`coverage_query.rego` | `.github/policies/coverage_query.rego` | 1 | OPA/Conftest policy; denies merge if any requirement has zero passing evidence.' (design.md:137) \u2014 the ONLY dedicated mention; no subsection exists",
+  "change": "Add a 'Coverage Merge Policy' design subsection bringing coverage_query.rego to parity with the stop_hook.py / plan-approved.json code-bearing subsections. It must state: (1) the canonical input model (feature_list.json Conftest document); (2) an example Rego policy body with the two deny rules over `input.items`; (3) the in_scope filter, the `status != \"proven\"` rule (covers failed+unproven), and the four-field Evidence_Record completeness rule; (4) default-deny error semantics (empty/missing/parse-error => deny); (5) the workflow wiring (coverage-gate.yml co-tenancy + required-check registration). This consolidates dedup_keys coverage-rego-input-model / in-scope-filter / failed-status / four-field-evidence / fail-closed into one authoritative location; the individual tasks.md edits remain the task-level mirrors.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "coverage_query.rego"
+  ]
+ },
+ {
+  "title": "Add if/then so evidence is required when status==proven",
+  "anchor": "design.md:381-384 (CoverageItem.evidence $ref with prose 'Required when status = proven') and design.md:372-374 (status enum)",
+  "change": "Add a draft-07 conditional to the CoverageItem definition: `\"if\": {\"properties\": {\"status\": {\"const\": \"proven\"}}}, \"then\": {\"required\": [\"evidence\"]}`. Without it an item with status:proven and no evidence object validates, leaving Property 2 (design.md:890-894) and Req 5.3/5.6 unenforceable by the schema alone. Update tasks.md:25-29 (task 2.1) acceptance to include this clause.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.schema.json (schema/)"
+  ]
+ },
+ {
+  "title": "Add minLength:1 to EvidenceRecord string fields (non-empty enforcement)",
+  "anchor": "design.md:392-409 (EvidenceRecord.properties test_file/test_name/collected_at) and Property 2 'present and non-empty' at design.md:892",
+  "change": "Add `\"minLength\": 1` to test_file, test_name, and collected_at (output_hash and acceptance_criteria items are already de-facto non-empty via pattern/minItems). Req 5.6 and Property 2 demand each of the four fields be 'present AND non-empty', but `required`+`type:string` accepts the empty string. EITHER add minLength here OR change Property 2 (design.md:890-894) to state non-emptiness is delegated to evidence_collector.validate_evidence_record (tasks.md:46) rather than the schema \u2014 pick one and make schema/Property consistent.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.schema.json (schema/)"
+  ]
+ },
+ {
+  "title": "actor_agent forbidden by additionalProperties:false but NOT NULL in Postgres + Property 24",
+  "anchor": "design.md:387-390 (EvidenceRecord required=4 fields, additionalProperties:false) vs design.md:473 (evidence_records.actor_agent TEXT NOT NULL) vs design.md:1066-1072 (Property 24, Validates Req 9.2)",
+  "change": "Add `actor_agent` (type:string, minLength:1) to the JSON-Schema EvidenceRecord properties so the schema and the Postgres NOT NULL column agree, OR change additionalProperties to allow it. As written, an EvidenceRecord carrying actor_agent (required by the DB CHECK and by Property 24's 'actor_agent must be the Verifier') FAILS jsonschema.validate, and one that passes the schema cannot satisfy the NOT-NULL column \u2014 a real schema/DB/Property-24 three-way divergence. Reconcile in design.md:387-411 and note that EvidenceRecord field count becomes 5 (the four-field gate stays the proven-transition gate; actor_agent is provenance).",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.schema.json (schema/)"
+  ]
+ },
+ {
+  "title": "Make provenance required in schema to match NOT NULL Postgres column and Req 2.3",
+  "anchor": "design.md:324 (CoverageItem.required omits provenance) and design.md:365-369 (provenance enum) vs design.md:438 (requirements.provenance TEXT NOT NULL CHECK)",
+  "change": "Add `provenance` to CoverageItem.required (design.md:324) so the JSON schema matches the NOT NULL Postgres column (design.md:438) and Req 2.3 (requirements.md:79: 'SHALL mark inferred-vs-stated provenance on each requirement'). Today a schema-valid item can omit provenance entirely while the DB rejects it, so the file and DB disagree on whether provenance is mandatory. (Note: governing requirement is Req 2.3, not Req 4.3.) Alternatively document explicitly that provenance lives only in Postgres and is intentionally optional in the JSON file.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.schema.json (schema/)"
+  ]
+ },
+ {
+  "title": "Correct Property 1 'Validates' citation (drop dangling 5.4)",
+  "anchor": "design.md:886 (Property 1 'Validates: Requirements 5.1, 5.4')",
+  "change": "Change Property 1's 'Validates' line to Requirements 5.1 (and add 5.7 for the in_scope default if desired) and drop 5.4. Property 1's body (non-empty id, type enum, \u22651 acceptance criterion, status default unproven) maps to Req 5.1; Req 5.4 is the WIRING/NFR-first-class requirement, which Property 1 does not assert, so the 5.4 citation is dangling. Also align task 2.2 (tasks.md:33) and task 2.1 (tasks.md:29), which disagree (2.2 says 5.1,5.4; 2.1 says 5.1,5.3,5.6).",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.schema.json (schema/)"
+  ]
+ },
+ {
+  "title": "Add ID pattern to dependencies items (or note referential integrity is ungated)",
+  "anchor": "design.md:354-358 (dependencies array, items {type:string}, no pattern) vs design.md:326-329 (id with pattern ^[A-Z]+-[A-Z]+-[0-9]{3}$)",
+  "change": "Apply the same `\"pattern\": \"^[A-Z]+-[A-Z]+-[0-9]{3}$\"` to the items of dependencies so a dependency at least has a well-formed ID shape, OR add an explicit note that dependency referential integrity (the referenced ID actually exists and is proven) is delegated to the hook/verifier and is intentionally not schema-enforceable. Today a dependency can be any string, including a malformed or non-existent ID, and still validate, which the artifact never acknowledges.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.schema.json (schema/)"
+  ]
+ },
+ {
+  "title": "Specify canonical (deterministic-JSON) form for feature_list_sha",
+  "anchor": "## `plan-approved.json` Gate \u2014 line 791: `current_sha = compute_sha256(Path(\"feature_list.json\").read_bytes())` and line 801 prose",
+  "change": "Replace the raw-bytes SHA with a canonical-form SHA: compute feature_list_sha over a deterministic/sorted-key JSON serialization of feature_list.json (mirroring the gate_audit_log 'Canonical form = deterministic JSON' rule at design.md:1170), so that whitespace-only or key-reordering rewrites the human did not review do not break the bind. State this canonical rule in the `plan-approved.json` Gate subsection AND add it to the glossary entry (requirements.md:43). Update the hook snippet to canonicalize before hashing (e.g., `compute_sha256(canonical_json(json.loads(Path('feature_list.json').read_text())))`).",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "plan-approved.json"
+  ]
+ },
+ {
+  "title": "Bind or explicitly demote plan-approved.json.spec_version",
+  "anchor": "`plan-approved.json` example, `\"spec_version\": \"1.0.0\"` (design.md:767); hook never reads it (design.md:790-798)",
+  "change": "Resolve spec_version dead-metadata: EITHER bind it (check_plan_approval also compares approval.spec_version against the spec version recorded in the durable store / spec header and blocks on mismatch, so a stale approval that still matches feature_list_sha cannot unlock) OR explicitly document it as advisory-only metadata in the `plan-approved.json` Gate subsection. State which in design.md.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "plan-approved.json"
+  ]
+ },
+ {
+  "title": "Specify revocation / staleness semantics for plan-approved.json",
+  "anchor": "`plan-approved.json` Gate subsection (design.md:758-801); no expiry/revoke/nonce exists anywhere in design.md or requirements.md",
+  "change": "Add an explicit operator revoke path (operator deletes/invalidates plan-approved.json to re-block writes) as a documented action, and optionally an `expires_at` or `approved_for_session`/nonce field so a stale approval cannot silently authorize a much later run for the same coverage model. Today the only de-facto revocation is mutating feature_list.json to force a SHA mismatch, which is never specified as an operator action.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "plan-approved.json"
+  ]
+ },
+ {
+  "title": "Resolve plan-approved.json against repo root, not cwd",
+  "anchor": "`plan_path = Path(\"plan-approved.json\")` and `Path(\"feature_list.json\")` (design.md:781, 791); inventory notation `/plan-approved.json` (design.md:139); worktree cwd isolation (design.md:514-527)",
+  "change": "The hook resolves plan-approved.json (and feature_list.json) cwd-relative, but the system deliberately runs agents inside per-slice git worktrees whose cwd is NOT the repo root \u2014 so the root-level marker is missed and the gate mis-fires. Pin resolution to the repo root explicitly (e.g. `repo_root = Path(subprocess.check_output(['git','rev-parse','--show-toplevel']).decode().strip()); plan_path = repo_root / 'plan-approved.json'`) for BOTH plan-approved.json and feature_list.json, and reconcile the inventory's `/plan-approved.json` notation (design.md:139) with the resolved path used in code.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "plan-approved.json"
+  ]
+ },
+ {
+  "title": "State whether a non-byte amendment (Postgres-only) leaves a stale plan-approved.json validly unlocking writes",
+  "anchor": "`plan-approved.json` Gate (SHA over feature_list.json bytes only, design.md:791); requirement_versions reset (design.md:1152); Property 25 Amendment Monotonicity (design.md:1074-1080); Req 22 (requirements.md:433)",
+  "change": "Document the interaction between Req 22 / Property 25 amendment versioning and the plan gate: when a requirement is amended and the coverage item re-enters `unproven` by mutating ONLY the Postgres requirement_versions / coverage_items tables (not feature_list.json bytes), the feature_list_sha still matches, so the existing plan-approved.json stays valid and continues to unlock implementation writes against a now-stale coverage model. Either require amendments to also rewrite feature_list.json (forcing a SHA re-block) or have the plan gate additionally check for any post-approval amendment / unproven re-entry. State the chosen rule so the stale-approval hole is closed.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "plan-approved.json"
+  ]
+ },
+ {
+  "title": "run_state DDL has no budget threshold column the Stop hook compares against",
+  "anchor": "CREATE TABLE run_state (...) block at design.md:481-496; evaluate_stop branch at design.md:704 `if run_state.budget_exceeded:  # token_cost_usd >= token_budget_usd`",
+  "change": "Add a `token_budget_usd NUMERIC(10,4) NOT NULL` (operator-set DEFAULT) column to the run_state DDL, and define `budget_exceeded` as the derived predicate `token_cost_usd >= token_budget_usd` (either a generated column or documented as computed in run_state_manager). Cross-reference the 1,000,000-token-per-slice budget (requirements.md:357, REQ-LOOP-001/002) and the design.md:823 circuit breaker. Also add the budget column to task 28.5 (currently lists only status CHECK, stop_hook_active, no_progress_n). Currently the Stop hook reads `run_state.budget_exceeded` against a threshold that has no schema backing.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "Properties 25/26/27 cite the wrong Validates requirement NUMBER (PRD codes are right)",
+  "anchor": "Property 25 line 1080 'Validates: Requirements 26 (REQ-COV-007)'; Property 26 line 1090 'Validates: Requirements 27 (REQ-STATE-005)'; Property 27 line 1100 'Validates: Requirements 25 (REQ-SPEC-016)'",
+  "change": "Correct the requirement numbers to match the PRD codes and the cross-reference table at requirements.md:507-509: Property 25 \u2192 'Validates: Requirements 22 (REQ-COV-007)'; Property 26 \u2192 'Validates: Requirements 23 (REQ-STATE-005)'; Property 27 \u2192 'Validates: Requirements 24 (REQ-SPEC-016)'. As written they point at Req 26 (Reasoning-Loop), Req 27 (Audit Log), and Req 25 (Performance/Accessibility) respectively \u2014 a self-contradiction against requirements.md and the harness CHECK-10/11/12 PRD tags.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "gate_audit_log append-only is convention-only \u2014 no DB-level mutation prevention",
+  "anchor": "gate_audit_log DDL in the Merge Reconciliation Addendum (design.md:1156-1167); requirements.md:457 (REQ-AUDIT-001 append-only)",
+  "change": "Add to migration 008 / the design DDL a DB-level append-only enforcement: `REVOKE UPDATE, DELETE ON gate_audit_log FROM <app_role>` and/or a `BEFORE UPDATE OR DELETE` trigger that RAISEs. Today append-only relies solely on the hash chain (after-the-fact tamper detection) plus convention; the DB still accepts row mutation, which is weaker than REQ-AUDIT-001 intent. Add the corresponding DDL line to task 28.8.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "evidence_complete CHECK does not enforce the sha256 output_hash format the JSON schema enforces",
+  "anchor": "evidence_complete CONSTRAINT at design.md:474-477 (`output_hash <> ''`) vs the feature_list JSON schema output_hash pattern `^sha256:[a-f0-9]{64}$` at design.md:402",
+  "change": "Either add a CHECK that `output_hash ~ '^sha256:[a-f0-9]{64}$'` to the evidence_complete constraint (and to task 28.4) so the DB matches the JSON-schema format, OR add an explicit note that output_hash format enforcement is delegated to the JSON-schema / evidence_collector layer. As-is, a malformed hash passes the DB CHECK (non-empty only) but fails JSON-schema validation \u2014 a DB/JSON enforcement asymmetry.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "No index DDL anywhere; migrations component lacks an index/performance design narrative",
+  "anchor": "Postgres Schema section (design.md:425-509) and inventory row `db/migrations/` (design.md:140); Property 22 OPA COUNT against evidence_records (design.md:1052)",
+  "change": "Add a Migrations design subsection (apply order, owning Postgres role, required indexes) and add the index DDL to the relevant 28.x tasks. At minimum: index on `evidence_records.requirement_id` (Property 22 per-requirement COUNT), `traceability_links.requirement_id` (queried in both directions un-indexed), and `coverage_items.requirement_id`. The current schema has zero CREATE INDEX statements.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "Postgres store cannot reconstruct acceptance_criteria / dependencies / priority \u2014 REQ-16.3 fidelity gap",
+  "anchor": "requirements DDL design.md:431-440 (has priority, lacks acceptance_criteria & dependencies) and coverage_items DDL design.md:443-451 (lacks priority & dependencies) vs feature_list JSON schema required set `[id, type, priority, dependencies, acceptance_criteria, status, in_scope]` at design.md:324; REQ-16.3 at requirements.md:298",
+  "change": "Resolve the source-of-truth fidelity gap one of two ways: (a) add `acceptance_criteria` and `dependencies` storage (TEXT[]/JSONB columns or a child table) to requirements, and add `priority`+`dependencies` to coverage_items, so the DB can reconstruct Property 1 (\u22651 acceptance criterion) and Property 7 prior-slice ordering (priority/dependencies, design.md:336-358, 932); OR (b) explicitly scope REQ-16.3 (requirements.md:298) so feature_list.json is canonical for acceptance criteria/dependencies/priority and Postgres mirrors only the coverage-status subset. Pick one and make design + tasks + requirements consistent. This single root cause covers both the missing acceptance_criteria and the missing slice-ordering dependencies/priority.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "Property 22 prose claims a Postgres COUNT but the built Conftest policy reads feature_list.json",
+  "anchor": "Property 22 EARS prose at design.md:1052 (`SELECT COUNT(*) FROM evidence_records WHERE requirement_id = ANY(approved_req_ids)`) vs task 21.1 (tasks.md:355 'Accept feature_list.json as Conftest input; policy reads items[_].status') and Phase-0 stub task 14.1 (tasks.md:264-265)",
+  "change": "Reconcile Property 22's store: either (a) rewrite the Property 22 prose so the gate is expressed over the feature_list.json embedded evidence object that Conftest actually reads (since no task wires Conftest to Postgres), keeping the evidence_records SQL as an optional/secondary check; OR (b) add a task that exports/queries evidence_records into the Conftest input. As written, design asserts a SQL COUNT against evidence_records that the realized merge gate never performs \u2014 feature_list.json is the store the gate queries.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "Property 22 counts approved requirements without excluding out-of-scope (Req 5.7) and evidence_records has no in_scope linkage",
+  "anchor": "Property 22 prose design.md:1050-1052 (counts over approved_req_ids, no in_scope filter) vs Req 5.7 'all completion and Stop gates SHALL count ONLY in_scope items' (requirements.md:128); coverage_items.in_scope at design.md:448",
+  "change": "Make Property 22 honor Req 5.7: restrict the approved-requirement set (and the evidence count) to in_scope coverage items by joining to coverage_items.in_scope (or pre-filtering approved_req_ids to in_scope ones). evidence_records itself has no in_scope column, so the query must reach in_scope via coverage_items. Without this, an out-of-scope-but-approved requirement with zero evidence either wrongly fails the merge or the gate silently ignores the in_scope rule.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "in_scope flip to false has no DB-level enforcement or audit of the human-authored transition",
+  "anchor": "coverage_items.in_scope comment design.md:448 ('leaves scope only via a human-authored transition'); requirements.md:128 (human-authored only); no DB mechanism exists",
+  "change": "Specify enforcement for the 'human-authored only' in_scope=false rule: either document that the hook/audit layer captures every in_scope flip into gate_audit_log (actor + justification), or add a DB trigger requiring an actor/justification on UPDATE that sets in_scope=false. Today the DB accepts any UPDATE flipping in_scope, and since gates count only in_scope items an unguarded flip silently drops a requirement from all completion gates.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "Error Handling 'Postgres unavailable' row is thinner than the N-25 fallback contract it should mirror",
+  "anchor": "Error Handling table row 'Postgres unavailable | Fall back to feature_list.json as sole source of truth for gate decisions. Log warning to OTel.' (design.md:815)",
+  "change": "Expand the design.md:815 Error Handling row (or cross-reference tasks.md:730 N-25) so the design states the full fallback contract that already lives in tasks: every gate must reach the SAME allow/block decision on file-backed state (never fail-open), DB and file are kept as duplicates, the more conservative (blocking) result wins on divergence, and the gate_audit_log producer appends to a file-backed log when the DB is down and reconciles on reconnect. The requirement-level contract is captured in tasks.md:730 but the design Error Handling row reduces it to a one-liner.",
+  "severity": "inconsistency",
+  "adds_wiring": true,
+  "components": [
+   "db/migrations/ (all 8 tables 001-008)"
+  ]
+ },
+ {
+  "title": "design.md Property 25 cites wrong requirement number AND non-canonical CHECK token",
+  "anchor": "**Validates: Requirements 26 (REQ-COV-007). Machine-checked: CHECK-10 (`formal_verification_merged.py`).**",
+  "change": "Rewrite the Property 25 Validates line (design.md:1080) to: '**Validates: Requirement 22 (REQ-COV-007). Machine-checked: CHECK-10a/10b (`formal_verification_merged.py`).**' \u2014 REQ-COV-007 is Requirement 22 (requirements.md:409,432,507), NOT Requirement 26 (which is REQ-OBS-006 Reasoning-Loop Detection, requirements.md:413). The canonical Z3 identifier is the CHECK-10a/10b pair (formal_verification_merged.py:422,430; requirements.md:507), not the bare 'CHECK-10'.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/007_requirement_versions.sql"
+  ]
+ },
+ {
+  "title": "Amendment status-reset (proven\u2192unproven) is blocked by the PreToolUse status guard's permitted-edge set",
+  "anchor": "| `PreToolUse` \u2014 status guard | Any write to `feature_list.json` | Validates proposed status transition; checks evidence schema completeness *(Reconciliation 2026-06-15: `unproven\u2192failed` and `failed\u2192unproven` are now allowed; only `*\u2192proven` requires a complete Evidence_Record)* | Transitions into `proven` without a complete Evidence_Record; any transition not in {`unproven\u2192proven`, `unproven\u2192failed`, `failed\u2192unproven`} | REQ-COV-002, REQ-COV-003, REQ-COV-006 |",
+  "change": "The amendment flow resets `coverage_items.status` from `proven` to `unproven` (design.md:1078,1152; Property 25), but `proven \u2192 unproven` is NOT in the permitted-edge set {unproven\u2192proven, unproven\u2192failed, failed\u2192unproven} listed at design.md:215, design.md:374, design.md:900, requirements.md:123, and requirements.md:129 \u2014 so the status guard would BLOCK the amendment reset. Add `proven \u2192 unproven` (human-authored / amendment-triggered) to the permitted-transition set in all five locations, scoped so it is allowed only on a requirement-amendment event (e.g. gated on a corresponding requirement_versions insert), and update Property 3 accordingly.",
+  "severity": "defect",
+  "adds_wiring": true,
+  "components": [
+   "db/migrations/007_requirement_versions.sql"
+  ]
+ },
+ {
+  "title": "Amendment version monotonicity and initial-version seeding are asserted but not mechanized",
+  "anchor": "    UNIQUE (requirement_id, version)\n);\n-- On amendment: insert a version row AND reset coverage_items.status to 'unproven'.",
+  "change": "Property 25 / design.md:1078 require a 'monotonically increasing version', but the only DDL constraint (UNIQUE (requirement_id, version), design.md:1150) permits gapped/out-of-order sequences (e.g. insert version=5 then version=3). Specify the mechanism near design.md:1150 and in task 28.7: compute `version = COALESCE(MAX(version),0)+1` inside the amendment_handler transaction (or a BEFORE INSERT trigger enforcing version = previous_max+1). Also specify seeding semantics: state whether the table holds amendments only (first amendment is version 1, its `prior_text` = the original approved text from requirements.id, hence `prior_text` is non-null after the first amendment) and what a null `prior_text` means (reserve for an optional seed/baseline row, or forbid null in practice).",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/007_requirement_versions.sql"
+  ]
+ },
+ {
+  "title": "Append-only 'never overwritten' guarantee has no DDL or named application-layer enforcement",
+  "anchor": "-- On amendment: insert a version row AND reset coverage_items.status to 'unproven'.\n-- Completion gate already blocks COMPLETE while any item is 'unproven' (CHECK-10a).",
+  "change": "design.md:1078 says prior version text 'shall be retained and never overwritten', but requirement_versions has no append-only protection (no REVOKE UPDATE/DELETE, no BEFORE UPDATE/DELETE trigger). Add to the migration spec EITHER an append-only guard (REVOKE UPDATE, DELETE ON requirement_versions, or a trigger that RAISEs on UPDATE/DELETE) OR an explicit note that append-only is enforced at the application layer, naming where (e.g. amendment_handler is the sole writer and never updates). Document alongside design.md:1152.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/007_requirement_versions.sql"
+  ]
+ },
+ {
+  "title": "FK ON DELETE behavior and requirement\u2192coverage_item reset mapping unspecified",
+  "anchor": "    requirement_id TEXT NOT NULL REFERENCES requirements(id),\n    version        INTEGER NOT NULL,",
+  "change": "design.md:1143's `REFERENCES requirements(id)` has no ON DELETE clause (defaults to NO ACTION). Decide and document ON DELETE RESTRICT (history must survive deletion of the requirement). Also clarify the join the amendment relies on: the row references `requirement_id`, but the status reset targets coverage_items \u2014 state the cardinality (requirement_id \u2192 coverage_item(s), 1:1 or 1:many) and how amendment_handler locates the coverage_item(s) to reset. Add an index on `requirement_id` for amendment-history lookups. Add near design.md:1143-1152.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/007_requirement_versions.sql"
+  ]
+ },
+ {
+  "title": "Pin the write protocol that supplies DB-assigned seq/created_at to the hash producer",
+  "anchor": "design.md:1173 `--   * Producer: tools/audit_log.append(event, tool, decision, reason, requirement_id, actor_agent),` (and requirements.md:461 Requirement 27.5; tasks.md:968 task 52.1)",
+  "change": "Resolve the seq/created_at chicken-and-egg: entry_hash is defined to INCLUDE seq (BIGSERIAL, DB-assigned) and created_at (DEFAULT now(), DB-assigned) but append(event,tool,decision,reason,requirement_id,actor_agent) receives neither, so the hash cannot be computed before INSERT without an UPDATE (violating append-only). Pin ONE mechanism in design.md:1168-1177, requirements.md:461 (Req 27.5), and task 52.1: have append() pre-assign seq via `SELECT nextval('gate_audit_log_seq_seq')` and set created_at client-side, then INSERT the row with those exact values so the stored seq/created_at equal the hashed ones; OR drop seq+created_at from the canonical hashed tuple. State the chosen mechanism so audit_log.py and audit_verify.py compute identical hashes.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "db/migrations/008_gate_audit_log.sql"
+  ]
+ },
+ {
+  "title": "Pin the NULL/None canonical-JSON serialization rule for the hash",
+  "anchor": "design.md:1170-1172 `--   * Canonical form = deterministic JSON of (seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at).` (and requirements.md:461 Req 27.5)",
+  "change": "tool_name, reason, requirement_id are nullable (design.md:1159,1161,1162) but the canonical-JSON serialization of NULL is never pinned (omit key? json null? empty string?), so producer and verifier may serialize NULL differently and produce divergent entry_hash (spurious tamper failures). Pin in design.md:1168-1172 and Req 27.5 (requirements.md:461): keys ALWAYS present, NULL serialized as JSON `null` literal, `sort_keys=true`, UTF-8, no insignificant whitespace (compact separators), and require audit_log.py (task 52.1) and audit_verify.py (task 52.2) to import ONE shared canonicalizer function.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "db/migrations/008_gate_audit_log.sql"
+  ]
+ },
+ {
+  "title": "Decide FK from gate_audit_log.requirement_id to requirements(id), or document the exception",
+  "anchor": "design.md:1162 `    requirement_id TEXT,` (inside CREATE TABLE gate_audit_log)",
+  "change": "Every sibling table FKs requirement_id to requirements(id) (design.md:445,456,467,484,1143) but gate_audit_log.requirement_id is bare nullable TEXT, so a decision can reference a non-existent requirement and still persist \u2014 weakening REQ-AUDIT-001 traceability. Either add `requirement_id TEXT REFERENCES requirements(id)` to the DDL (design.md:1162) and task 28.8, OR add a one-line comment in the DDL stating audit rows intentionally allow dangling/absent requirement_id (e.g. plan-gate decisions logged before any requirement is active) so the omission is a documented choice, not drift.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/008_gate_audit_log.sql"
+  ]
+ },
+ {
+  "title": "Correct shuffled requirement numbers in design.md Property 25\u201328 'Validates' lines",
+  "anchor": "design.md:1110 `**Validates: Requirements 28 (REQ-AUDIT-001/002). ...**` (and design.md:1080 Property 25, :1090 Property 26, :1100 Property 27)",
+  "change": "The Property 25\u201328 'Validates' lines carry shuffled bare requirement numbers that contradict requirements.md headings and the requirements.md:507-510 matrix: design.md:1080 Property 25 says 'Requirements 26' but amendment/REQ-COV-007 = Requirement 22 (26 = Reasoning-Loop Detection); design.md:1090 Property 26 says 'Requirements 27' but resumed-state/REQ-STATE-005 = Requirement 23 (27 = the audit log); design.md:1100 Property 27 says 'Requirements 25' but checklist/REQ-SPEC-016 = Requirement 24 (25 = Perf/A11y); design.md:1110 Property 28 says 'Requirements 28' but audit/REQ-AUDIT = Requirement 27 (28 = Capability-Role Taxonomy). The parenthetical REQ-* tags are correct; only the numbers are wrong. Fix to: Property 25 -> Requirement 22, Property 26 -> Requirement 23, Property 27 -> Requirement 24.1, Property 28 -> Requirement 27 \u2014 matching requirements.md:431/435/440/455 and the matrix at requirements.md:507-510. (Property 28 line is the one directly on this component.)",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/008_gate_audit_log.sql"
+  ]
+ },
+ {
+  "title": "Add verification-access INDEX(es) to gate_audit_log for chain-walk and lookups",
+  "anchor": "design.md:1156-1167 (CREATE TABLE gate_audit_log) and tasks.md:701 (`Run python3 tools/audit_verify.py to recompute the hash chain over gate_audit_log`)",
+  "change": "audit_verify.py and the required audit-chain-verify CI check (tasks.md:700-701) full-scan gate_audit_log ordered by seq on an unbounded append-only table (one row per gate decision, written by all three hooks on every allow/block per design.md:209-217). ORDER BY seq is index-backed by the BIGSERIAL PK, but there is no index for per-session or per-requirement_id audit queries, and no spec statement that whole-table re-hash at merge is acceptable at scale. Add to the design.md DDL block and task 28.8 a `CREATE INDEX ON gate_audit_log (requirement_id)` (and/or a session/created_at index), or state explicitly that bounded whole-chain re-hash at merge is acceptable given the retention policy.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/008_gate_audit_log.sql"
+  ]
+ },
+ {
+  "title": "Pin the resumed-state hash algorithm (inputs, serialization, hash function)",
+  "anchor": "## Merge Reconciliation Addendum (canonical merge) / New / changed components bullet: \"- `state_integrity.py` (Phase 2) \u2014 recompute resumed-state hash on `SessionStart`; block proceed on mismatch (REQ-STATE-005 / CHECK-11).\" (design.md:1180); and the SQL hash-chain block at design.md:1168-1176 as the sibling pattern to mirror",
+  "change": "Add a 'Resumed-State Hash' spec subsection (sibling to the gate_audit_log hash-chain spec at design.md:1168-1176) pinning: (a) exact input set \u2014 recommend the deterministic JSON of the durable run_state progress fields (current_item_id, iteration_count, no_progress_n, last_commit_sha) PLUS the feature_list.json content SHA PLUS last_commit_sha; (b) canonical serialization = deterministic/sorted-key JSON; (c) state_hash = sha256(canonical_form); (d) WHERE the baseline is recorded (a new run_state.state_hash TEXT column) and WHEN it is written (each PreCompact checkpoint and each per-Slice commit). Currently 'recomputes the resumed-state hash' is asserted in design.md:143/219/1088/1180 with zero algorithm, so the SessionStart recompute and the recorded baseline cannot be guaranteed to hash identical inputs.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Add run_state.state_hash baseline column + a producer that records it",
+  "anchor": "-- run_state: per-session execution state for resumption (design.md:481-496); specifically the column list ending '... resume_integrity_ok BOOLEAN, ... last_commit_sha TEXT,' \u2014 no state_hash / recorded-hash column exists",
+  "change": "Add a `state_hash TEXT` column to the run_state DDL (design.md:481-496) to hold the recorded baseline that state_integrity.py compares its recompute against \u2014 requirements.md:437 says it compares to 'the durable store's recorded hash' but no column holds it. ALSO name the PRODUCER and moment: the PreCompact hook-wiring row (design.md:220, currently 'Checkpoints claude-progress.txt, current evidence state, and feature_list.json to git') and the per-Slice commit must additionally WRITE run_state.state_hash. Without an assigned producer the 'durable store's recorded hash' is never created by any specified writer (the comparison input does not exist).",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "state_integrity.py",
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Fix systematic Property\u2192Requirement mis-numbering (Properties 25-28)",
+  "anchor": "Property 'Validates' lines: design.md:1080 'Validates: Requirements 26 (REQ-COV-007)'; design.md:1090 'Validates: Requirements 27 (REQ-STATE-005)'; design.md:1100 'Validates: Requirements 25 (REQ-SPEC-016)'; design.md:1110 'Validates: Requirements 28 (REQ-AUDIT-001/002)'",
+  "change": "Off-by-N requirement numbers. Per the authoritative cross-reference table (requirements.md:505-512): Property 25 validates Requirement 22 (not 26); Property 26 validates Requirement 23 (not 27); Property 27 validates Requirement 24.1 (not 25); Property 28 validates Requirement 27 (not 28). Fix all four 'Validates' lines. (Property 29\u219224.2 at design.md:1120 and Property 30\u219229 at design.md:1130 are already correct \u2014 do not touch.) This is broader than the single Property-26 collision the draft flagged.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Stop overstating CHECK-11 as machine-checking state_integrity.py",
+  "anchor": "Component-inventory row design.md:143: \"`state_integrity.py` ... (REQ-STATE-005 / CHECK-11).\" and the addendum bullet design.md:1180: \"recompute resumed-state hash on `SessionStart`; block proceed on mismatch (REQ-STATE-005 / CHECK-11).\"",
+  "change": "CHECK-11a/11b (formal_verification_merged.py:444-461) is a 2-Boolean abstraction over `resumeHashMismatch`/`runProceeds` proving only Implies(mismatch, \u00acproceeds); it never references state_integrity.py, resume_integrity_ok, the hash inputs, or the SessionStart-computes/PreToolUse-enforces split. Reword design.md:143 and design.md:1180 to 'logic-validated by CHECK-11a/11b; implementation/wiring validated by Property 26 PBT (tasks.md task 39.16)', mirroring the honest Property 28 caption 'no Z3 check \u2014 runtime/CI verified' (design.md:1110).",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Scope design.md:143 row to state_integrity.py only (non-blocking; flag-based block)",
+  "anchor": "Component-inventory row design.md:143: \"Recomputes the resumed-state hash on `SessionStart` and writes `run_state.resume_integrity_ok`; the PreToolUse integrity guard blocks on mismatch (REQ-STATE-005 / CHECK-11).\"",
+  "change": "The row conflates two components and implies state_integrity.py blocks 'on mismatch'. It does not: per design.md:212 the PreToolUse guard blocks when run_state.resume_integrity_ok == false (a flag), not on a live recompare. Reword to scope the row to state_integrity.py only ('computes the hash and writes the flag; non-blocking') and let the existing PreToolUse-integrity-guard row (design.md:212) own the block, stated as 'blocks when resume_integrity_ok == false' rather than 'on mismatch'.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Specify the operator-reconciliation / unblock mechanism",
+  "anchor": "## Error Handling \u2192 ### Hook Failure Modes table (design.md:805-816), alongside the existing fail-closed rows ('plan-approved.json missing or corrupt | PreToolUse blocks (fail closed)')",
+  "change": "requirements.md:438 says the guard releases 'only after operator reconciliation flips it true' but no file defines HOW. Add an Error-Handling entry defining a concrete reconciliation entry point, e.g. `python3 tools/state_integrity.py --reconcile --session <id>` that re-records run_state.state_hash from the current accepted state and sets resume_integrity_ok=true, and state what reconciliation entails (re-recording the durable baseline hash). The unblock path is currently a dangling obligation.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Define first-run / no-baseline behavior so the guard never blocks a fresh run",
+  "anchor": "run_state DDL line design.md:492: \"resume_integrity_ok BOOLEAN, -- ... PreToolUse integrity guard blocks the first write when FALSE (REQ-STATE-005)\" (plain BOOLEAN, no SQL DEFAULT) and PreToolUse integrity-guard row design.md:212",
+  "change": "resume_integrity_ok is a plain BOOLEAN with no default; on a fresh (non-resumed) session there is no recorded baseline, so the comparison is undefined and a NULL/FALSE flag would make the PreToolUse guard block the first legitimate write. State explicitly that on a session with no prior durable state_hash, state_integrity.py sets resume_integrity_ok=TRUE (and/or the PreToolUse guard at design.md:212 treats NULL/absent-baseline as ALLOW), so only an actual recorded-vs-recomputed mismatch blocks. Mirror this with a unit/property case in task 39.16 asserting a first-run session is never blocked by the integrity guard.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Add a 'first write of a resumed session' detection mechanism to run_state",
+  "anchor": "PreToolUse integrity-guard row design.md:212 ('First `Write`/`Edit` of a resumed session ...') and Property 26 design.md:1088 (scoped to 'the first Write/Edit of a resumed session'); run_state DDL design.md:481-496 (no is_resume / first_write_done / session-origin column)",
+  "change": "The guard is scoped to the FIRST implementation write of a RESUMED session, but the PreToolUse hook is registered with no matcher (design.md:168-173, fires on every tool) and run_state has no field letting the guard recognize that moment. Add durable state \u2014 e.g. an `is_resume BOOLEAN` (set by SessionStart when a prior run_state row exists) and a `first_write_done BOOLEAN DEFAULT FALSE` (set true after the guard passes the first write) \u2014 and have task 49.1's guard logic key on (is_resume AND NOT first_write_done). Otherwise the guard cannot implement the 'first write of a resumed session' scope that Property 26 and Requirement 23.2 require.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Resolve design-internal contradiction: spine row 4 vs hook-wiring row on SessionStart duties",
+  "anchor": "Phase 0 Component List spine row 4 (design.md:626): \"SessionStart hook | ... | Loads git status + progress file + coverage model | ...\" \u2014 no integrity computation; contradicts hook-wiring row design.md:219 and Property 26 design.md:1088 which say SessionStart computes the resumed-state hash",
+  "change": "design.md is internally inconsistent about the SessionStart hook's responsibilities: spine row 4 (design.md:626) lists only 'Loads git status + progress file + coverage model' (matching task 7.1) while design.md:219 and Property 26 say it also computes the resumed-state hash and writes resume_integrity_ok. Update spine row 4 to add 'computes the resumed-state hash via state_integrity.py and writes run_state.resume_integrity_ok (non-blocking)' so the spine row agrees with design.md:219.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Add a 'Resumed-State Integrity' design prose subsection covering failure modes",
+  "anchor": "## Error Handling (design.md:805-816) \u2014 there is no dedicated 'Resumed-State Integrity' narrative subsection (contrast the dedicated 'No-Progress Watchdog' (design.md:640) and 'plan-approved.json Gate' (design.md:758) subsections)",
+  "change": "state_integrity.py \u2014 the sole guard against corrupted resume \u2014 has no narrative subsection, only three table rows + one Property + a one-line addendum bullet; failure modes (hash recompute fails, durable baseline absent on first run, Postgres down at SessionStart) are discussed nowhere. Add a 'Resumed-State Integrity' subsection covering: hash inputs (cross-ref the hash-algo spec), where/when the baseline state_hash is stored, first-run no-baseline behavior (default resume_integrity_ok TRUE / treat NULL as allow), and SessionStart-time DB-unavailable behavior (fall back to file-backed hash per tasks.md:730).",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Add an Error-Handling row for audit_log.append failure (fail-open-for-availability + file fallback)",
+  "anchor": "## Error Handling \u2192 ### Hook Failure Modes table (lines 809-816), last row 'plan-approved.json missing or corrupt'",
+  "change": "Add a new row to the Hook Failure Modes table: '| audit_log.append fails (DB write error / hash-compute error) | Append to the file-backed fallback log (per Notes N-25 / tasks.md:730) and DO NOT block the originating gate decision \u2014 audit is a durable side-record, not a new availability gate; emit an OTel warning and mark the chain as needing reconciliation on reconnect. |'. This makes the fail-open-for-availability-vs-file-fallback policy explicit; today every other producer/hook has a failure-mode row but gate_audit_log / audit_log.py appears nowhere in the section.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "audit_log.py"
+  ]
+ },
+ {
+  "title": "Annotate PreToolUse sub-gate rows (or add a blanket rule) as audit_log.append producers",
+  "anchor": "Hook Wiring Table rows 211-216 (scope gate / integrity guard / checklist-approval guard / artifact guard / status guard / PostToolUse) \u2014 only row 210 (plan gate) lists audit_log.append",
+  "change": "REQ-AUDIT-001 (line 457) says append fires on EVERY allow/block gate decision, but only the plan-gate row (210) is annotated as a producer. Add a one-line rule directly under the Hook Wiring Table: 'Every PreToolUse sub-gate that returns allow/block (scope/integrity/checklist-approval/artifact/status) calls audit_log.append(...) on its decision; PostToolUse is exempt because it never gates (exit 1, non-blocking).' This both wires the un-annotated blocking sub-gates (integrity guard REQ-STATE-005 and checklist guard REQ-SPEC-016 are exit-2 BLOCKING and conspicuously un-audited) and documents the PostToolUse exclusion as deliberate.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "audit_log.py"
+  ]
+ },
+ {
+  "title": "Fix Property 28 'Validates' requirement number (28 -> 27)",
+  "anchor": "**Validates: Requirements 28 (REQ-AUDIT-001/002). Runtime mechanism: `audit_verify.py` chain verifier (no Z3 check \u2014 runtime/CI verified).**",
+  "change": "Change 'Validates: Requirements 28 (REQ-AUDIT-001/002)' to 'Validates: Requirement 27 (REQ-AUDIT-001/002)'. The tamper-evident audit log is Requirement 27 (requirements.md:455); Requirement 28 is the Capability-Role Taxonomy Extension (REQ-ORCH-004). Property 28's design 'Validates' pointer currently names the wrong requirement number.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "audit_verify.py"
+  ]
+ },
+ {
+  "title": "Pin audit_verify.py to a single phase in New/changed-components bullet",
+  "anchor": "- `audit_log.py` + `audit_verify.py` (Phase 2/3) \u2014 append hash-chained gate-decision entries; verify the chain (REQ-AUDIT-001..003).",
+  "change": "Change the bullet at design.md:1181 from 'audit_log.py + audit_verify.py (Phase 2/3)' to 'audit_log.py (Phase 2) + audit_verify.py (Phase 3)' to match the Component Inventory which lists audit_log.py at Phase 2 (design.md:144) and audit_verify.py at Phase 3 (design.md:145). The ambiguous '(Phase 2/3)' wording contradicts the single-phase inventory assignments.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "audit_verify.py"
+  ]
+ },
+ {
+  "title": "Add audit_verify.py design subsection: signature, pseudocode, edge cases, error-handling row",
+  "anchor": "| `audit_verify.py` | `tools/audit_verify.py` | 3 | Recomputes the `gate_audit_log` hash chain; on-demand verifier plus the merge-time CI required check (REQ-AUDIT-002/003). |",
+  "change": "Add a design.md subsection for audit_verify.py (it currently has only the one-line inventory row, the New-components bullet, and the Property 28 statement \u2014 no algorithm, no interface, no error-handling row, unlike stop_hook.py/pre_tool_use_hook.py which have full pseudocode). Specify: (1) function signature e.g. `verify_chain(rows) -> Result`; (2) recomputation pseudocode mirroring audit_log.py's canonical form `entry_hash = sha256(canonical_row || prev_hash)` over `(seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at)`, genesis `prev_hash = sha256(\"\")`; (3) explicit EMPTY-chain and GENESIS-ONLY handling (both PASS); (4) a new row in the Hook Failure Modes / Error Handling table (design.md:807-816) for audit_verify.py: 'gate_audit_log unreadable / Postgres down with no file segment -> FAIL verification, non-zero exit (fail closed)' consistent with the never-fail-open rule at tasks.md:730.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "audit_verify.py"
+  ]
+ },
+ {
+  "title": "Add a subtype discriminator field to CoverageItem so REQ-VERIFY-007/008 triggers are evaluable",
+  "anchor": "\"type\": {\n          \"type\": \"string\",\n          \"enum\": [\"functional\", \"NFR\", \"WIRING\"],",
+  "change": "REQ-VERIFY-007 (requirements.md:447-448) gates 'WHEN an NFR item of subtype performance/accessibility', but the CoverageItem schema (design.md:322-385) has no subtype field \u2014 `type` is only {functional,NFR,WIRING} and `ears_pattern` is the five EARS patterns, so there is no representable discriminator on which the Verifier can dispatch perf vs a11y vs ui-screen-render. Add an optional `subtype` enum field to CoverageItem, e.g. enum [\"performance\",\"accessibility\",\"ui-screen\"] (valid only when type==NFR/WIRING), AND mirror it as a `subtype TEXT` column on the coverage_items Postgres table (design.md:443-451). Note the ui-screen value covers the REQ-VERIFY-008 render branch (per critic findings: subtype alone solves perf-vs-a11y but the render branch also needs a discriminator). The Verifier dispatches the fifth layer on this field. Without it the WHEN/Ubiquitous conditions are unrealizable.",
+  "severity": "defect",
+  "adds_wiring": true,
+  "components": [
+   "perf_a11y_verifier (capability in verifier.md)"
+  ]
+ },
+ {
+  "title": "Resolve the self-contradictory Phase 1/3 tag and place task 51 in a phase",
+  "anchor": "| `perf_a11y_verifier` | (capability within `.claude/agents/verifier.md`) | 1/3 |",
+  "change": "The Component Inventory tags perf_a11y_verifier 'Phase 1/3' (design.md:146 and the addendum line 1182), but its host Verifier is a Phase-0 spine component (design.md:154, Phase-0 list line 629), and its only build task (51) carries no phase header and sits in wave 41 of the dependency graph. A reader cannot tell which phase builds it. Pick one phase: change the inventory Phase cell from '1/3' to '1' (and the addendum line 1182 'Phase 1/3' to 'Phase 1'), and add task 51 to the Phase-1 section of tasks.md with an explicit dependency on task 10.3 (the verifier.md author).",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "perf_a11y_verifier (capability in verifier.md)"
+  ]
+ },
+ {
+  "title": "Add a correctness Property and Z3 CHECK pinning REQ-VERIFY-007/008",
+  "anchor": "### Property 30: Omission-Declaration Gate",
+  "change": "Every other substantive requirement is pinned by a correctness Property and (where logic-checkable) a Z3 CHECK; REQ-VERIFY-007/008 has neither. grep of formal_verification_merged.py (522 lines) confirms zero references to VERIFY-007/008, perf, a11y, axe, k6, or subtype. Add a new Property (e.g. Property 31: Perf/A11y Evidence Required) stating: 'For any NFR item of subtype performance|accessibility marked proven, a perf/a11y Evidence_Record produced by the perf_a11y_verifier must be attached; for any declared ui-screen item, a render-assertion Evidence_Record must be attached.' Add the matching property-test task under task 39 (e.g. 39.20 -> tests/property/test_perf_a11y.py) and, optionally, a Z3 CHECK modeling 'NFR-subtype-perf proven => perf-evidence-present'. Validates Requirement 25 (REQ-VERIFY-007/008).",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "perf_a11y_verifier (capability in verifier.md)"
+  ]
+ },
+ {
+  "title": "Define how k6/Lighthouse/axe-core outputs map into the four-field Evidence_Record",
+  "anchor": "**Evidence_Record** has exactly four required fields with no additional properties allowed:",
+  "change": "k6/Lighthouse/axe-core emit reports, not pytest results, yet Evidence_Record requires test_file/test_name/output_hash/collected_at with additionalProperties:false (design.md:387-411). How a Lighthouse JSON or axe violation list maps into these four fields is never defined, so the SubagentStop schema gate may reject valid perf/a11y evidence. Add a canonical mapping to the Verifier/perf_a11y_verifier section: test_file = path to the k6/Lighthouse/axe runner script; test_name = the budget id (or screen/state id for ui-screen render); output_hash = sha256:<hex> of the report artifact; collected_at = run timestamp (ISO-8601). This keeps perf/a11y evidence conformant to the four-field schema and the additionalProperties:false constraint.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "perf_a11y_verifier (capability in verifier.md)"
+  ]
+ },
+ {
+  "title": "Add a declared-screen/state data structure so REQ-VERIFY-008 has an enumerable source",
+  "anchor": "\"definitions\": {\n    \"CoverageItem\": {",
+  "change": "REQ-VERIFY-008 (requirements.md:449) is Ubiquitous: 'every declared screen/state (incl. empty, loading, error) SHALL have a behavioral test asserting it renders' \u2014 but no schema field enumerates screens/states; there is no screens/states/ui-declaration structure in the feature_list.json schema, so 'every declared screen/state' is not enumerable and the obligation cannot be checked against a defined declaration set. Add a screen/state declaration structure to the coverage model \u2014 e.g. a WIRING/NFR item with subtype 'ui-screen' carrying a `declared_states` array (enumerating at least empty/loading/error/ready) \u2014 so the render assertion is enforceable. Note (per critic findings): the render assertion is a BEHAVIORAL test and its actual mechanism is the existing Playwright behavioral layer (design.md:260 / task 15) plus the WIRING integration-test-evidence obligation (Req 8.3 / task 47), NOT a perf/a11y tool \u2014 the design subsection should route ui-screen render evidence through Playwright/WIRING, not k6/Lighthouse/axe.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "perf_a11y_verifier (capability in verifier.md)"
+  ]
+ },
+ {
+  "title": "Add a dedicated perf_a11y_verifier design subsection and expand task 51 into subtasks",
+  "anchor": "## Sandbox & Worktree Isolation (REQ-17.4)",
+  "change": "Across all three canonical files the capability appears in only 4 design.md lines (146, 255/260-262 area, 1182), 1 tasks.md line (966), and 3 requirements criteria \u2014 with no interface signature, no permission delta, no dispatch logic, no CI step, no test, and no threshold ownership. Add a dedicated design.md subsection (modeled on the 'Sandbox & Worktree Isolation' subsection) for perf_a11y_verifier covering: subtype dispatch (perf|accessibility|ui-screen), tool invocation (k6/Lighthouse, axe-core, Playwright for render), Evidence_Record mapping, threshold registry entries + owner (p95 latency / Core Web Vitals budgets, zero WCAG-A/AA), CI wiring, and the Property/test. Expand task 51 into subtasks (51.1 perf, 51.2 a11y, 51.3 UI-screen render, 51.4 property test). This is the umbrella edit; the sub-points are covered by the subtype/evidence-mapping/CI/property/ui-screen edits and should be folded into this one subsection.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "perf_a11y_verifier (capability in verifier.md)"
+  ]
+ },
+ {
+  "title": "Fix REQ-ID mis-citation on secrets-scan.yml inventory row (17.5 -> 17.2)",
+  "anchor": "Line 147: | `secrets-scan.yml` | `.github/workflows/secrets-scan.yml` | 1 | CI secrets-scanning workflow using **gitleaks** [K17]; fails the build on a detected secret (REQ-17.5). |",
+  "change": "Change the trailing criterion reference from `(REQ-17.5)` to `(REQ-17.2 / REQ-SEC-002)`. REQ-17.5 (requirements.md:314) is the PreToolUse runtime prohibition on secrets in prompts/spans/URLs (enforced by PreToolUse_Hook, validated by Property 20); the CI diff-scan obligation is REQ-17.2 (requirements.md:311: 'IF a secret ... is detected in a diff, THEN ... block the commit or merge'), which is what task 40.2 (tasks.md:698) and task 45 (tasks.md:957) already cite. Append a parenthetical clarifying that REQ-17.5 is the distinct PreToolUse commit-side/pre-emission prevention gate covered by Property 20, so the merge-side (17.2/secrets-scan) and commit-side (17.5/PreToolUse) halves of 'block the commit or merge' are explicitly split.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "secrets-scan.yml"
+  ]
+ },
+ {
+  "title": "Resolve or strip undefined [K17]/[K9]/[K12] citation markers",
+  "anchor": "Line 147 [K17] ('gitleaks [K17]'); line 213 [K9] ('domain_baseline_checklists [K9]'); line 265 [K12] ('coverage.py) [K12]')",
+  "change": "The bracketed K-tags [K17], [K9], [K12] have no resolver: there is no K-citation legend/table anywhere in the spec set or docs (verified: only these 3 occurrences exist, all in design.md). Either add a 'K-citations' reference table to design.md defining K9/K12/K17 (and any others) with their Kiro/source provenance, or strip the three [K9]/[K12]/[K17] markers as noise. Apply one resolution consistently to all three.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "secrets-scan.yml"
+  ]
+ },
+ {
+  "title": "Add a dedicated design subsection for secrets-scan.yml (currently one inventory sentence only)",
+  "anchor": "Component inventory row at line 147 (secrets-scan.yml has exactly one sentence and no dedicated subsection, unlike coverage_query.rego, the hooks, and the audit log)",
+  "change": "Add a short design subsection for secrets-scan.yml specifying: (a) `on: pull_request` trigger (and whether push to protected branches is also scanned); (b) the gitleaks action/version and config/allowlist path; (c) baseline/allowlist strategy for false positives; (d) the report/SARIF artifact contract; (e) scope = the PR diff vs whole git history; and (f) explicit clarification that REQ-17.2's 'block the commit' clause is satisfied at merge in CI (a CI workflow cannot block a local commit), with the commit-side/pre-emission half delegated to the PreToolUse path (REQ-17.5). This also subsumes the diagram-absence observation: the CI architecture subgraph (design.md:50-55) draws only OPA/SAST/SLSA and equally omits zap-baseline, deepeval-gate, and audit-chain-verify, so the subgraph is illustrative and the inventory+subsection is the canonical home for this gate.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "secrets-scan.yml"
+  ]
+ },
+ {
+  "title": "Add a correctness property (or explicit no-Z3 note) for the REQ-17.2 CI secrets diff-scan",
+  "anchor": "Properties section near Property 20 (design.md:1034-1038, which validates 17.5 not 17.2); 'no Z3 check' note pattern at design.md:1110 (Property 28) and 1120 (Property 29)",
+  "change": "secrets-scan.yml (REQ-17.2) has neither a correctness Property nor a Z3 CHECK nor a documented 'no formal check' rationale (verified: formal_verification_merged.py has no 17.2/secrets check; Property 20 covers only 17.5). Add a property: 'For any PR diff containing a known secret pattern, the secrets-scan check fails and merge is blocked; for a clean diff it passes' validated against Requirements 17.2, OR add an explicit '(no Z3 check \u2014 runtime/CI verified by fixture test)' note mirroring Properties 28/29. Cite the chosen mechanism from the design inventory row (design.md:147).",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "secrets-scan.yml"
+  ]
+ },
+ {
+  "title": "Make scanner choice consistent between design.md and tasks.md",
+  "anchor": "design.md:147 ('using **gitleaks**') vs tasks.md:696 / tasks.md:957 ('gitleaks (or trufflehog)')",
+  "change": "design.md fixes the scanner as gitleaks while tasks.md offers 'gitleaks (or trufflehog)' with no selection criterion. Pick one default (gitleaks, per design.md) and demote trufflehog to an explicit 'acceptable alternative' note in a single place, or state the selection criterion. Make design.md:147 and tasks.md (696, 957) say the same thing about which scanner is the default.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "secrets-scan.yml"
+  ]
+ },
+ {
+  "title": "Add a subagent-output JSON Schema artifact making omission_declaration required & non-nullable (REQ-SPEC-018.3 has no target)",
+  "anchor": "Component Inventory table \u2014 row `| `schema/` | `schema/feature_list.schema.json` | 0 | JSON Schema for feature_list.json. PreToolUse validates against this. |` (design.md:138); and Subagent Definitions section (design.md:226-281) which declare behaviors but no output schema",
+  "change": "Add a new component-inventory row `| schema/subagent_output.schema.json | schema/subagent_output.schema.json | 0 | JSON Schema for initializer/research/verifier subagent outputs; omission_declaration is a required, non-nullable property. SubagentStop omission-guard validates against this. |`. Add a Data Models subsection 'Subagent Output Schema' defining the object with omission_declaration required (type object/non-null, six keys Primary/Alternate/Exception/Recovery/Non-Functional/Edge-Case, each an array of [Gap]-marked strings). Reference this schema from the initializer.md/research.md/verifier.md subagent definitions (add an 'Output contract' line to each). This gives REQ-SPEC-018.3 ('JSON schema for each subagent output type SHALL include omission_declaration as required, non-nullable') a concrete target artifact, mirroring how feature_list.schema.json is the target for EvidenceRecord.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "omission_guard (capability in subagent_stop_hook.py)"
+  ]
+ },
+ {
+  "title": "Audit-call inconsistency: omission-guard wiring row calls audit_log.append only 'on the block decision', not on allow (violates REQ-AUDIT-001 / task 52.3 'every allow/block')",
+  "anchor": "Hook Wiring Table row `| SubagentStop \u2014 omission-declaration guard | ... | Checks omission_declaration field in the subagent output; calls audit_log.append(...) on the block decision ... |` (design.md:218)",
+  "change": "Reword 'calls audit_log.append(...) on the block decision' to 'calls audit_log.append(...) on the allow/block decision' to match REQ-AUDIT-001 (requirements.md:457, 'every gate decision'), task 52.3 ('on every allow/block decision', tasks.md:970), and the sibling SubagentStop Evidence row (design.md:217, which already reads 'on the decision'). As written the allow path of the omission guard skips the audit append.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "omission_guard (capability in subagent_stop_hook.py)"
+  ]
+ },
+ {
+  "title": "Two gates in one host hook with no specified ordering, combined exit-code semantics, or joint failure reporting",
+  "anchor": "Hook Wiring Table rows design.md:217 (SubagentStop Evidence_Record gate) and design.md:218 (SubagentStop omission-declaration guard); and Phase 0 Component List row #5 (design.md:627): 'SubagentStop hook | Validates Evidence_Record has all four fields | Missing output_hash \u2192 blocks. All four fields present \u2192 proceeds.'",
+  "change": "Add prose (in a new 'SubagentStop omission-declaration gate' design subsection, or adjacent to rows 217-218) specifying: (1) evaluation order of the two co-resident gates inside subagent_stop_hook.py (Evidence_Record four-field validation and the omission guard); (2) that exit 2 is returned if EITHER gate fails, with both failure reasons surfaced to stderr; (3) how a single exit code is composed when both fail. Add an omission-path row/clause to the Phase 0 build-order acceptance test at design.md:627 (e.g. 'null/absent omission_declaration \u2192 blocks; present \u2192 proceeds').",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "omission_guard (capability in subagent_stop_hook.py)",
+   "omission_guard (capability in subagent_stop_hook.py)"
+  ]
+ },
+ {
+  "title": "No dedicated design subsection or task-54 subtasks for the omission guard (thin coverage vs the Evidence_Record sibling); audit field-content for the omission decision undefined",
+  "anchor": "Only artifacts for this capability: component row design.md:148, wiring row design.md:218, Property 30 prose design.md:1124-1130, one build-order line design.md:627. Contrast: Evidence gate has task 8 (8.1/8.2), a build-order test, and round-trip tests",
+  "change": "Add a design subsection 'SubagentStop omission-declaration gate' specifying: input payload shape (the subagent result JSON), the null/absent(/empty) predicate, the exact stderr message naming `omission_declaration`, allow/block audit behavior, and which audit fields the omission block records \u2014 i.e. the requirement_id value (REQ-SPEC-018, since the gate is a structural presence check not tied to a single REQ) and the actor_agent value (the subagent whose result is rejected), closing the REQ-AUDIT-001 seven-field ambiguity for this decision. In tasks.md, add task-54 subtasks mirroring 8.1/8.2 (54.1 implement the omission guard in subagent_stop_hook.py; 54.2 unit tests: null\u2192exit 2 naming omission_declaration, present\u2192exit 0).",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "omission_guard (capability in subagent_stop_hook.py)"
+  ]
+ },
+ {
+  "title": "Host SubagentStop hook fires on EVERY subagent result, but omission scope is three subagents (initializer/research/verifier) \u2014 no subagent-type discriminator specified",
+  "anchor": "Hook Wiring Table: omission-guard TRIGGER scoped to '(initializer, research, verifier)' (design.md:218) vs the unconditional SubagentStop command registration (design.md:181-186) and the unmatched Evidence SubagentStop row (design.md:217); implementer results are out of scope but nothing says how the hook distinguishes them",
+  "change": "Specify the discriminator the omission guard uses to scope itself to initializer/research/verifier results and EXCLUDE implementer results: e.g. read a subagent-type/agent-name field from the SubagentStop payload (or the subagent_output schema's role field) and skip the omission check when the producing agent is implementer.md. State this in the omission-guard wiring row (design.md:218) and in the new omission-guard design subsection, and add it to the subagent_output schema (a required `agent_role` enum). Without it, an implementer result with no omission_declaration would be wrongly blocked or the scope is unenforceable.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "omission_guard (capability in subagent_stop_hook.py)"
+  ]
+ },
+ {
+  "title": "Name the evaluator (judge) LLM and reconcile the LLM-as-judge gate with the governing 'predictions never gate' invariant",
+  "anchor": "| `deepeval_gate.py` | `tools/deepeval_gate.py` | 3 | DeepEval pytest-native eval step; calls `assert_test()` on configured metric thresholds (faithfulness \u2265 0.8, answer relevancy \u2265 0.7); runs as REQUIRED CI status check `deepeval-gate` at merge (REQ-EVAL-001). *(P3 market-research 2026-06-15.)* |",
+  "change": "Add a design subsection (or expand the component row) for deepeval_gate.py that: (a) names the evaluator model + provider and pins it with a fixed temperature/seed for reproducibility; and (b) explicitly reconciles this LLM-as-judge gate with the governing invariant at design.md:7 / requirements.md:7 ('Model self-assessment and probabilistic predictions only inform; they never gate'). DeepEval faithfulness/answer-relevancy are LLM-judge metrics, so a REQUIRED merge gate computing them directly contradicts the top-level invariant unless reclassified (e.g., advisory-quality vs the deterministic gates, or scoped to non-self-assessment of agent output) \u2014 currently the contradiction is unresolved and no judge model is named.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "deepeval_gate.py"
+  ]
+ },
+ {
+  "title": "Add a fail-mode row for deepeval-gate to the Hook/gate Failure Modes table",
+  "anchor": "| `spec_validator.py` Z3 timeout | Returns `{violation_count: -1, error: \"validator_timeout\"}`. Stop hook treats `violation_count < 0` as a blocking error. DEFAULT timeout: 60 seconds. |",
+  "change": "Add a row to the Error Handling / failure-modes table defining deepeval-gate's behavior on evaluator-LLM failure (API timeout, rate-limit, unavailability, non-determinism/flake): specify fail-closed vs fail-open and any retry/flake mitigation. Every other gate with a non-trivial failure mode (spec_validator Z3 timeout, Postgres unavailable, hook crashes) has an explicit fail-closed row; a REQUIRED merge gate whose judge-LLM can time out has no defined fail behavior.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "deepeval_gate.py"
+  ]
+ },
+ {
+  "title": "Define the v1 baseline DAST scan target",
+  "anchor": "Component-inventory row, design.md:150 `| zap-baseline.yml | .github/workflows/zap-baseline.yml | 2 | OWASP ZAP baseline passive scan ... |` (no target specified anywhere in canonical artifacts)",
+  "change": "Add a design.md detail (in the inventory row note or a CI-workflows subsection) defining WHAT ZAP scans for v1: how the app is stood up in CI (e.g. spin up the app against a known localhost URL, or scan a deployed preview/ephemeral environment) and how the action's target/URL input is populated. Without a defined target the baseline scan cannot run and task 56 is not implementable as written. Note the rationale at requirements.md:490 ('active scan added post-v1 when an authenticated target exists') implies even the baseline target is currently unsettled \u2014 pin the baseline (unauthenticated) target explicitly.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "zap-baseline.yml"
+  ]
+ },
+ {
+  "title": "Add zap-baseline (and deepeval_gate, flagd, omission_guard) to the design.md 'New / changed components' Phase-2 reconciliation list",
+  "anchor": "'### New / changed components' list, design.md:1179-1185 (enumerates state_integrity, audit_log/audit_verify, perf_a11y_verifier, REASONING span, research fact-check, optional role subagents \u2014 OMITS the four P3 CI/feature-flag additions)",
+  "change": "Add bullet entries to the 'New / changed components' list (line 1179) for the four Phase-2 P3 additions that are present in the component-inventory table (design.md:148-151) but missing from this reconciliation list: `zap-baseline.yml` (Phase 2, OWASP ZAP baseline passive scan, trigger/target/fail_action semantics, ruleset registration, REQ-SEC-008); `deepeval_gate.py` (REQ-EVAL-001); `flagd` kill-switch (REQ-CTRL-001); `omission_guard` (REQ-SPEC-018). At minimum add zap-baseline with a one-line description of its trigger, scan target, fail_action semantics, report handling, and ruleset registration, parallel to the audit_log/audit_verify treatment at design.md:1181.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "zap-baseline.yml"
+  ]
+ },
+ {
+  "title": "flagd kill-switch has no enforcement-mechanism design subsection",
+  "anchor": "Component Inventory row: | `flagd` | `flagd/` (self-hosted service, Apache 2.0, CNCF Incubating) | 2 | OpenFeature + flagd agent kill-switch; near-real-time flag updates (\u2264 30 s polling) without process restart; self-hosted, no SaaS dependency (REQ-CTRL-001).",
+  "change": "Author a new design subsection 'Agent Kill-Switch (REQ-CTRL-001)' parallel to the 'Sandbox & Worktree Isolation (REQ-17.4)' subsection (design.md:514). It MUST specify: (a) ENFORCEMENT POINT \u2014 each agent entry point (initializer/implementer/verifier subagents) queries the OpenFeature client at start-of-turn; a set kill flag causes the gated capability to hard-refuse, analogous to a PreToolUse exit-2 block; define 'disabled' operationally (refuse the tool call / skip the capability). (b) FLAG SCHEMA \u2014 enumerate the kill-switch flag name(s) and the agent capability each gates. (c) PROVIDER CHOICE \u2014 pick a default (gRPC streaming for true near-real-time, OR file-based with an explicit poll interval \u226430 s) and tie the \u226430 s propagation guarantee to that provider's mechanism. (d) FAIL-CLOSED behavior when flagd is unreachable (see separate edit). (e) AUDIT/OTel wiring on every toggle (see separate edit). Also add a Hook-Wiring-Table row or equivalent showing where the flag is checked.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "flagd"
+  ]
+ },
+ {
+  "title": "flagd unreachable behavior (fail-open vs fail-closed) unspecified \u2014 conflicts with fail-closed invariant",
+  "anchor": "New 'Agent Kill-Switch (REQ-CTRL-001)' subsection (and Requirement 32 in requirements.md:492-496)",
+  "change": "Specify the unreachable-flagd behavior explicitly as FAIL-CLOSED: when the self-hosted flagd server / flag source is unavailable, the gated agent capability defaults to DISABLED (not enabled). Document this in the new design subsection and reconcile it with REQ-GATE-005 (requirements.md:207: 'ambiguous states SHALL resolve to blocked, not passed'). Add a corresponding acceptance criterion to Requirement 32 (e.g. 32.4: 'IF the flagd flag source is unreachable, THEN the affected agent capability SHALL default to disabled (fail-closed), consistent with REQ-GATE-005.').",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "flagd"
+  ]
+ },
+ {
+  "title": "Create subagent-output JSON schema with required omission_declaration (Req 29.3)",
+  "anchor": "| `schema/` | `schema/feature_list.schema.json` | 0 | JSON Schema for feature_list.json. PreToolUse validates against this. |",
+  "change": "Add a Component-Inventory row for a new `schema/subagent_output.schema.json` (Phase 0) that defines the initializer/research/verifier output envelope, and specify in it that `omission_declaration` is a REQUIRED, non-nullable field (array of `[Gap]`-marked entries keyed by EARS scenario category) per Requirement 29.3 / REQ-SPEC-018. Reference this schema from the SubagentStop omission-declaration guard (design.md:218) as the producer-side contract the gate enforces. Currently Req 29.3 mandates 'THE JSON schema for each subagent output type SHALL include omission_declaration as required, non-nullable' but no such schema file or inventory row exists; only feature_list.schema.json is defined.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "initializer.md"
+  ]
+ },
+ {
+  "title": "Name the persisted compiled-spec artifact for Requirement 1.3",
+  "anchor": "**Permissions:** Read/write to spec artifacts, `feature_list.json`, domain-baseline checklists. No access to `tests/`, CI config, or implementation source.",
+  "change": "In the initializer Subagent Definition (design.md:226-238), name the concrete on-disk artifact that satisfies Requirement 1.3 ('persist compiled requirements as version-controlled artifacts, not model context alone'). feature_list.json is the coverage model, not the requirements prose. State the path/format the initializer writes (e.g. `.kiro/specs/<feature>/requirements.md` and/or a machine-readable `specs/<feature>/spec.json`) and reference it as the 'spec artifact' input contract of spec_validator.py (design.md:533, which currently refers to a 'spec artifact' with no named on-disk location).",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "initializer.md"
+  ]
+ },
+ {
+  "title": "Clarify feature_list.json ownership: initializer vs tools/feature_list_init.py and artifact-guard exemption",
+  "anchor": "- Writes `feature_list.json` with all items defaulting to `unproven`",
+  "change": "Resolve the ownership split for feature_list.json creation. design.md:234 says the Initializer 'Writes feature_list.json' while tasks.md task 12 (tools/feature_list_init.py) owns empty-model initialization. Add a clause: the Initializer CALLS `tools/feature_list_init.py` to seed an empty, schema-valid file (schema_version, product_class, checklist_ref, empty items[]) and then populates items. Also state how this reconciles with the PreToolUse artifact/status guards (design.md:214-215) that protect feature_list.json \u2014 i.e. whether the initial seed write is exempt from the artifact guard (the guard protects the schema and identity-mutation, not the initial creation) so the producer is not blocked by its own gate.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "initializer.md"
+  ]
+ },
+ {
+  "title": "Specify Research-claim epistemic precondition (Req 24.2) on the initializer's discovery pass",
+  "anchor": "- Expands intent against the domain-baseline checklist; flags any UNMAPPED items",
+  "change": "Add a precondition to the initializer's discovery behavior tying it to Requirement 24.2 / Property 29: the initializer (the CONSUMER of the domain-baseline checklist) may run proactive discovery only against a checklist that is both human-approved (non-null approved_at \u2014 already gated by the PreToolUse checklist-approval guard / CHECK-12) AND whose sourced claims carry source-URL + authority-tier labels and have passed the independent fact-check pass. State that an approved-but-unlabeled/unverified checklist is not usable for discovery. This makes the Req 24.2 epistemic gate an explicit precondition on the initializer beyond the bare DRAFT/approved bit.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "initializer.md"
+  ]
+ },
+ {
+  "title": "Expand design implementer.md section with concrete frontmatter + tool allowlist + smoke test",
+  "anchor": "#### `.claude/agents/implementer.md` \u2014 Coding Subagent",
+  "change": "The section is ~10 prose lines (design.md:240-251) for a load-bearing spine component while each hook gets a full code block. Add: (1) the exact agent-spec frontmatter (name, description, model, and a tools/allowed-tools allowlist that realizes 'worktree only' \u2014 Bash for `git worktree add`, Write/Edit confined to the slice worktree, NO access to tests/, schema/, CI, or other worktrees); (2) the handoff protocol to the Verifier (implementer returns with no Evidence_Record; Verifier is invoked separately); (3) a smoke test analogous to tests/smoke/test_hook_config.py that parses the agent markdown and asserts its permission scope. Add the matching smoke-test task under tasks.md task 10.2.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "implementer.md"
+  ]
+ },
+ {
+  "title": "No subagent-registration/discovery binding for the four agents",
+  "anchor": "### Hook Configuration (`settings.json`)",
+  "change": "The settings.json block (design.md:159-201) registers ONLY hooks; nothing documents how the runtime discovers/loads/invokes .claude/agents/*.md. Either (a) add a sentence stating Claude Code auto-discovers `.claude/agents/*.md` by convention (cite the substrate version), or (b) add an explicit agent-registration entry to the settings.json design. Then add a smoke-test row to task 9.2 (test_hook_config.py) asserting the four agents (initializer, implementer, verifier, research) are discoverable/registered.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "implementer.md"
+  ]
+ },
+ {
+  "title": "Wire the implementer-loop retry budget AND per-slice token/cost budget into implementer.md and task 10.2",
+  "anchor": "**Key behaviors:**\n- Reads `feature_list.json` to identify the single highest-priority `unproven` item",
+  "change": "requirements.md:359 names 'the implementer loop' as OWNER of the retry budget (run_state.retry_count, DEFAULT 3) and REQ-LOOP-001 (14.1) puts the per-slice token/cost budget on the same loop, but implementer.md key behaviors (design.md:244-249) and task 10.2 (tasks.md:208-211) mention neither. Add a key behavior: 'Increments run_state.retry_count on a failed slice; on retry_count >= 3 stops and routes to HANDOFF (REQ-LOOP-003); the per-slice token/cost budget (REQ-LOOP-001) and its REQ-LOOP-002 HANDOFF trigger are enforced for the slice it owns.' Add the matching bullet to task 10.2 citing 14.1/14.3.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "implementer.md"
+  ]
+ },
+ {
+  "title": "Property 24 has neither a Z3 check nor a 'no-Z3-check' annotation",
+  "anchor": "### Property 24: Subagent Role Separation (Implementer Cannot Self-Verify)",
+  "change": "Property 24 (design.md:1066-1070) carries only '**Validates: Requirements 9.2**' \u2014 no machine-check line. The harness has zero actor_agent / role-separation / self-verification assertion (grep of formal_verification_merged.py returns nothing). Either (a) add a Z3 CHECK to formal_verification_merged.py asserting (evidenceCreated \u2227 actorIsImplementer) is UNSAT and cite it here, or (b) annotate Property 24 with an explicit '(no Z3 check \u2014 runtime/test verified via tasks.md 39.13)' line exactly as Properties 28 and 29 are annotated (design.md:1110, 1120). Pick one and apply.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "implementer.md"
+  ]
+ },
+ {
+  "title": "Token/cost budget cap expressed in incompatible units (tokens vs USD) with no run_state column",
+  "anchor": "    token_cost_usd    NUMERIC(10,4) NOT NULL DEFAULT 0,",
+  "change": "requirements.md:357 sets the cost/token budget = 1,000,000 TOKENS per Slice, but run_state stores only `token_cost_usd NUMERIC(10,4)` (USD) and the Stop-hook budget check (design.md:704) compares against `token_budget_usd` \u2014 a column that does not exist in the run_state DDL (design.md:481-496). Pick one unit and close the loop: either add a `token_budget` (integer tokens) column and have the budget check compare tokens, or add a `token_budget_usd` column plus a documented token\u2192USD model-price assumption converting the 1,000,000-token default. Reconcile requirements.md:357 with design.md:488,704 and add the chosen column to migration 005 (task 28.5).",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "implementer.md"
+  ]
+ },
+ {
+  "title": "Per-worktree write confinement: cross-reference implementer.md to the existing sandbox mechanism",
+  "anchor": "**Permissions:** Write to implementation source files in its assigned worktree only. No write access to `tests/`, `feature_list.json` schema, CI config, or other worktrees.",
+  "change": "implementer.md's narrative permission (design.md:251) names 'worktree only' but cites no enforcement mechanism, while the enforcing mechanism ALREADY exists at design.md:514-527 (Sandbox & Worktree Isolation, REQ-17.4, task 46) \u2014 design.md:524-527 confines filesystem writes to the per-slice worktree and explicitly ties it to 'the one-slice/one-worktree discipline from the Implementer subagent definition.' Add a cross-reference from this Permissions line to the Sandbox & Worktree Isolation section so the confinement claim names its enforcer; OR, if sandbox is deferred, add a PreToolUse check that blocks writes whose path is outside the active slice's worktree. State which mechanism enforces design.md:251.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "implementer.md"
+  ]
+ },
+ {
+  "title": "Highest-priority selection predicate is underspecified (no tie-break, no dependency respect)",
+  "anchor": "- Reads `feature_list.json` to identify the single highest-priority `unproven` item",
+  "change": "'highest-priority unproven item' (design.md:245, tasks.md:210) is ambiguous: priority is integer (1=highest, design.md:336-339) with no tie-break among equal-priority items, and CoverageItem.dependencies (design.md:354) is ignored \u2014 an item could be highest-priority yet have unproven dependencies. Specify the selection predicate in implementer.md: 'select the lowest priority integer among unproven items whose dependencies are ALL proven; break ties by item id lexical order.' Cite the dependencies field so dependency-respecting selection is explicit.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "implementer.md"
+  ]
+ },
+ {
+  "title": "Add runtime enforcement mechanism for Property 24 (implementer-cannot-self-verify)",
+  "anchor": "Property 24: Subagent Role Separation (design.md:1066-1070); evidence_records.actor_agent column comment (design.md:473)",
+  "change": "Property 24 has no enforcement: actor_agent is only a SQL column comment, and no hook/tool validates actor_agent != implementer at evidence-write time. Add an actor-identity check to the design: in subagent_stop_hook.py (or the PreToolUse status guard), block any feature_list.json status\u2192proven write or evidence_records insert whose actor_agent equals the implementer that produced the slice. Cite this new mechanism from Property 24, and add the corresponding Hook Wiring Table row (REQ-VERIFY-002 / Req 9.2). Verified: grep of formal_verification_merged.py returns zero hits for actor_agent/verifier/implementer/role \u2014 no Z3 check models role separation; CHECK-13 uses a generic subagentAccepted13 boolean with no per-subagent identity. Optionally add a Z3 CHECK modeling actor_agent==verifier for any proven transition.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "verifier.md"
+  ]
+ },
+ {
+  "title": "Resolve Verifier write-scope inconsistency: 'status field only' vs 'Evidence_Records to feature_list.json'",
+  "anchor": "design.md:267 'Read/write on `tests/`, `feature_list.json` status field only' vs design.md:629 (Phase-0 component #7 test) 'can write Evidence_Records to `feature_list.json`'",
+  "change": "design.md:267 limits the Verifier to writing the feature_list.json status field only, while the Phase-0 spine acceptance test at design.md:629 says it 'can write Evidence_Records to feature_list.json' (the status+evidence sub-object). tasks.md:214 echoes 'status field only'. Reconcile to one scope: state the Verifier writes the status field AND the attached evidence sub-object (since a status\u2192proven flip requires writing the Evidence_Record per the schema at design.md:381-384). Align design.md:267, design.md:629, and tasks.md:214.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "verifier.md"
+  ]
+ },
+ {
+  "title": "Add Verifier WIRING-failed transition behavior consuming wiring_checker output (Req 8.2)",
+  "anchor": "Verifier key-behaviors list (design.md:257-265); Req 8.2/REQ-EXEC-011 'THE Verifier SHALL mark the corresponding WIRING item failed'",
+  "change": "Req 8.2 names the Verifier as the actor that marks unreachable WIRING items failed, and wiring_checker.py (task 19) emits WIRING candidates, but the Verifier's key-behaviors list (design.md:257-265) never mentions WIRING handling and no design step connects the Verifier to consume wiring_checker output or perform the unproven\u2192failed transition. Add a Verifier key-behavior: ingest wiring_checker.py findings and set unreachable WIRING items to failed (unproven\u2192failed edge). Reference REQ-EXEC-011 and requirements.md:129 ('unproven\u2192failed (Verifier on a dead check)').",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "verifier.md"
+  ]
+ },
+ {
+  "title": "Add Verifier WIRING integration-test evidence behavior (Req 8.3 / task 47)",
+  "anchor": "Verifier key-behaviors list (design.md:257-265); Req 8.3/REQ-EXEC-012; tasks.md:959 task 47",
+  "change": "Req 8.3 requires an integration test exercising the real execution path as the attached Evidence_Record when a WIRING item is claimed proven, and task 47 (tasks.md:959) adds this evidence requirement, but the Verifier's key-behaviors never describe the WIRING-integration-test special case that the Verifier must attach. Add a Verifier behavior: when proving a WIRING item, require/attach an integration-test Evidence_Record exercising the real path. Cross-reference task 47 and REQ-EXEC-012.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "verifier.md"
+  ]
+ },
+ {
+  "title": "Specify artifact-guard carve-out allowing the Verifier to write tests/",
+  "anchor": "PreToolUse artifact guard row (design.md:214, protects `tests/`); Implementer denied tests/ (design.md:251); Verifier read/write tests/ (design.md:267)",
+  "change": "The artifact guard (design.md:214) blocks any tool targeting tests/ as a protected artifact and the Implementer is denied tests/ writes (design.md:251), yet the Verifier has read/write on tests/ (design.md:267) \u2014 with no exception path defined for how the Verifier writes through the guard. Specify the carve-out: key the artifact guard on actor_agent (allow verifier.md test writes) OR restrict the guard to test-file deletion/rewrite vs addition, while still blocking the Implementer and destructive ops. Add the qualifier to the design.md:214 artifact-guard row and the design.md:267 Verifier permissions.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "verifier.md"
+  ]
+ },
+ {
+  "title": "Add Verifier frontmatter (tools allowlist / model / description) to design",
+  "anchor": "Subagent Definitions \u00a7`.claude/agents/verifier.md` (design.md:253-267); 'following the Claude Code agent spec' (design.md:224)",
+  "change": "design.md:224 says each subagent follows the Claude Code agent spec (which requires name/description/tools/model frontmatter), but the verifier.md section gives only prose permissions \u2014 no concrete tools allowlist, model, or description. Permission scoping in Claude Code is enforced via the tools allowlist, not prose, so 'no write access to implementation' is currently unenforceable as written. Add the verifier.md frontmatter to the design: explicit tools allowlist (Read, Bash for test runners, the evidence_collector tool; NO Write/Edit/MultiEdit on src/), model selection, and a description. Mirror into tasks.md task 10.3 (anchor: tasks.md:213-216).",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "verifier.md"
+  ]
+ },
+ {
+  "title": "Add REQ-SPEC-016/017/018 obligations to research.md key behaviors and task 10.4 traceability",
+  "anchor": "#### `.claude/agents/research.md` \u2014 Domain-Baseline Checklist Sourcer  \u2192  **Key behaviors:** block (design.md:273-278)",
+  "change": "Extend the research.md **Key behaviors** list (design.md:273-278) with three obligations the agent that is the named subject of REQ-SPEC-016/017/018 currently omits: (a) [REQ-SPEC-017] every external claim in a draft checklist SHALL carry a source URL and an authority-tier label (primary/standard/peer-reviewed vs blog/vendor/social), and SHALL pass an independent fact-check pass before presenting for human review; (b) [REQ-SPEC-016] do NOT use a checklist for discovery until its `approved_at` is non-null (DRAFT is unusable) \u2014 already partially stated as 'does NOT use the checklist until approved', make the approved_at linkage explicit; (c) [REQ-SPEC-018] the research output SHALL include a non-null `omission_declaration` field enumerating, by EARS scenario category, every scenario class not covered, using `[Gap]` markers. Mirror this in tasks.md task 10.4: change its `_Requirements: 3.1, 3.2, 3.3_` line to `_Requirements: 3.1, 3.2, 3.3, 24.1 (REQ-SPEC-016), 24.2 (REQ-SPEC-017), 29.1/29.3 (REQ-SPEC-018)_` and add the corresponding behavior bullets (source-URL/authority-tier/fact-check + omission_declaration) to the task 10.4 body.",
+  "severity": "inconsistency",
+  "adds_wiring": true,
+  "components": [
+   "research.md"
+  ]
+ },
+ {
+  "title": "Fix Property 27 requirement mis-citation (Requirement 25 \u2192 Requirement 24)",
+  "anchor": "**Validates: Requirements 25 (REQ-SPEC-016). Machine-checked: CHECK-12 (`formal_verification_merged.py`).** (design.md:1100)",
+  "change": "Change 'Validates: Requirements 25 (REQ-SPEC-016)' to 'Validates: Requirement 24.1 (REQ-SPEC-016)'. REQ-SPEC-016 maps to Requirement 24.1 (requirements.md:441-442 and the cross-ref table at requirements.md:509); Requirement 25 is Performance/Accessibility (requirements.md:445), an unrelated requirement. Property 29 at design.md:1120 already correctly cites 'Requirements 24 (REQ-SPEC-017)', so only line 1100 is wrong.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "research.md"
+  ]
+ },
+ {
+  "title": "Name a concrete owner for the Property 29 fact-check / authority-tier enforcement",
+  "anchor": "### Property 29: Research-Claim Authority Labeling ... **Validates: Requirements 24 (REQ-SPEC-017). Test mechanism: fact-check / authority-tier-labeling pass (no Z3 check \u2014 test/runtime verified).** (design.md:1114-1120)",
+  "change": "REQ-SPEC-017's 'independent fact-check pass' and 'authority-tier labeling' have NO concrete executable owner: no fact_check.py / authority_labeler / research_claim_validator appears in the Component Inventory (design.md:124-155) or any task \u2014 only a property test (39.19) and a prose behavior. Add a named component (e.g. `tools/research_claim_validator.py` or a SubagentStop-side `research_epistemic_guard` capability) to the Component Inventory table and the 'New / changed components' list (design.md:1184), and cite it from Property 29 and task 50. As written, REQ-SPEC-017 has an enforcing test but no enforcing runtime mechanism.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "research.md"
+  ]
+ },
+ {
+  "title": "Specify the DB-row producer for domain_baseline_checklists vs research.md baselines/-only scope",
+  "anchor": "-- domain_baseline_checklists: version history of product-class checklists ... CREATE TABLE domain_baseline_checklists (design.md:498-509)",
+  "change": "No actor is specified for INSERTing the `domain_baseline_checklists` row (the persisted record of research.md's output, carrying sha/version/approved_at/approved_by). research.md has `baselines/`-only filesystem scope and no DB write (design.md:280), so it cannot write Postgres under its current scope. Name the producer \u2014 the human-approval action or a SessionStart/PostToolUse hook that records the row on approval \u2014 and reconcile it against research.md's permission scope. Add this to the Domain-Baseline Checklist Lifecycle section (design.md:609-613) and/or the checklist-approval guard row (design.md:213).",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "research.md"
+  ]
+ },
+ {
+  "title": "Define the per-subagent research-output JSON schema and checklist file-format schema",
+  "anchor": "Component Inventory + Data Models sections (no research-output schema artifact; design.md:124-155, 286-510)",
+  "change": "REQ-SPEC-018.3 (requirements.md:478) requires 'THE JSON schema for each subagent output type SHALL include omission_declaration', but no per-subagent output JSON schema artifact for research is named anywhere (only feature_list.schema.json exists), and no checklist file-format schema defines what a `baselines/*.md` must contain (per-item fields, per-claim source/authority-tier/fact-check structure). Add: (1) a research-output JSON schema (e.g. `schema/research_output.schema.json`) carrying a required non-nullable `omission_declaration`, and (2) a checklist-item schema specifying claim/source/authority-tier fields \u2014 and cite both from task 10.4 and task 54. Without a defined output format, REQ-SPEC-014/017/018.3 cannot be machine-validated.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "research.md"
+  ]
+ },
+ {
+  "title": "Define the 'new product class' detection mechanism and owning component",
+  "anchor": "**Lifecycle rules:** 4. The Research_Sub_Agent is triggered only once per product class ... Re-research is triggered only by an explicit operator request. (design.md:613)",
+  "change": "Req 3.1 says research runs 'WHEN a new product class is encountered for the first time' and design.md:613 says 'only once per product class', but neither defines HOW first-encounter / newness is DETECTED or which component decides. Add: the Initializer detects newness via a lookup against `domain_baseline_checklists` by `product_class` (no approved row for that class \u21d2 new \u21d2 trigger research); cite this from the research.md trigger behavior (design.md:274 'Triggered by the Initializer when a product class has no existing checklist') and the lifecycle rules.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "research.md"
+  ]
+ },
+ {
+  "title": "Add 006 migration filename to the domain_baseline_checklists CREATE TABLE block in design",
+  "anchor": "-- domain_baseline_checklists: version history of product-class checklists (design.md:498)",
+  "change": "The migration index for `domain_baseline_checklists` (006) is canonical only in tasks.md (task 28.6, `db/migrations/006_domain_baseline_checklists.sql`). design.md's component table at line 140 explicitly lists the 007 and 008 migration rows but omits the 006 row, and the CREATE TABLE block at design.md:498-509 names no migration file. Add the migration filename `006_domain_baseline_checklists.sql` as a comment on the CREATE TABLE block (and/or an explicit row in the design.md:140 migration list) so the 006 index is canonical in design, not only in tasks. NOTE: there is NO numeric collision \u2014 006=domain_baseline_checklists, 007=requirement_versions, 008=gate_audit_log are consistent across both files; this is a documentation-completeness fix only.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "research.md"
+  ]
+ }
+]

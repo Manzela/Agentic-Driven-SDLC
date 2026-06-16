@@ -1,0 +1,127 @@
+{
+ "idx": 25,
+ "component": "flagd",
+ "file_path": "flagd/ (self-hosted service)",
+ "phase": "2",
+ "what": "A self-hosted feature-flag service (OpenFeature SDK + flagd, Apache 2.0, CNCF Incubating) configured to act as an agent-capability KILL-SWITCH. It is defined as a component at path `flagd/` (a self-hosted service directory). Per the canonical spec it is configured to: (a) run the flagd server self-hosted with no SaaS dependency; (b) expose the OpenFeature SDK interface to agent entry points; (c) serve near-real-time flag updates via a file-based or gRPC provider; and (d) when a kill-switch flag is set, disable the affected agent capability within the polling interval (<=30 s) WITHOUT a process restart. It is a Phase 2 (durable-state) component (design.md:151). NOTE: this is the ENTIRE specif\u2026",
+ "open_gaps": [
+  {
+   "gap": "The `flagd/` directory that design.md:151 and task 57 both cite as the component's path DOES NOT EXIST in the repo (find for *flagd* returns nothing). The component path is a dangling reference \u2014 every other Phase-0/2 component in the inventory points to a real or buildable file, but flagd's path is purely notional with no scaffold, no flag-definition file, and no provider config.",
+   "severity": "missing-wiring",
+   "fix": "Either create the `flagd/` scaffold (flagd.json/flag-definitions + provider config + a self-hosted deployment manifest) or explicitly mark the path as 'to be created by task 57' in design.md:151. Add a concrete flag schema enumerating the kill-switch flag name(s) and the agent capabilities each gates.",
+   "cit": "design.md:151; tasks.md:977"
+  },
+  {
+   "gap": "Task 57 (the flagd build task) is NOT scheduled in the dependency-graph waves. The reconciliation note states the graph 'schedules the new tasks 43\u201353' (waves ids 36\u201343); tasks 54\u201357 (DeepEval, ZAP, AND the flagd kill-switch) are appended below the wave block and never assigned a wave id. The component therefore has no place in the build DAG \u2014 it is unscheduled.",
+   "severity": "missing-wiring",
+   "fix": "Extend the waves JSON (tasks.md:740+) with waves scheduling tasks 54\u201357, or amend the dependency-graph count note (tasks.md:950) to state tasks 54\u201357 are intentionally out of the DAG and explain when task 57 runs relative to Phase 2.",
+   "cit": "tasks.md:950; tasks.md:977; tasks.md:740"
+  },
+  {
+   "gap": "REQ-CTRL-001 32.2 ('the affected agent capability SHALL be disabled') has NO concrete enforcement mechanism. Unlike every other control in the system (which names a specific hook + exit-2 guard, e.g. PreToolUse plan/scope/integrity guards), the kill-switch never says WHERE the disable is enforced (which agent entry point checks the flag), WHAT 'disabled' means operationally (refuse tool calls? exit? skip the capability?), or HOW it is guaranteed deterministic. It is an EARS criterion with no mechanism.",
+   "severity": "underspecified",
+   "fix": "Add a design subsection specifying the enforcement point: e.g. each agent entry point queries the OpenFeature client at start-of-turn; a set kill flag causes the capability to hard-refuse (analogous to a PreToolUse exit-2 block). Define 'disabled' precisely and state the consistency guarantee for the <=30 s window.",
+   "cit": "requirements.md:495"
+  },
+  {
+   "gap": "design.md gives the component ONE inventory-table row (design.md:151) and nothing else \u2014 no design subsection, no sequence/flow, no data model, no settings.json binding, no error-handling row, no testing entry. This thinness IS the gap: a runtime safety brake that can disable agents mid-run has less design coverage than minor tools. Missing: enforcement architecture, flag schema, provider decision, deployment model, observability/audit wiring, failure mode (what if flagd is unreachable \u2014 fail-open or fail-closed?).",
+   "severity": "underspecified",
+   "fix": "Author a 'Agent Kill-Switch (REQ-CTRL-001)' design subsection (parallel to the 'Sandbox & Worktree Isolation' subsection at design.md:514) covering enforcement point, flag schema, provider choice, fail-closed-vs-open behavior when flagd is down, and audit/OTel wiring.",
+   "cit": "design.md:151"
+  },
+  {
+   "gap": "Fail-open vs fail-closed behavior is unspecified, which conflicts with the system's governing fail-closed invariant. If the self-hosted flagd server is unreachable, the spec does not say whether agent capabilities default to enabled (fail-open, contradicting the 'ambiguous states resolve to blocked' principle of REQ-GATE-005) or disabled (fail-closed). For a safety kill-switch this is a material defect.",
+   "severity": "defect",
+   "fix": "Specify the unreachable-flagd behavior explicitly. For a kill-switch, fail-closed (capability disabled when the flag source is unavailable) is the safety-consistent choice; document it and reconcile with REQ-GATE-005's fail-closed posture (requirements.md:207).",
+   "cit": "requirements.md:496; requirements.md:207"
+  },
+  {
+   "gap": "Provider choice 'file-based or gRPC' (requirements.md:496) is stated as an open alternative and then dropped \u2014 design.md:151 omits the provider entirely and task 57 does not pick one. The <=30 s propagation guarantee depends on provider semantics (gRPC streaming is near-instant; file-based polling depends on poll interval), so leaving it open leaves the <=30 s claim unbacked.",
+   "severity": "underspecified",
+   "fix": "Select a default provider (gRPC for true near-real-time, or file-based with an explicit poll interval <=30 s) in design.md and task 57, and tie the <=30 s figure to the chosen provider's mechanism.",
+   "cit": "requirements.md:496; design.md:151; tasks.md:977"
+  },
+  {
+   "gap": "The <=30 s polling interval is a numeric threshold that is NOT in the Requirement-20 threshold registry (requirements.md:354-359), where all other numeric DEFAULTs (coverage 85%, cap 25, retries 3, loop 7, timeout 60s, export <=5s, token budget, K=3) are centralized with owners. The kill-switch interval has no registry entry and no owner, breaking the 'all numeric thresholds are configurable DEFAULTs with an owner' discipline (REQ-20.2).",
+   "severity": "inconsistency",
+   "fix": "Register the kill-switch polling interval (<=30 s, configurable) in the Requirement-20 threshold registry with a named owner, consistent with REQ-20.1/20.2.",
+   "cit": "requirements.md:354-359; requirements.md:495"
+  },
+  {
+   "gap": "No owner/role is named for the kill-switch: who is authorized to set the flag, who owns the flagd deployment, who owns the flag schema. The component maps to B17 (Human-in-the-loop) yet, unlike plan-approval (which binds to plan-approved.json written by a named human), there is no actor, no marker file, and no settings.json/ruleset binding tying the flag flip to an accountable human.",
+   "severity": "underspecified",
+   "fix": "Name the role authorized to flip the kill-switch (e.g. Delivery Owner/Operator), specify how the action is authenticated, and record it \u2014 ideally append a gate_audit_log entry on every kill-switch toggle so the B16/B17 mapping has teeth.",
+   "cit": "requirements.md:493; requirements.md:495"
+  },
+  {
+   "gap": "Kill-switch activations produce no audit trail. The system has a tamper-evident hash-chained gate_audit_log (REQ-AUDIT-001..003) for every allow/block decision, and OTel spans for every gate decision (REQ-OBS), but a kill-switch toggle \u2014 arguably the highest-stakes runtime control action \u2014 is wired into neither. 'We can prove what happened' (requirements.md:459) does not cover the kill-switch.",
+   "severity": "missing-wiring",
+   "fix": "Require audit_log.append(...) and an OTel decision event on every kill-switch set/clear, so the activation is in the tamper-evident chain alongside other gate decisions.",
+   "cit": "requirements.md:455-462; requirements.md:495"
+  },
+  {
+   "gap": "Baseline-traceability inconsistency: Req 32 claims to map to B16/B17 (requirements.md:419,493), but the Domain-Baseline Coverage Matrix (requirements.md:381-401) maps B16\u2192Requirement 17 and B17\u2192Requirement 18 only and is never updated to show Req 32 extending those blocks. The addendum's 'extends those same blocks, no requirement orphaned' assertion (requirements.md:403) is declarative and not reflected in the actual matrix.",
+   "severity": "inconsistency",
+   "fix": "Either add Req 32 to the B16/B17 rows of the coverage matrix, or add a footnote on those rows pointing to the addendum extension table, so the trace is internally consistent.",
+   "cit": "requirements.md:419; requirements.md:398-399; requirements.md:403"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "contradiction",
+   "detail": "open_gaps[1] (the 'task 57 is unscheduled' gap) is FACTUALLY WRONG and directly contradicted by the spec. It asserts: 'tasks 54-57 (DeepEval, ZAP, AND the flagd kill-switch) are appended below the wave block and never assigned a wave id ... The component therefore has no place in the build DAG \u2014 it is unscheduled.' The actual Task Dependency Graph JSON DOES schedule task 57: wave id 48 = [\"57\"] (tasks.md:934-935), with tasks 54/55/56 in wave ids 45/46/47 (tasks.md:921-932). All of tasks 53-57 sit INSIDE the waves array (which runs ids 0-48, 49 wave entries total), not 'appended below the wave block.' This is a phantom 'missing-wiring' gap that does not exist; flagd IS in the build DAG.",
+   "cit": "draft open_gaps[1] vs tasks.md:933-936 (wave id 48, tasks ['57']); tasks.md:921-932 (waves 45-47 = tasks 54-56); tasks.md:909-916"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft MISSED the real, opposite inconsistency it should have caught: the prose count-note at tasks.md:950 is STALE relative to the JSON. The note reads '... the graph has 36 waves (ids 0\u201335) for tasks 1\u201342, plus the appended waves (ids 36\u201343) that schedule the new tasks 43\u201353.' But the actual waves array ends at id 48 and schedules tasks 43-57 (the appended block runs ids 36-48, not 36-43). So the count note under-reports by 5 waves and stops the task range at 53 when the JSON goes to 57. The genuine flagd-relevant defect is that the count note omits flagd's wave (id 48 / task 57) from its prose \u2014 the inverse of what open_gaps[1] claims. The draft inverted which artifact is at fault (it \u2026",
+   "cit": "tasks.md:950 (prose: 'appended waves (ids 36\u201343) ... tasks 43\u201353') vs tasks.md:886-936 (JSON: appended waves ids 36\u201348, tasks 43\u201357)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The remediation in open_gaps[1] ('Extend the waves JSON with waves scheduling tasks 54\u201357') is moot/misdirected because those waves already exist (ids 45-48). Acting on this suggested_fix would create duplicate wave entries. The correct fix is to amend the stale prose count note at tasks.md:950 to match the JSON (ids 0\u201348, tasks 43\u201357), which the draft does offer only as the SECOND alternative of its fix while leading with an incorrect first alternative.",
+   "cit": "draft open_gaps[1].suggested_fix vs tasks.md:921-936"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-CTRL-001 / Requirement 32.1",
+   "criterion": "THE System SHALL implement an agent-capability kill-switch using OpenFeature + flagd (Apache 2.0, self-hosted, CNCF Incubating). [Ubiquitous EARS]",
+   "how": "Stated as the component obligation; design.md:151 names the component `flagd` at path `flagd/` with the same license/CNCF attributes; tasks.md:977 (task 57) is the build task. No design-section detail, no data model, no schema, no Z3 check.",
+   "status": "partial",
+   "cit": "requirements.md:494; design.md:151; tasks.md:977"
+  },
+  {
+   "req_id": "REQ-CTRL-001 / Requirement 32.2",
+   "criterion": "WHEN a kill-switch flag is set, THEN the affected agent capability SHALL be disabled within the polling interval (<= 30 seconds) WITHOUT requiring a process restart. [Event-driven EARS]",
+   "how": "Restated in design.md:151 ('<=30 s polling without process restart') and tasks.md:977 ('verify near-real-time flag propagation (<=30 s) without process restart'). No concrete mechanism is given for HOW a flag flip disables a specific agent capability (no enforcement point, no guard, no code path); t\u2026",
+   "status": "partial",
+   "cit": "requirements.md:495; design.md:151; tasks.md:977"
+  },
+  {
+   "req_id": "REQ-CTRL-001 / Requirement 32.3",
+   "criterion": "THE flagd server SHALL be self-hosted (no SaaS dependency), SHALL expose the OpenFeature SDK interface, and SHALL support near-real-time flag updates via file-based or gRPC provider. [Ubiquitous EARS]",
+   "how": "Self-hosted/no-SaaS restated in design.md:151 and PRD_MERGED:35. The OpenFeature SDK interface and the file-based-OR-gRPC provider choice are stated only in requirements.md:496 and are NOT carried into design.md or tasks.md \u2014 design.md:151 omits the provider entirely, and task 57 says 'wire OpenFeat\u2026",
+   "status": "partial",
+   "cit": "requirements.md:496; design.md:151; PRD_MERGED:35"
+  },
+  {
+   "req_id": "Appendix baseline-trace row (Req 32 \u2192 B16/B17)",
+   "criterion": "Requirement 32 (Agent Code Kill-Switch) maps to baseline blocks B16/B17, PRD ref REQ-CTRL-001; asserted to extend existing blocks with zero UNMAPPED items.",
+   "how": "Listed in the addendum baseline-traceability table (requirements.md:419) and the Req-32 header (requirements.md:493). Traceability is declarative only; no Coverage-Matrix row for B16/B17 actually shows Req 32 (the matrix at requirements.md:398-399 maps B16\u2192Req17 and B17\u2192Req18 only).",
+   "status": "partial",
+   "cit": "requirements.md:419; requirements.md:493; requirements.md:398-399"
+  },
+  {
+   "req_id": "No Z3 CHECK / no Correctness Property",
+   "criterion": "Whether any machine-checked invariant or numbered Correctness Property pins the kill-switch.",
+   "how": "NONE. The Z3 harness `formal_verification_merged.py` has zero references to flagd/OpenFeature/REQ-CTRL-001/Requirement 32 (grep returns nothing); the highest CHECK id is CHECK-13b and the harness self-counts to 34 with groups core-14 + Kiro-12 + new-8, none covering REQ-CTRL-001. No Property in the \u2026",
+   "status": "gap",
+   "cit": "verification/formal_verification_merged.py:506-520 (no flagd ref); design.md:882-1130"
+  }
+ ],
+ "citation_issues": [
+  "tasks.md:950 PHANTOM/MISREAD \u2014 draft claims 'tasks 54\u201357 are appended below the wave block and never assigned a wave id' and the component 'has no place in the build DAG.' The actual wave JSON in tasks.md extends to wave id 48 (tasks.md:933-936), with task 57 explicitly assigned to wave id 48 and tasks 54/55/56 to waves 45/46/47 respectively. The draft's gap description of task 57 being unscheduled is factually incorrect. The reconciliation NOTE at tasks.md:950 does say 'appended waves (ids 36\u201343) that schedule the new tasks 43\u201353,' which is itself a stale note that understates the actual wave range \u2014 the JSON goes to id 48, not 43 \u2014 but the draft treats the note as authoritative over the JSON itself, producing a phantom gap citation.",
+  "tasks.md:950 STALE NOTE (minor inconsistency in source): the reconciliation note at line 950 says 'appended waves (ids 36\u201343) that schedule the new tasks 43\u201353' but the actual wave JSON runs through wave id 48 (covering tasks 53\u201357). This is an internal inconsistency in the source file that the draft picks up and amplifies incorrectly, but the draft's citation of 'tasks 54\u201357 have no wave assignment' does not match the file content at tasks.md:923-936."
+ ]
+}

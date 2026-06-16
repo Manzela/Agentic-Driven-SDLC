@@ -1,0 +1,112 @@
+{
+ "idx": 19,
+ "component": "audit_verify.py",
+ "file_path": "tools/audit_verify.py",
+ "phase": "3",
+ "what": "`tools/audit_verify.py` is the on-demand AND merge-time chain verifier for the tamper-evident `gate_audit_log` hash chain (Requirement 27 / REQ-AUDIT-002/003). It recomputes every entry's `entry_hash = sha256(canonical_row || prev_hash)` over the deterministic-JSON canonical row `(seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at)`, with the genesis entry's `prev_hash = sha256(\"\")` (empty-string digest sentinel). It FAILS verification (non-zero exit) on the first row whose stored `prev_hash` does not equal the recomputed digest of the preceding row (any broken link = tamper detected), and passes only on a fully intact chain. It is the read/verify counterpa\u2026",
+ "open_gaps": [
+  {
+   "gap": "Phase assignment is internally contradictory: Component Inventory lists audit_verify.py as Phase 3 (design.md:145), but the New/changed-components list says 'audit_log.py + audit_verify.py (Phase 2/3)' (design.md:1181), and the prompt labels it Phase 3. audit_log.py is Phase 2 (design.md:144) and migration 008 is Phase 2 (design.md:142). The 'Phase 2/3' wording is ambiguous about which phase audit_verify lands in.",
+   "severity": "inconsistency",
+   "fix": "Pin audit_verify.py to a single phase \u2014 recommend Phase 3 (consistent with design.md:145) \u2014 and change design.md:1181 'audit_log.py + audit_verify.py (Phase 2/3)' to 'audit_log.py (Phase 2) + audit_verify.py (Phase 3)'.",
+   "cit": "design.md:145 vs design.md:1181 vs design.md:144,142"
+  },
+  {
+   "gap": "Dangling Z3-CHECK citation: requirements.md:510 maps Property 28 to a Z3 group labeled 'CHECK (audit chain)', but no such check exists in formal_verification_merged.py (harness ends at CHECK-13b), and both design.md:1110 and PRD:79 explicitly state tamper-evidence is runtime/CI-verified with 'no Z3 check'. The requirements table implies a machine-checked assertion that does not exist.",
+   "severity": "inconsistency",
+   "fix": "Edit requirements.md:510 to replace the 'CHECK (audit chain)' cell with '\u2014 (runtime/CI \u2014 no Z3)' to match design.md:1110 and PRD:79.",
+   "cit": "requirements.md:510; design.md:1110; PRD_MERGED:79"
+  },
+  {
+   "gap": "REQ-AUDIT-003 coverage is split inconsistently. design.md:145 attributes REQ-AUDIT-002/003 to audit_verify.py, but build subtask 52.2 cites only '_Requirements: REQ-AUDIT-002_', while REQ-AUDIT-003 is attached to the producer-wiring subtask 52.3. REQ-AUDIT-003 (retain the log as execution-proof complement to SLSA) is a retention/architecture obligation with no single concrete enforcing mechanism and no test asserting the SLSA-complement linkage.",
+   "severity": "underspecified",
+   "fix": "Add REQ-AUDIT-003 to task 52.2's _Requirements_ line to match design.md:145, OR add a note that REQ-AUDIT-003 is satisfied jointly by migration 008 (retention) + audit_verify (proof) + the SLSA release workflow (task 32.1), with a smoke test asserting both the audit log and the SLSA attestation are produced on merge.",
+   "cit": "design.md:145; tasks.md:969,970"
+  },
+  {
+   "gap": "Test-file naming mismatch: the Property 28 PBT for audit_verify.py is authored as tests/property/test_audit_log.py (tasks.md:679), naming it after the PRODUCER not the verifier. There is no test_audit_verify.py, and the producer audit_log.py has no separately named test.",
+   "severity": "inconsistency",
+   "fix": "Rename the Property 28 test to tests/property/test_audit_verify.py (the assertion exercises audit_verify.py per tasks.md:680), or split into test_audit_log.py (producer append/canonical-form) + test_audit_verify.py (chain recomputation/tamper detection).",
+   "cit": "tasks.md:679-681"
+  },
+  {
+   "gap": "No DB-unavailable fallback specified for the VERIFIER. tasks.md:730 says the audit_log PRODUCER appends to a file-backed log when Postgres is down and reconciles on reconnect, but nothing specifies how audit_verify.py reconstructs/verifies a chain split across Postgres + a file-backed log. A chain partly in the DB and partly in a file could falsely fail at the seam or be silently skipped.",
+   "severity": "missing-wiring",
+   "fix": "Specify that audit_verify.py reads BOTH the gate_audit_log table and any file-backed log segments, orders by seq, and verifies the merged chain; define seam behavior (the file segment's first prev_hash must chain to the DB segment's last entry_hash).",
+   "cit": "tasks.md:730; design.md:1173-1176"
+  },
+  {
+   "gap": "Output/report format is undefined. Every spec mention says only that the verifier 'fails on any broken link' (exit code); nothing specifies what it emits to identify WHICH seq broke, expected-vs-actual hashes, or a machine-readable report for CI annotation. For a proof tool, an opaque non-zero exit is thin.",
+   "severity": "underspecified",
+   "fix": "Add to task 52.2 / Property 28 spec that audit_verify.py emits a structured report (JSON with first_broken_seq, expected_hash, stored_prev_hash, computed_prev_hash) to stdout plus a non-zero exit, so CI can annotate the failing entry.",
+   "cit": "tasks.md:701,969; design.md:1108"
+  },
+  {
+   "gap": "Design.md coverage of this component is THIN. Unlike stop_hook.py / pre_tool_use_hook.py (full pseudocode in design.md), audit_verify.py gets only a one-line inventory row (design.md:145), a one-line New-components bullet (design.md:1181), and the Property 28 statement (design.md:1108) \u2014 no algorithm pseudocode, no interface signature, no Error Handling row (design.md:807-816 omits it), and no behavior stated for an EMPTY chain or a single genesis-only chain.",
+   "severity": "underspecified",
+   "fix": "Add a design.md subsection for audit_verify.py: function signature (e.g., verify_chain(rows) -> Result), recomputation pseudocode mirroring audit_log.py's canonical form, explicit empty-chain and genesis-only handling (both PASS), and an Error Handling row (gate_audit_log unreadable / DB down \u2192 fail closed, non-zero exit).",
+   "cit": "design.md:145,807-816,1108,1181"
+  },
+  {
+   "gap": "Suite-count drift around Property 28's home suite: tasks.md:569 and tasks.md:732 say 'all 29 correctness properties', while tasks.md:717/979 and requirements.md:514 say 30 (Properties 1\u201324 + 25\u201330). Property 28 is one of the new properties whose inclusion count is stated inconsistently (29 vs 30), affecting whether its gating is counted in the canonical suite.",
+   "severity": "inconsistency",
+   "fix": "Globally fix the PBT suite count to 30 in tasks.md:569 and tasks.md:732 (Properties 1\u201330), matching tasks.md:717,979 and requirements.md:514.",
+   "cit": "tasks.md:569,732 vs tasks.md:717,979; requirements.md:514"
+  },
+  {
+   "gap": "No actual artifact exists yet: tools/audit_verify.py, tools/audit_log.py, db/migrations/008_gate_audit_log.sql, and .github/workflows/audit-chain-verify.yml are all unchecked [ ] tasks and absent from disk (verified via ls). The entire REQ-AUDIT chain is spec-only; the 'REQUIRED' merge gate audit-chain-verify is documented as required but cannot pass/fail because neither the workflow nor the verifier exists.",
+   "severity": "missing-wiring",
+   "fix": "Track as outstanding implementation: build migration 008 (Phase 2), audit_log.py (Phase 2), audit_verify.py (Phase 3), and audit-chain-verify.yml + ruleset registration (Phase 4 wiring) before the required check can be enforced. Flag so the 'REQUIRED merge gate' claim is not mistaken for live enforcement.",
+   "cit": "tasks.md:969,700,453,270"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "Build-order INVERSION not flagged by the draft: the CI workflow that runs the verifier (task 40.3, `.github/workflows/audit-chain-verify.yml`, which executes `python3 tools/audit_verify.py`) is scheduled in dependency-graph wave id:33 (tasks.md:875, tasks ['40.1','40.2','40.3']), but the verifier it invokes \u2014 task 52.2 `tools/audit_verify.py` \u2014 is not built until wave id:42 (tasks.md:911, nine waves later). The CI required check is wired to call a tool that does not exist at its own scheduled wave. The draft's by_whom only treats the Phase-3 vs Phase-2/3 ambiguity (design.md:145 vs 1181) and never surfaces this concrete cross-wave ordering contradiction in the canonical dependency graph. Thi\u2026",
+   "cit": "tasks.md:875 (wave id:33 = 40.1/40.2/40.3) vs tasks.md:911 (wave id:42 = 52/52.1/52.2/52.3); tasks.md:700-701"
+  },
+  {
+   "kind": "missing",
+   "detail": "Mis-cited requirement on the verifier's primary data-source dependency, not caught by the draft. The `gate_audit_log` migration (db/migrations/008, the table audit_verify.py reads) cites its requirement as '16.1 (REQ-AUDIT-001..003)' at tasks.md:456. Requirement 16.1 is 'persist requirements, coverage state, traceability links, Evidence_Records, and run state in a managed Postgres' (requirements.md:296) \u2014 wholly unrelated to the audit log; the correct mapping is Requirement 27 / REQ-AUDIT. The draft lists migration 008 as a dependency but never flags that its requirement traceability is wrong, despite flagging the analogous '12.x' mis-tag elsewhere.",
+   "cit": "tasks.md:456; requirements.md:296 (Req 16.1)"
+  },
+  {
+   "kind": "missing",
+   "detail": "Property 28's 'Validates' pointer in design.md is mislabeled and the draft does not catch it. design.md:1110 reads 'Validates: Requirements 28 (REQ-AUDIT-001/002)', but the tamper-evident audit log is Requirement 27 (requirements.md:455). Requirement 28 is the Capability-Role Taxonomy Extension (REQ-ORCH-004, requirements.md:464). The draft's ears_stories and properties_and_checks treat design.md:1108-1110 as cleanly grounding Property 28 against REQ-AUDIT and never notes the Requirement-number error in the very line it cites.",
+   "cit": "design.md:1110; requirements.md:455 (Req 27) vs requirements.md:464 (Req 28)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The CI required-check requirement line for audit-chain-verify is polluted with an unrelated requirement, only partially addressed. tasks.md:703 tags `.github/workflows/audit-chain-verify.yml` with '12.x (REQ-AUDIT-001..003, REQ-OBS-006)'. REQ-OBS-006 is the reasoning-loop detector (Requirement 26), which the chain verifier does not enforce \u2014 the verifier only recomputes the hash chain. The draft cites tasks.md:700-702 as clean evidence of the CI wiring and never flags that line 703's requirement list mis-attributes REQ-OBS-006 to the verifier's CI gate (the bundling stems from task 52 conflating audit + reasoning-loop work).",
+   "cit": "tasks.md:703; tasks.md:967 (task 52 bundles REQ-AUDIT + REQ-OBS-006)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's by_whom/ears_stories overstate test coverage: it presents task 39.18 (tests/property/test_audit_log.py) as the Property-28 oracle 'fully' exercising audit_verify.py, but tasks.md:682 maps that test ONLY to REQ-AUDIT-002 (tamper detection). No property test asserts the REQ-AUDIT-001/27.5 producer contract obligations the verifier MUST reproduce (genesis prev_hash=sha256(''), exact canonical field-set/ordering, INCLUDE seq+created_at) as a positive intact-chain reproduction, nor the REQ-AUDIT-003 SLSA-complement linkage. The draft notes the FILENAME mismatch (test_audit_log vs test_audit_verify) but not that the test's requirement scope (REQ-AUDIT-002 only) is narrower than the com\u2026",
+   "cit": "tasks.md:679-682; design.md:145 (REQ-AUDIT-002/003); requirements.md:461 (27.5)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's open_gaps on the DB-down VERIFIER fallback understates the contradiction. tasks.md:730 mandates that EVERY gate fall back to file-backed state and reach the SAME decision (never fail-open), and says the producer (52.1) writes a file-backed log on DB-down and reconciles on reconnect. For the verifier this creates a fail-closed obligation the draft omits: if audit_verify.py cannot read gate_audit_log (DB down, no file segment), the tasks.md:730 'never fail-open / more conservative blocking result' rule implies it must FAIL verification (non-zero/block), but design.md gives audit_verify.py no Error Handling row (design.md:807-816 omits it) and no empty-chain/unreadable-source behavi\u2026",
+   "cit": "tasks.md:730; design.md:807-816"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-AUDIT-003 / Requirement 27.3",
+   "criterion": "THE System SHALL retain the hash-chained gate-decision log as the execution-proof complement to SLSA provenance.",
+   "how": "audit_verify.py makes 'retain as execution-proof' meaningful. design.md:145 cites REQ-AUDIT-002/003 against audit_verify, but build task 52.2 cites only REQ-AUDIT-002 (REQ-AUDIT-003 attached to producer-wiring 52.3) \u2014 see gap.",
+   "status": "partial",
+   "cit": "requirements.md:459; PRD_MERGED:63; design.md:145; tasks.md:969,970"
+  },
+  {
+   "req_id": "Property 28 cross-reference (requirements traceability table)",
+   "criterion": "audit-log tamper-evidence \u2192 Property 28 \u2192 'CHECK (audit chain)' \u2192 Requirement 27.",
+   "how": "requirements.md:510 maps Property 28 to a Z3 group 'CHECK (audit chain)', but no such CHECK exists in the harness; design.md:1110 and PRD:79 both state tamper-evidence is runtime, NOT Z3. Dangling/contradictory citation \u2014 see gap.",
+   "status": "partial",
+   "cit": "requirements.md:510; design.md:1110; PRD_MERGED:79"
+  }
+ ],
+ "citation_issues": []
+}

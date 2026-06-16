@@ -1,0 +1,158 @@
+{
+ "idx": 4,
+ "component": "subagent_stop_hook.py",
+ "file_path": ".claude/hooks/subagent_stop_hook.py",
+ "phase": "0/1",
+ "what": "`subagent_stop_hook.py` (`.claude/hooks/subagent_stop_hook.py`, Phase 0/1) is the Claude Code `SubagentStop` command-type hook \u2014 the gate that validates a subagent's returned result before that result is accepted into the run. It performs TWO distinct validations: (1) the base Evidence_Record schema gate \u2014 parse the subagent result JSON from stdin, locate the `evidence` field(s), call `validate_evidence_record()` from `evidence_collector.py`, and exit 2 (fail-closed) if any of the four required fields (`test_file`, `test_name`, `output_hash`, `collected_at`) is missing or empty (requirements.md:24, :190; design.md:130, :217, :627; tasks.md:176-189); and (2) the `omission_guard` capability \u2014 \u2026",
+ "open_gaps": [
+  {
+   "gap": "REQ-VERIFY-005 (9.5) scope mismatch: the requirement says the hook blocks when a subagent result 'lacks required evidence markers' (any subagent), but design.md:130/:217 and tasks.md:176-183 narrow the base validator to checking the four-field Evidence_Record schema. Initializer and Research subagents do NOT produce Evidence_Records (they produce specs/checklists), so the evidence-schema gate is meaningless for them \u2014 yet 9.5 is written as universal over 'a subagent's result'. The omission_guard (task 54) is what actually applies to non-verifier subagents, but it is a separate, later capability, leaving a window where 9.5 is under-enforced for non-evidence subagents.",
+   "severity": "underspecified",
+   "fix": "Clarify in design.md:217 and tasks.md task 8.1 that the base evidence-schema gate applies ONLY to verifier results carrying an evidence field (skip-when-no-evidence semantics), and that 9.5's 'required evidence markers' for non-verifier subagents is the omission_declaration enforced by the omission_guard. Cite requirements.md:190 vs design.md:217.",
+   "cit": "requirements.md:190; design.md:217; tasks.md:178"
+  },
+  {
+   "gap": "Missing wiring \u2014 per-subagent output JSON schemas do not exist. Requirement 29.3 mandates 'THE JSON schema for each subagent output type SHALL include omission_declaration as a required, non-nullable field' and task 54 says to add it 'to each subagent output schema (initializer, research, verifier)', but design.md defines NO such per-subagent output schema \u2014 only EvidenceRecord and CoverageItem in feature_list.schema.json. There is no schema/ artifact for subagent results, so the omission_guard has no declared schema to validate against and 29.3 has no concrete mechanism.",
+   "severity": "missing-wiring",
+   "fix": "Add a schema/subagent_output.schema.json (or per-role schemas) to the component inventory (design.md:124-155) and a task to author it, with omission_declaration as required/non-nullable; reference it from subagent_stop_hook.py. Cite requirements.md:478.",
+   "cit": "requirements.md:478; tasks.md:974; design.md:286-413"
+  },
+  {
+   "gap": "Z3 gap \u2014 the four-field evidence schema is NOT machine-checked at the SubagentStop acceptance boundary. CHECK-7a/7c model Implies(passed, evidenceComplete) (the proven-transition), and CHECK-13a/13b model the omission gate at acceptance, but no CHECK models 'subagent result with incomplete evidence AND accepted is UNSAT'. The base evidence-schema behavior of THIS hook (its Phase-0 raison d'etre) has no dedicated formal assertion \u2014 only the omission half does.",
+   "severity": "underspecified",
+   "fix": "Add a CHECK-7d-style assertion: Implies(evidenceIncomplete, Not(subagentAccepted)) and assert (evidenceIncomplete AND subagentAccepted) UNSAT, mirroring CHECK-13a, so the evidence-schema gate at SubagentStop is machine-checked symmetrically with the omission gate. Cite formal_verification_merged.py:481-500.",
+   "cit": "formal_verification_merged.py:301-338, :481-500"
+  },
+  {
+   "gap": "Phase inconsistency: the component-inventory row lists subagent_stop_hook.py as Phase '0/1' (design.md:130) and the omission_guard sub-capability as Phase '0' (design.md:148), but the omission_guard is built by task 54 which sits in the P3 market-research / late-tasks block (tasks.md:974, scheduled in dependency-graph wave 45) \u2014 i.e. effectively post-Phase-4, not Phase 0. The audit_log.append wiring (task 52.3) is Phase 2/3. So a 'Phase 0' label is claimed for capabilities that are not built in Phase 0.",
+   "severity": "inconsistency",
+   "fix": "Re-label the omission_guard phase from 0 to the phase of task 54 (P3) in design.md:148, and split the inventory row so the Phase-0 deliverable is strictly the base evidence-schema validator (task 8), with the omission_guard and audit-log wiring flagged as later additions. Cite design.md:148 vs tasks.md:974.",
+   "cit": "design.md:130, :148; tasks.md:974"
+  },
+  {
+   "gap": "Dangling/under-built task: task 8 (tasks.md:176-189) \u2014 the Phase-0 implementation of this hook \u2014 makes NO mention of the omission_guard, the audit_log.append wiring, or how non-evidence subagent results are handled. The hook's full obligation set (evidence schema + omission gate + audit producer) is scattered across tasks 8, 52.3 and 54 with no single task that assembles the complete hook, and task 8.1's only requirement tag is 9.5. The design-vs-task coverage for this component is thin: design.md gives it one inventory line plus two hook-wiring rows, but no dedicated narrative subsection (unlike stop_hook.py which has the full No-Progress Watchdog section). The reconciliation history that r\u2026",
+   "severity": "underspecified",
+   "fix": "Add a dedicated design.md subsection for subagent_stop_hook.py (parallel to the No-Progress Watchdog section) specifying: stdin parse contract, skip-when-no-evidence semantics, omission_guard ordering vs evidence check, audit_log.append call site, and exception handling. Update task 8.1 to reference REQ-VERIFY-005, REQ-COV-006, REQ-SPEC-018, and REQ-AUDIT-001, and cross-link tasks 52.3 and 54 as completing the same component. Cite tasks.md:176-189.",
+   "cit": "tasks.md:176-189; design.md:130, :217-218"
+  },
+  {
+   "gap": "Audit-producer ordering hazard: the hook exits 2 on a fail-closed unhandled exception (tasks.md:182), but the spec never states whether audit_log.append is called BEFORE or AFTER the exception-handling exit. If audit_log.append itself raises (e.g. Postgres down before the file-fallback engages), the hook could exit 2 without ever recording the decision, breaking REQ-AUDIT-001's 'on every allow/block decision' obligation. The Postgres-fallback rule (tasks.md:730) covers DB-down append but not the ordering relative to the hook's own exit path.",
+   "severity": "underspecified",
+   "fix": "Specify in task 52.3 / design.md:217 that audit_log.append is invoked inside the decision path before the exit, wrapped so an append failure degrades to the file-backed log and never suppresses the gate decision; add a unit test for 'append fails -> decision still recorded to file + correct exit'. Cite tasks.md:730, :970.",
+   "cit": "tasks.md:182, :730, :970; requirements.md:460"
+  },
+  {
+   "gap": "Property 24 (role separation) is not enforced at the hook that accepts evidence. The actor_agent (must be Verifier, never Implementer) is a parameter the hook passes to audit_log.append (design.md:144) and is constrained by the evidence_records.actor_agent column (design.md:473), but nothing tasks subagent_stop_hook.py with rejecting an evidence record whose actor_agent == implementer.md. The natural choke point to enforce 'implementer cannot self-verify' is exactly this acceptance gate, yet enforcement is left to a DB column + a property test (39.13) with no runtime hook check.",
+   "severity": "missing-wiring",
+   "fix": "Add an actor_agent check to subagent_stop_hook.py: block (exit 2) any evidence-bearing result whose actor_agent is implementer.md, enforcing Property 24 at the runtime gate rather than only at the DB/test layer. Cite design.md:1066-1070, :473.",
+   "cit": "design.md:1066-1070, :473; tasks.md:652-656"
+  },
+  {
+   "gap": "Field-location drift: requirements/design consistently name omission_declaration, but the per-subagent schemas are undefined (see missing-wiring gap), and there is no canonical statement of WHERE in the subagent result JSON the field lives (top-level vs per-pass). Task 8.1 locates 'evidence field(s) within result' but task 54 does not specify the JSON path of omission_declaration, so the two guards parse the same stdin payload with no shared, documented result envelope.",
+   "severity": "underspecified",
+   "fix": "Define the subagent-result envelope (top-level keys: evidence[], omission_declaration, actor_agent, requirement_id) once in design.md Data Models and have both guards read from it. Cite tasks.md:178 vs :974.",
+   "cit": "tasks.md:178, :974; design.md:286"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "Requirement 13.4 / REQ-STEER-004 (command-type hooks fail closed; no HTTP/MCP for hard policy) is an enforced obligation ON this hook but is absent from the draft's ears_stories. The SubagentStop hook is registered as \"type\":\"command\" precisely to fail closed (design.md:181-186, :203), and task 9.2 authors tests/smoke/test_hook_config.py which parses settings.json and asserts EVERY registered hook (SubagentStop included) is command-type with no HTTP/MCP. The draft captures this only as an un-cited behavior ('Registered as SubagentStop command-type hook ... never HTTP/MCP'); it never maps REQ-STEER-004 as an EARS obligation nor cites the task-9.2 smoke-test that verifies it for this hook. Thi\u2026",
+   "cit": "requirements.md:253 (REQ-STEER-004); tasks.md:194 (task 9.1 registers SubagentStop as command-type), :197-199 (task 9.2 smoke test asserts all hooks command-type); design.md:203"
+  },
+  {
+   "kind": "missing",
+   "detail": "The Phase-0 smoke and integration TEST obligations that directly exercise subagent_stop_hook.py are absent from the draft's ears_stories, properties_and_checks, and outputs. Task 16.1 (tests/smoke/test_spine_e2e.py) calls subagent_stop_hook.py with a complete Evidence_Record asserting exit 0 and with missing output_hash asserting exit 2; task 17.1 (tests/integration/test_phase0_integration.py) does the same and additionally asserts stderr NAMES output_hash. These are the concrete acceptance tests for this component's Phase-0 charter (the design.md:627 spine row 'Missing output_hash -> blocks; All four fields present -> proceeds'). The draft's behaviors cite design.md:627 but never surface ta\u2026",
+   "cit": "tasks.md:281-288 (task 16.1), :291-302 (task 17.1, esp. :299-300 'error names output_hash'); design.md:627"
+  },
+  {
+   "kind": "weak",
+   "detail": "Property 21 / Requirement 13.5 (hook exit-code contract: exit 0 proceed / exit 2 block+stderr / exit 1 non-blocking) binds on subagent_stop_hook.py \u2014 the hook's entire allow(exit 0)/block(exit 2)/fail-closed-on-exception(exit 2) behavior is an instance of this contract \u2014 but the draft lists it only inside config_settings ('Hook exit-code contract') and never as an ears_story or in properties_and_checks. The draft's properties_and_checks omits Property 21 entirely. Worse, the test that validates Property 21 (task 39.4 / tests/property/test_hooks.py) is GENERIC across hooks and does not single out SubagentStop, so the hook's exit-code conformance is only transitively covered \u2014 a gap the draft \u2026",
+   "cit": "requirements.md:254 (REQ-STEER-005 exit-code contract); design.md:1042-1046 (Property 21); tasks.md:590, :593-597 (task 39.4 test_hook_exit_code_contract, generic over hooks)"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "The draft's Property 24 treatment notes the actor_agent role-separation enforcement gap but MISSES the concrete naming-drift defect that undermines it: design.md:473 declares 'Canonical name is actor_agent everywhere (no acting_agent)', yet the Property 24 PBT in tasks.md:655 (task 39.13) still generates and rejects on 'acting_agent' ('any Evidence_Record where acting_agent == \"implementer.md\" is rejected'). Since the draft argues Property 24 bears on this hook via the actor_agent parameter of its audit_log.append call, the fact that the property's own validating test uses the NON-canonical field name is a live contradiction that would cause the role-separation check to read the wrong key. T\u2026",
+   "cit": "design.md:473 ('no acting_agent'); tasks.md:655 (task 39.13 uses acting_agent); design.md:1068 (Property 24 uses actor_agent)"
+  },
+  {
+   "kind": "missing",
+   "detail": "Phase-3 OTel hook.decision span obligation (task 36.1) is captured in the draft's behaviors and outputs but is MISSING from open_gaps as a phase-coherence problem and understated in dependencies. Task 36.1 'Extend all six hooks ... SubagentStop ...' requires this hook to call telemetry.get_tracer().start_as_current_span(\"hook.decision\") with attributes hook.event/tool.name/decision/reason/requirement.id. This makes the SubagentStop hook a THREE-phase component (Phase 0 base validator + Phase 2 audit-producer wiring via 52.3 + Phase 3 OTel span via 36.1), compounding the draft's own phase-inconsistency gap (#4): the inventory's '0/1' label (design.md:130) understates the actual phase span (0 \u2026",
+   "cit": "tasks.md:539-542 (task 36.1, six hooks incl. SubagentStop); design.md:130 ('0/1' label); requirements.md:236 (REQ-OBS-003 hook gate-decision to trace endpoint)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's 'why' cites requirements.md:521 for the Pydantic/BAML deferral rationale but omits the parallel PRD_MERGED:44 statement ('the SubagentStop gate (REQ-COV-006) already enforces Evidence_Record structure at the hook boundary') AND does not connect the latent risk: because the Z3 model does NOT machine-check evidence-completeness at the SubagentStop acceptance boundary (only at the 'passed' transition via Implies(passed, evidenceComplete) \u2014 the draft's own open_gap #3), the deferral rationale rests on an UNVERIFIED-at-this-boundary claim. This elevates open_gap #3 from a formal-symmetry nicety to a correctness-of-deferral concern (the deferred Pydantic/BAML candidate was rejected on \u2026",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:44; requirements.md:521; verification/formal_verification_merged.py:308 (Implies(passed, evidenceComplete) \u2014 not tied to subagentAccepted13)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's REQ-COV-006 ears_story cites 'requirements.md:127' as a SubagentStop-bearing obligation. Requirement 5.6 (requirements.md:127) defines the four-field Evidence_Record tied to 'a status transition to proven', whose PRIMARY enforcement point is the PreToolUse status guard (design.md:215), with SubagentStop as a SECONDARY re-use of the same validate_evidence_record() semantics. Presenting requirements.md:127 as a direct SubagentStop obligation slightly overstates this hook's ownership of REQ-COV-006; the canonical four-field gate at the proven-transition is Property 2 enforced at PreToolUse (design.md:215), not at SubagentStop. The 'partial' status is correct, but the citation should\u2026",
+   "cit": "requirements.md:127 (Req 5.6, tied to 'transition to proven'); design.md:215 (PreToolUse status guard = primary REQ-COV-006 enforcement), :217 (SubagentStop secondary)"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-VERIFY-005 / Acceptance Criterion 9.5",
+   "criterion": "IF a subagent's result lacks required evidence markers, THEN THE SubagentStop_Hook SHALL block acceptance of that result.",
+   "how": "Implemented as the base validator in task 8.1: parse subagent result from stdin, locate evidence field(s), call validate_evidence_record(), exit 2 if any field missing/empty. Hook-wiring table maps SubagentStop to REQ-VERIFY-005.",
+   "status": "partial",
+   "cit": "requirements.md:190; design.md:217; tasks.md:177-183"
+  },
+  {
+   "req_id": "REQ-COV-006 / Acceptance Criterion 5.6",
+   "criterion": "THE System SHALL define Evidence_Record as a structured record containing exactly four required fields; a status transition to proven SHALL be rejected if any of the four fields is absent or empty. (Z3 CHECK-7a/7c)",
+   "how": "SubagentStop is named as the hook-layer enforcement of REQ-COV-006 (design.md:217 maps SubagentStop to REQ-COV-006; PRD:44 calls it 'the SubagentStop gate (REQ-COV-006)'). Validation delegated to validate_evidence_record().",
+   "status": "partial",
+   "cit": "requirements.md:127; design.md:217; PRD_MERGED:44, :521"
+  },
+  {
+   "req_id": "Requirement 29.1 / REQ-SPEC-018",
+   "criterion": "WHEN a subagent (initializer, research, verifier) completes a discovery/research/verification pass, THEN its output SHALL include a non-null omission_declaration field listing, by EARS scenario category, every scenario class the subagent did NOT cover, using a [Gap] marker.",
+   "how": "omission_guard inspects the field; the field-emission obligation is on the subagent output schemas (task 54). The hook is the consumer/enforcer, not the producer.",
+   "status": "partial",
+   "cit": "requirements.md:476; design.md:1128"
+  },
+  {
+   "req_id": "Requirement 29.3 / REQ-SPEC-018",
+   "criterion": "THE JSON schema for each subagent output type SHALL include omission_declaration as a required, non-nullable field.",
+   "how": "Task 54 says 'add omission_declaration as a required non-nullable field to each subagent output schema (initializer, research, verifier)'. BUT no such per-subagent output JSON schema is defined anywhere in design.md (only EvidenceRecord/CoverageItem schemas exist).",
+   "status": "gap",
+   "cit": "requirements.md:478; tasks.md:974; design.md:286-413 (no subagent-output schema present)"
+  },
+  {
+   "req_id": "Property 2 (Evidence Schema Enforcement / Four-Field Gate)",
+   "criterion": "For any attempt to transition to proven, the transition shall be rejected if any of the four Evidence_Record fields is absent or empty.",
+   "how": "SubagentStop is one of two enforcement points for this property (the other is the PreToolUse status guard, design.md:215). Property 2 is validated via tasks 2.3 / 39.1 against evidence_collector, not directly against subagent_stop_hook.",
+   "status": "partial",
+   "cit": "design.md:890-894; tasks.md:37-41, :572"
+  },
+  {
+   "req_id": "Property 24 (Subagent Role Separation)",
+   "criterion": "For any verification action recorded in the evidence chain, the actor_agent shall be the Verifier (verifier.md), not the Implementer. No Evidence_Record may be created by an agent that also wrote the implementation.",
+   "how": "Bears on SubagentStop because it is the gate that accepts evidence-bearing subagent results; actor_agent is a field in the audit_log.append signature this hook calls. HOWEVER no spec text tasks subagent_stop_hook.py with checking actor_agent != implementer \u2014 it is enforced via the evidence_records.a\u2026",
+   "status": "gap",
+   "cit": "design.md:1066-1070, :473; tasks.md:652-656"
+  },
+  {
+   "req_id": "Z3 CHECK-7a / CHECK-7c",
+   "criterion": "PASSED with missing output_hash (7a) / with zero evidence fields (7c) is UNSAT \u2014 evidence schema enforced.",
+   "how": "These pin the four-field evidence schema that this hook enforces, but the Z3 model ties them to the `passed` transition (Implies(passed, evidenceComplete)), NOT explicitly to the SubagentStop acceptance decision. The hook reuses the same schema semantics via validate_evidence_record.",
+   "status": "partial",
+   "cit": "formal_verification_merged.py:301-338; requirements.md:127, :371"
+  },
+  {
+   "req_id": "REQ-AUDIT-001 (Requirement 27.4)",
+   "criterion": "tools/audit_log.py append(...) SHALL be CALLED by stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py on every allow/block decision.",
+   "how": "Hook-wiring rows for SubagentStop and the omission guard both state 'calls audit_log.append(...) on the decision'. Producer-wiring is task 52.3; audit_log producer is task 52.1.",
+   "status": "partial",
+   "cit": "requirements.md:460; design.md:217, :218; tasks.md:968, :970"
+  }
+ ],
+ "citation_issues": [
+  "design.md:37 \u2014 WRONG CONTENT. The draft cites this line for 'INVOKED BY: the Claude Code runtime on the SubagentStop event (design.md:37, :109)'. Line 37 is a Mermaid graph node label inside the system-context diagram: HOOKS[\"Hook Layer\\n(PreToolUse / PostToolUse\\n/ Stop / SubagentStop\\n/ PreCompact / SessionStart)\"]. It is a diagram element, not a prose statement about runtime invocation. No such prose statement appears at this line.",
+  "PRD:521 \u2014 PHANTOM LINE. The draft cites 'requirements.md:521; PRD:44' and separately 'PRD:521' for the Pydantic/BAML deferral text ('the SubagentStop schema-validation gate (REQ-COV-006) already enforces Evidence_Record structure at the hook layer'). PRD_MERGED_canonical_spec_to_evidence.md has only 133 lines \u2014 line 521 does not exist. The text in question appears at requirements.md:521, not in PRD_MERGED. This citation is a phantom.",
+  "tasks.md:193-194 \u2014 MISATTRIBUTED CONTENT. The draft claims design.md:181-186; tasks.md:191-195 together support the statement that the hook is 'CONFIGURED/BOUND BY: settings.json... written in task 9.1, as \"type\":\"command\", \"command\":\"python3 .claude/hooks/subagent_stop_hook.py\"'. Lines 193-194 of tasks.md say 'Register Stop, PreToolUse, PostToolUse..., SubagentStop, SessionStart, PreCompact \u2014 all as \"type\": \"command\"' and 'Verify NO hook uses \"type\": \"http\" or \"type\": \"mcp\"'. The specific command string 'python3 .claude/hooks/subagent_stop_hook.py' does not appear in tasks.md at any line; it only appears in design.md:184. Citing tasks.md:193-194 for the command string is a mis-cite.",
+  "tasks.md:956 \u2014 IMPRECISE CITATION. The draft cites 'requirements.md:354; tasks.md:956' for 'Hook validator timeout: 60 seconds (threshold registry DEFAULT, configurable)'. Line 956 is the task 44 header ('- [ ] 44. Execution-bounds config module...') which mentions '60s' as part of a list of defaults. The line does not specifically identify a 'hook validator timeout' \u2014 it lists timeout 60s among several thresholds without labeling which threshold is the hook-validator one. The requirements.md:354 citation is accurate; tasks.md:956 is imprecise but not a phantom."
+ ]
+}
