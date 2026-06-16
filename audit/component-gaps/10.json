@@ -1,0 +1,121 @@
+{
+ "idx": 10,
+ "component": "orphan_detector.py",
+ "file_path": "tools/orphan_detector.py",
+ "phase": "1",
+ "what": "orphan_detector.py (tools/orphan_detector.py, Phase 1) is a bidirectional orphan-detection CLI. design.md:136 describes it as \"Detects implementation units with no requirement ref and vice versa.\" Per tasks.md:339-343 it is configured to: (1) scan ALL source files for requirement-ID references matching the regex [A-Z]+-[A-Z]+-[0-9]{3} in comments, docstrings, and commit trailers; (2) read feature_list.json for all known requirement IDs; (3) report two orphan classes \u2014 (a) FORWARD orphans = source files/functions carrying no requirement ref, and (b) BACKWARD orphans = requirement IDs with no source file OR no verification artifact; (4) exit non-zero and emit a structured JSON report when ANY \u2026",
+ "open_gaps": [
+  {
+   "gap": "MISSING RUNTIME WIRING \u2014 the central defect. REQ-6.3 says the System SHALL 'fail the orphan-detection check and block the run', but NO canonical file invokes orphan_detector.py at runtime. It is absent from settings.json hook bindings (design.md:160-200), the hook-wiring table (design.md:208-220), and every CI workflow task (no orphan/trace gate among tasks 13/14/21/40/41; the docs/github-ruleset.md required-checks list at tasks.md:270 names formal-verification, coverage-gate, secrets-scan, audit-chain-verify \u2014 NOT orphan detection). The exit-non-zero it produces is consumed by nothing except a test. The 'block the run' obligation therefore has no production mechanism.",
+   "severity": "missing-wiring",
+   "fix": "Add a caller. Either (a) wire `python3 tools/orphan_detector.py` into post_tool_use_hook.py alongside wiring_checker.py (mirroring tasks.md:312) for next-turn feedback, OR \u2014 to satisfy 'block the run' deterministically \u2014 (b) add a REQUIRED CI status check (e.g. .github/workflows/traceability-gate.yml registered in docs/github-ruleset.md) that runs orphan_detector and fails the merge on non-zero exit.",
+   "cit": "requirements.md:143; design.md:160-220; tasks.md:270,312"
+  },
+  {
+   "gap": "'BLOCK THE RUN' vs exit-non-zero altitude mismatch. requirements.md:143 mandates blocking the run (an enforcement-layer action like the PreToolUse/Stop gates), but tasks.md:343 only specifies 'exit non-zero and emit JSON' (a reporting action). PostToolUse-style feedback is explicitly NON-blocking (exit 1, never exit 2, tasks.md:314). If orphan_detector is wired into PostToolUse it can NEVER block the run, contradicting 6.3; if it is meant to block, only a PreToolUse hook (exit 2) or a required CI check can do so.",
+   "severity": "inconsistency",
+   "fix": "Decide and state the gate altitude: classify orphan detection as a blocking gate (CI required check or PreToolUse exit 2) rather than advisory PostToolUse feedback, and update REQ-6.3 / task 20.1 to name the blocking caller and its exit-code contract.",
+   "cit": "requirements.md:143; tasks.md:314,343"
+  },
+  {
+   "gap": "SOURCE-OF-TRUTH MISMATCH for the backward-orphan check. tasks.md:342 requires detecting 'requirement IDs with no source file OR no verification artifact', and tasks.md:341 reads requirement IDs from feature_list.json. But the canonical 'requirement \u2194 evidence/verification' graph lives in the traceability_links + evidence_records Postgres tables (design.md:453-478), and Postgres is declared the single source of truth for coverage queries (requirements.md:298). Reading feature_list.json for the verification-artifact link can diverge from Postgres, producing false orphan results when the two disagree.",
+   "severity": "underspecified",
+   "fix": "Specify the authoritative store for the 'maps to no verification artifact' lookup. Either query evidence_records/traceability_links (consistent with requirements.md:298) with a documented feature_list.json fallback (mirroring design.md:815), or explicitly state feature_list.json is authoritative for this check and reconcile with REQ-16.3.",
+   "cit": "tasks.md:341-342; design.md:453-478; requirements.md:298"
+  },
+  {
+   "gap": "'VERIFICATION ARTIFACT' is undefined for the backward-orphan test. tasks.md:342 keys backward orphans on 'no verification artifact' but never defines what counts \u2014 an Evidence_Record? a test_file? a traceability_links row of link_type='test'/'evidence'? a proven status in feature_list.json? Without a definition the detector's pass/fail boundary is unimplementable as written.",
+   "severity": "underspecified",
+   "fix": "Define 'verification artifact' concretely \u2014 e.g. a backward orphan = a requirement ID in feature_list.json with no traceability_links row of link_type IN ('test','evidence') AND/OR no Evidence_Record. Add this definition to task 20.1 and Property 11.",
+   "cit": "tasks.md:342; design.md:455-462; design.md:387-411"
+  },
+  {
+   "gap": "SCAN-SCOPE inconsistency. tasks.md:340 says scan 'all source files'; the sibling wiring_checker.py and the PostToolUse pipeline operate on 'changed files' (tasks.md:313,326). Whether orphan_detector runs full-repo (slow, suited to CI) or changed-files (fast, suited to a hook) is unresolved and determines where it can be wired. No file glob, language scope (the regex is language-agnostic but tasks imply Python), or exclude list (tests/? generated code?) is given.",
+   "severity": "underspecified",
+   "fix": "Pin the scope: state full-repo (recommended for a CI blocking gate) vs changed-files, define the file glob and excludes (e.g. exclude tests/ and generated dirs), and state the language scope.",
+   "cit": "tasks.md:340; tasks.md:313,326"
+  },
+  {
+   "gap": "DESIGN THINNESS \u2014 design.md gives orphan_detector exactly ONE descriptive line (design.md:136) plus Property 11. There is NO design subsection for it (unlike the no-progress watchdog, plan-approved gate, or sandbox sections), NO interface/CLI signature, NO output-schema definition, NO statement of its caller, and it is absent from the Phase 0 spine list and the inventory wiring narrative. tasks.md gives it 6 lines (task 20). This thinness IS a gap: the component's contract (inputs, output JSON shape, caller, blocking semantics, store) is essentially unspecified beyond a one-liner.",
+   "severity": "underspecified",
+   "fix": "Add a design.md subsection (peer to 'No-Progress Watchdog') defining the CLI signature, the JSON report schema, the data source for each orphan class, the caller (hook or CI), the exit-code-to-block mapping, and the run scope.",
+   "cit": "design.md:136; design.md:640-754"
+  },
+  {
+   "gap": "DUPLICATE COMMIT-TRAILER SCANNING with no division of labor. orphan_detector scans commit trailers for [A-Z]+-[A-Z]+-[0-9]{3} (tasks.md:340) and so does traceability_writer.assert_commit_has_req_id / parse_commit_trailers (task 29.1, tasks.md:466). Two tools implement the same trailer-regex scan with no statement of which owns commit-trailer enforcement, risking drift and double-maintenance.",
+   "severity": "inconsistency",
+   "fix": "Factor commit-trailer ID extraction into one shared helper imported by both orphan_detector and traceability_writer, and state which tool is authoritative for the commit-has-req-id gate (Property 10) vs orphan detection (Property 11).",
+   "cit": "tasks.md:340; tasks.md:466"
+  },
+  {
+   "gap": "NO Z3 and no audit-log coverage. Orphan detection has no machine-checked Z3 assertion (confirmed: zero orphan/trace hits in formal_verification_merged.py) and, having no wired caller, never produces a gate_audit_log entry (the audit producers are stop/pre_tool_use/subagent_stop hooks only, design.md:144). An orphan-detection 'block' would thus be neither formally verified nor tamper-evidently logged \u2014 weaker assurance than peer gates.",
+   "severity": "underspecified",
+   "fix": "Either accept runtime-only (hypothesis Property 11) verification and document that explicitly in design.md as the deliberate assurance level, OR if it becomes a blocking gate, route its allow/block decision through audit_log.append(...) like the other gate producers.",
+   "cit": "verification/formal_verification_merged.py; design.md:144,460"
+  },
+  {
+   "gap": "FALSE-POSITIVE risk: requiring EVERY source file/function to carry a requirement-ID comment (forward-orphan rule, tasks.md:342) will flag legitimately un-annotated units (helpers, __init__.py, config, generated code) as orphans, with no stated allowlist/exemption mechanism. As written the check is likely to fail-noisy on a real repo.",
+   "severity": "underspecified",
+   "fix": "Add an exemption mechanism: an explicit ignore-list/marker (e.g. a `# orphan-exempt: <reason>` annotation or a config file of excluded paths) and define granularity (file-level vs function-level). State it in task 20.1 and Property 11.",
+   "cit": "tasks.md:342; design.md:964"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "BIDIRECTIONAL TRACEABILITY MISLABELING OF REQ-6.3 \u2014 a self-referential orphan the draft never flags. Task 26.1 (tasks.md:406-410) is the ONLY task whose body actually runs `orphan_detector.py` ('run orphan_detector.py; assert exit non-zero and report contains both orphan types'), yet its _Requirements line (tasks.md:410) lists `8.1, 8.2, 9.4, 10.3, 13.2` and OMITS 6.3 entirely. Conversely, task 33.1 (tasks.md:499-507) DOES list `6.3` in its mapping (tasks.md:507) but its body tests only parse_commit_trailers / assert_commit_has_req_id / migrations / evidence round-trip / run-state fallback \u2014 it never invokes orphan_detector.py. So the spec's own forward link (6.3 \u2192 task) points at a task tha\u2026",
+   "cit": "tasks.md:406, tasks.md:410, tasks.md:507"
+  },
+  {
+   "kind": "weak",
+   "detail": "VERIFIER FIVE-LAYER EXCLUSION should be cited as positive evidence, not just asserted. The draft's by_whom says the Verifier 'owns five verification layers but orphan detection is not among its listed behaviors,' but does not pin the enumerated layers. design.md:257-262 lists exactly: structural (lint/type/AST), semantic (unit+integration tests), behavioral (Playwright), security (Semgrep+CodeQL), performance/accessibility (k6/Lighthouse/axe-core). Orphan/traceability detection is provably absent from this closed enumeration \u2014 which strengthens the 'no wired runtime owner' claim into a documented exclusion rather than an inference. The draft under-cites this (it cites design.md:253-267 gener\u2026",
+   "cit": "design.md:257-262"
+  },
+  {
+   "kind": "weak",
+   "detail": "The 'verification artifact undefined' gap is real but UNDERSTATES how close the schema already comes to a definition. design.md:457-458 fixes traceability_links.link_type to the closed set ('implementation','test','evidence','commit','owner'), and design.md:465-477 defines the evidence_records table. So the canonical store DOES provide the exact candidate definitions a backward-orphan check needs (a req with no traceability_links row of link_type IN ('test','evidence') and/or no evidence_records row). The gap is therefore not 'undefined everywhere' but 'defined in the Postgres schema yet never bound to task 20's backward-orphan rule, which instead reads feature_list.json.' Framing it as whol\u2026",
+   "cit": "design.md:457-458, design.md:465-477; tasks.md:341-342"
+  },
+  {
+   "kind": "missing",
+   "detail": "COVERAGE-GATE OVERLAP / 'block the run' candidate not analyzed. The draft's central 'missing wiring' gap asserts nothing consumes the orphan exit code, but does not address that the existing coverage-gate (coverage_query.rego, design.md:137; coverage-gate.yml, tasks.md:262-266) is a REQUIRED merge check whose Phase-1 form is explicitly tied to task 20: tasks.md:265 says the Phase-0 rego stub is minimal and 'full Postgres-backed policy deferred to Phase 1 task 20' \u2014 i.e. the spec gestures that the coverage gate's full version is co-tasked with the orphan detector. This is the single most plausible existing 'block the run' host for REQ-6.3, yet neither the rego policy text nor coverage-gate.ym\u2026",
+   "cit": "tasks.md:265, design.md:137, design.md:635"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's behaviors/ears_stories repeatedly assert the regex is exactly `[A-Z]+-[A-Z]+-[0-9]{3}` and ties it to CoverageItem.id pattern `^[A-Z]+-[A-Z]+-[0-9]{3}$` (design.md:328) \u2014 but the actual requirement IDs the detector must match in feature_list.json are multi-segment forms like REQ-TRACE-001, REQ-VERIFY-007, REQ-SPEC-018 (requirements.md:137, design.md:146,148). `REQ-TRACE-001` does NOT match `[A-Z]+-[A-Z]+-[0-9]{3}` cleanly only if anchored, but `REQ-SPEC-018` and the EARS short IDs like `6.3` / Requirement-number style (e.g. the dotted `6.3`) are a different namespace entirely. The draft treats the single regex as unproblematically authoritative for BOTH the comment/trailer scan A\u2026",
+   "cit": "requirements.md:137, design.md:146, design.md:328, tasks.md:340"
+  },
+  {
+   "kind": "weak",
+   "detail": "REQ-6.2 / commit-trailer obligation interaction is only half-captured. The draft's duplicate-scanning gap correctly pairs orphan_detector with traceability_writer (tasks.md:340 vs tasks.md:466), but does not note that REQ-6.2 (requirements.md:142, 'WHEN a commit is created ... require \u22651 referenced requirement ID in the commit trailer') has NO blocking enforcer wired either: tasks.md:211 maps task on 6.2 to the implementer producing a trailer, and assert_commit_has_req_id (tasks.md:466) only 'raises TraceabilityError' with no stated caller/hook/CI gate. So both 6.2 and 6.3 share the same unwired-enforcement defect, and a single shared commit-trailer gate could satisfy both. The draft scopes \u2026",
+   "cit": "requirements.md:142, tasks.md:211, tasks.md:466"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-6.3 (Requirement 6.3, Traceability)",
+   "criterion": "IF an implementation unit references no requirement, or a requirement maps to no verification, THEN THE System SHALL fail the orphan-detection check and block the run.",
+   "how": "orphan_detector.py is the named mechanism: forward orphans (impl unit with no req ref) + backward orphans (req with no source/verification artifact); exits non-zero + JSON report on any orphan (tasks.md:339-343). BUT the criterion says 'block the run' \u2014 the tool only exits non-zero; no hook/CI consu\u2026",
+   "status": "partial",
+   "cit": "requirements.md:143; tasks.md:339-344"
+  },
+  {
+   "req_id": "REQ-TRACE-001..004 (PRD reference for Requirement 6)",
+   "criterion": "Bidirectional links requirement \u2194 implementation \u2194 test \u2194 evidence \u2194 commit \u2194 owner; orphan detection enforces the bidirectional-link obligation.",
+   "how": "orphan_detector enforces forward+backward link existence; the durable bidirectional graph lives in the traceability_links Postgres table (design.md:453-462) written by traceability_writer.py (task 29). orphan_detector itself reads feature_list.json, NOT traceability_links \u2014 see source-of-truth gap.",
+   "status": "partial",
+   "cit": "requirements.md:137,141; design.md:453-462; tasks.md:462-466"
+  },
+  {
+   "req_id": "REQ-6.2 / Property 10 (Commit Trailer Requirement ID)",
+   "criterion": "Commit trailer must contain \u22651 requirement ID matching [A-Z]+-[A-Z]+-[0-9]{3}; orphan_detector also scans commit trailers for the same pattern.",
+   "how": "orphan_detector scans 'comments, docstrings, and commit trailers' for the ID regex (tasks.md:340); overlaps with traceability_writer.assert_commit_has_req_id (task 29.1). Two tools scan commit trailers for the same regex with no stated division of labor.",
+   "status": "partial",
+   "cit": "tasks.md:340; design.md:954-958; tasks.md:466"
+  }
+ ],
+ "citation_issues": [
+  "tasks.md:312 \u2014 OFF BY ONE. The draft cites tasks.md:312 as the line showing 'python3 tools/wiring_checker.py' is wired into post_tool_use_hook.py (to contrast with the absent orphan_detector wiring). Line 312 actually contains the semgrep command ('Run semgrep --config auto on changed files; filter for HIGH/CRITICAL findings'). The wiring_checker call is on line 313 ('Run python3 tools/wiring_checker.py on changed files'). The underlying claim \u2014 that wiring_checker IS wired while orphan_detector is NOT \u2014 is factually correct, but the citation line number is wrong by one."
+ ]
+}

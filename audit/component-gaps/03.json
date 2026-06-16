@@ -1,0 +1,119 @@
+{
+ "idx": 3,
+ "component": "session_start_hook.py",
+ "file_path": ".claude/hooks/session_start_hook.py",
+ "phase": "0",
+ "what": "`session_start_hook.py` (`.claude/hooks/session_start_hook.py`) is the Claude Code `SessionStart` command-type hook \u2014 Phase 0 spine component, the \"State Loader.\" Configured to do three load operations plus (per the 2026-06-15 reconciliation) one compute-and-write: (1) read `git status --porcelain` and format a structured summary; (2) read `claude-progress.txt` (the progress file), creating an empty-state file if absent; (3) read and parse `feature_list.json` (the Coverage_Model), creating a minimal valid stub if absent, and compute the count of `unproven` vs `proven` items; then inject the combined summary into Claude Code context via stdout so a resumed session re-orients deterministically\u2026",
+ "open_gaps": [
+  {
+   "gap": "Phase mismatch / missing wiring: session_start_hook.py is a Phase-0 component (design.md:129, design.md:626; task 7), but the resumed-state-hash compute + resume_integrity_ok write that design and requirements attribute to SessionStart (design.md:143,219; requirements.md:221) depend on tools/state_integrity.py and the run_state Postgres table, both Phase 2 (design.md:143,1180; task 49, migration 005). The Phase-0 task 7.1 implements ONLY git/progress/coverage load + stdout injection \u2014 it has no step for computing the hash or writing the flag. So the integrity-compute obligation assigned to this hook is silently deferred to Phase 2 with no edit-back to task 7.",
+   "severity": "missing-wiring",
+   "fix": "Add a subtask under task 49 (or amend task 7.1) that explicitly says: 'extend .claude/hooks/session_start_hook.py to call state_integrity.compute_hash() and write run_state.resume_integrity_ok (Phase 2 extension of the Phase-0 hook).' Cross-reference it in task 7 so the Phase-0 component's later mutation is traceable.",
+   "cit": "tasks.md:163-169; tasks.md:963; design.md:143"
+  },
+  {
+   "gap": "Untasked obligation: requirements.md:221 (criterion 11.3) states SessionStart 'SHALL additionally COMPUTE the resumed-state hash and write run_state.resume_integrity_ok', but task 7 (its only build task) cites only Requirements 11.3 and contains no compute/write step \u2014 and task 49 is described as creating state_integrity.py, not as modifying session_start_hook.py. No task line says session_start_hook.py is edited to perform the write.",
+   "severity": "underspecified",
+   "fix": "Make the SessionStart\u2192state_integrity wiring an explicit task step naming the file session_start_hook.py as the caller, and add a unit test (extend task 7.2) asserting resume_integrity_ok is written on resume.",
+   "cit": "requirements.md:221; tasks.md:169; tasks.md:963"
+  },
+  {
+   "gap": "Stale phase label for the resume-integrity capability: design component inventory lists state_integrity.py as Phase 2 (design.md:143) while session_start_hook.py is Phase 0 (design.md:129); the SessionStart hook-wiring row (design.md:219) presents the hash-compute as if it were part of the same SessionStart from session start, with no note that this half only becomes live in Phase 2. A reader building the Phase-0 spine would believe resume_integrity_ok is written from day one.",
+   "severity": "inconsistency",
+   "fix": "Annotate the SessionStart hook-wiring row and the component-inventory row to mark the resume_integrity_ok compute as a Phase-2 augmentation of the Phase-0 hook (e.g., '(load: Phase 0; integrity compute: Phase 2 via state_integrity.py)').",
+   "cit": "design.md:143; design.md:219"
+  },
+  {
+   "gap": "OTel forwarding (task 36) treats SessionStart as a 'gate-decision' emitter, but SessionStart never makes an allow/block decision (always exit 0). Task 36.1 sets a 'decision' (allow/block) attribute for all six hooks uniformly, which is degenerate/meaningless for SessionStart and PreCompact (and arguably PostToolUse).",
+   "severity": "underspecified",
+   "fix": "In task 36.1 specify the attribute set per hook class: for non-gating hooks (SessionStart, PreCompact) emit an informational span (e.g., decision='n/a' or a distinct span name like 'hook.session_start') rather than a gate-decision allow/block attribute, so the trace schema is honest about which hooks actually gate.",
+   "cit": "tasks.md:539-542; requirements.md:236"
+  },
+  {
+   "gap": "No formal/property coverage of the base load behavior. The reconciliation-added integrity half has Property 26 + CHECK-11; but criterion 11.3 / REQ-STATE-003 (load git status + progress + coverage so a session re-orients) \u2014 the component's primary purpose \u2014 has NO correctness Property and NO Z3 CHECK. It is exercised only by example unit/integration tests (tasks 7.2, 16.1, 17.1). For a completeness-critical Phase-0 spine component this is thin.",
+   "severity": "underspecified",
+   "fix": "Either add a property (e.g., 'for any populated feature_list.json, the SessionStart summary reports the exact unproven/proven counts') or explicitly note in design that REQ-STATE-003 is example-test-verified only (no invariant), so the absence is intentional rather than an oversight.",
+   "cit": "requirements.md:221; tasks.md:171-174; design.md:1084"
+  },
+  {
+   "gap": "Design/requirements thinness on what 'resumed-state hash' actually covers. Neither requirements.md nor design.md defines WHICH state is hashed (feature_list.json only? + run_state? + git HEAD?), the hash algorithm, or where the canonical 'durable store's recorded hash' it is compared against is written. The comparison and block live in state_integrity.py / the PreToolUse guard, but SessionStart is credited with the compute without a spec of its inputs.",
+   "severity": "underspecified",
+   "fix": "Specify in design.md the exact byte-set hashed for the resumed-state hash (e.g., canonical JSON of feature_list.json items + run_state fields), the algorithm (sha256, consistent with the audit-log/evidence sha256 convention), and where the baseline hash is persisted (a run_state column) so SessionStart's compute is implementable from the spec alone.",
+   "cit": "requirements.md:437-438; design.md:143"
+  },
+  {
+   "gap": "Glossary vs reconciled behavior drift. The glossary (requirements.md:27) still defines SessionStart_Hook narrowly as the hook that 'restores run state at the start of a session' \u2014 it does not mention the integrity-hash compute / resume_integrity_ok write that the reconciliation added in the same file (L221, L438). Minor, but the canonical glossary undersells the component's reconciled responsibilities.",
+   "severity": "inconsistency",
+   "fix": "Update the glossary entry to add '...and computes the resumed-state integrity hash, writing run_state.resume_integrity_ok (non-blocking; enforced by the PreToolUse integrity guard).'",
+   "cit": "requirements.md:27; requirements.md:221"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "The draft's config_settings asserts that the run_state.resume_integrity_ok column SessionStart writes is 'defined in db/migrations/005_run_state.sql' and cites 'design.md:492; tasks.md:441-443'. That citation is half-wrong and the draft never flags the gap. design.md:492 (the SQL block) DOES declare `resume_integrity_ok BOOLEAN`, but the ACTUAL migration task \u2014 task 28.5 (tasks.md:441-443) \u2014 lists only `status` CHECK, `stop_hook_active`, and `no_progress_n` as the columns to create, and cites _Requirements: 11.1, 16.1_. It contains NO `resume_integrity_ok` column and no reference to REQ-STATE-005. So the durable column SessionStart is spec'd to write is present in the design SQL but UN-TASKE\u2026",
+   "cit": "tasks.md:441-443 (task 28.5, columns + _Requirements: 11.1, 16.1_) vs design.md:492 (resume_integrity_ok BOOLEAN); draft config_settings entry 'run_state.resume_integrity_ok ... db/migrations/005_run_state.sql ... tasks.md:441-443'"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "The draft repeatedly maps Property 26 / REQ-STATE-005 to 'Requirement 23' (correct per requirements.md:435) and treats design Property 26 as cleanly pinning this component \u2014 but design.md:1090 itself states 'Validates: Requirements 27 (REQ-STATE-005)'. REQ-STATE-005 is Requirement 23 (requirements.md:435), not Requirement 27 (which is the Tamper-Evident Audit Log, requirements.md:455). This is a systematic off-numbering in the design Property block that directly mislabels THIS component's own correctness Property: Property 25 says 'Req 26' (should be 22), Property 26 says 'Req 27' (should be 23), Property 27 says 'Req 25' (should be 24). The draft's properties_and_checks section presents Pro\u2026",
+   "cit": "design.md:1090 ('Validates: Requirements 27 (REQ-STATE-005)') vs requirements.md:435 (Requirement 23: Resumed-State Integrity = REQ-STATE-005) and requirements.md:455 (Requirement 27 = Tamper-Evident Audit Log); draft properties_and_checks / ears_stories repeatedly cite 'Requirement 23'"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's Phase-0 integration assertion is under-cited and its weaker sibling is omitted. The draft cites only tasks.md:298 (the test 17.1 line asserting stdout JSON contains git_status/unproven_count/proven_count). But there is a SECOND, weaker example-test obligation at tasks.md:286 (smoke test 16.1): 'assert exit 0 and stdout contains git/progress/coverage summary' \u2014 a string-contains assertion, not the structured-JSON-field assertion of 17.1. The draft's claim that the base load behavior is 'verified solely by example unit/integration tests (task 7.2, 16.1, 17.1)' is correct in spirit, but it never surfaces that 16.1 and 17.1 assert at DIFFERENT fidelities (free-text 'contains' vs JSON\u2026",
+   "cit": "tasks.md:286 (smoke 16.1: 'stdout contains git/progress/coverage summary') vs tasks.md:298 (integration 17.1: 'stdout JSON contains git_status, unproven_count, proven_count')"
+  },
+  {
+   "kind": "missing",
+   "detail": "The Postgres-unavailable fallback obligation (tasks.md:730, reconciliation note N-25) bears directly on SessionStart's write of resume_integrity_ok but is entirely absent from the draft. N-25 mandates that when db_connection.health_check() fails, every gate falls back to file-backed state (feature_list.json + claude-progress.txt) and reaches the SAME allow/block decision, 'never fail-open,' taking the more conservative (blocking) result on divergence. SessionStart writes resume_integrity_ok to the run_state Postgres table (design.md:492); if Postgres is unavailable at SessionStart, the spec is silent on whether/where the flag is written (claude-progress.txt fallback? skipped?), yet the downs\u2026",
+   "cit": "tasks.md:730 (N-25 fallback gate-consistency, names 'PreToolUse status/integrity guards'); tasks.md:487-488 (run_state_manager file-backed duplicate); design.md:492 (resume_integrity_ok in Postgres run_state)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft (ears_stories Property-26 entry, behaviors 'Compute resumed-state hash', and open_gaps) states or implies that SessionStart writes resume_integrity_ok 'via state_integrity.py' and presents this as an established mechanism. But state_integrity.py's spec (design.md:143, design.md:1180, task 49) only says it 'Recomputes the resumed-state hash ... and writes run_state.resume_integrity_ok' \u2014 there is NO spec statement anywhere that session_start_hook.py imports/calls state_integrity.py. design.md:219 says SessionStart 'computes the resumed-state hash via state_integrity.py,' but task 49 describes state_integrity.py as a standalone tool with NO subtask wiring it INTO session_start_hook.p\u2026",
+   "cit": "design.md:219 ('computes ... via state_integrity.py') and design.md:143/1180 (state_integrity.py writes the flag) vs tasks.md:963-964 (task 49/49.1 \u2014 no subtask wiring state_integrity into session_start_hook.py); draft by_whom + behaviors + dependencies"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's OTel gap (open_gaps, 'OTel forwarding treats SessionStart as a gate-decision emitter') is correct but understates the requirement-traceability defect. Requirement 12.3 (requirements.md:236) requires emitting 'event, tool, allow/block, reason, requirement ID' for a hook gate decision. Task 36.1 (tasks.md:540) sets exactly attributes hook.event/tool.name/decision/reason/requirement.id on 'hook.decision' span for ALL six hooks. For SessionStart the attribute 'requirement.id' is also ill-defined: SessionStart is tagged with TWO requirements (REQ-STATE-003 AND REQ-STATE-005 per design.md:219), so even the requirement.id attribute is ambiguous for this hook, not just the decision=allow\u2026",
+   "cit": "requirements.md:236 (REQ-OBS-003 attribute set); tasks.md:540 (task 36.1 attributes for all six hooks); design.md:219 (SessionStart enforces BOTH REQ-STATE-003 and REQ-STATE-005)"
+  },
+  {
+   "kind": "missing",
+   "detail": "Glossary completeness: the draft flags that the SessionStart_Hook glossary entry (requirements.md:27) undersells the integrity-compute role, but misses that there is NO glossary term for the 'progress file' / Progress_File at all, while Coverage_Model IS a defined glossary term (requirements.md:19). The draft's what/when/outputs lean heavily on 'the progress file (claude-progress.txt)' as though it were a defined artifact; the glossary defines Coverage_Model and feature_list.json (requirements.md:19, glossary) but never defines the progress file as a term, so SessionStart's second load target is the only one of its three inputs lacking a canonical definition \u2014 a minor but real glossary-cover\u2026",
+   "cit": "requirements.md:19 (Coverage_Model defined) and glossary block (feature_list.json defined) vs no 'Progress_File'/progress-file glossary entry; requirements.md:221 (criterion 11.3 names 'the progress file')"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-STATE-003 / Requirement 11.3",
+   "criterion": "WHEN a session starts, THE SessionStart_Hook SHALL load git status, the progress file, and the Coverage_Model so a resumed session re-orients deterministically; it SHALL additionally COMPUTE the resumed-state hash and write run_state.resume_integrity_ok (bool) \u2014 but, being non-blocking, it SHALL NOT\u2026",
+   "how": "design.md hook-wiring row and component inventory assign exactly these reads to SessionStart; task 7.1 implements the git/progress/coverage load + stdout context injection. The 'load' half is fully addressed; the 'compute resumed-state hash / write resume_integrity_ok' half is described in requireme\u2026",
+   "status": "partial",
+   "cit": "requirements.md:221; design.md:219; tasks.md:163-169"
+  },
+  {
+   "req_id": "Requirement 23.2 (REQ-STATE-005, enforcement division)",
+   "criterion": "THE SessionStart_Hook SHALL compute the resumed-state hash and write run_state.resume_integrity_ok (bool) without blocking, AND a NEW PreToolUse integrity-guard check SHALL BLOCK the first implementation write (exit 2) WHILE run_state.resume_integrity_ok is false.",
+   "how": "Design splits the obligation: SessionStart computes/writes the flag (via state_integrity.py); PreToolUse integrity guard enforces it. SessionStart's compute role is named in design hook-wiring (L219) and component inventory (L143); the enforcement is task 49.1. But the COMPUTE action is not tasked i\u2026",
+   "status": "partial",
+   "cit": "requirements.md:438; design.md:143,219; tasks.md:963"
+  },
+  {
+   "req_id": "Requirement 19.1 (REQ-PRED-001)",
+   "criterion": "WHERE predictive next-step routing is enabled, THE System SHALL inject predictions only as advisory context (e.g., via a UserPromptSubmit or SessionStart context-injection hook or an MCP retrieve tool).",
+   "how": "Names SessionStart as one allowable advisory context-injection channel for the OPTIONAL predictive-routing feature (Phase 6). No mechanism is added to session_start_hook.py for this; it is an off-gate optional usage, not a Phase-0 obligation.",
+   "status": "partial",
+   "cit": "requirements.md:340"
+  },
+  {
+   "req_id": "Requirement 12.3 (REQ-OBS-003) via task 36",
+   "criterion": "WHEN a hook makes a gate decision, THE System SHALL emit that decision \u2014 event, tool, allow/block, reason, requirement ID \u2014 to the same trace endpoint as agent spans.",
+   "how": "Task 36.1 extends all six hooks including SessionStart to emit OTel hook.decision spans. SessionStart makes no allow/block gate decision (it always exits 0), so 'decision' for it is degenerate; the requirement fits the blocking hooks better, but task 36 still enumerates SessionStart.",
+   "status": "partial",
+   "cit": "requirements.md:236; tasks.md:539"
+  }
+ ],
+ "citation_issues": []
+}

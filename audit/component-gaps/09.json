@@ -1,0 +1,128 @@
+{
+ "idx": 9,
+ "component": "wiring_checker.py",
+ "file_path": "tools/wiring_checker.py",
+ "phase": "1",
+ "what": "`tools/wiring_checker.py` (Phase 1) is a standalone Python CLI that performs static call-graph / dead-code analysis on changed source files using the stdlib `ast` module. For each file it builds a call graph (mapping function/method definitions to their call sites), identifies functions/methods never called from any real (non-test) execution path, and for each dead-code finding emits a candidate WIRING coverage item as JSON to stdout (`type: \"WIRING\"` + the unreachable symbol name). It implements Requirement 8 (Wiring Verification, baseline block B07, PRD refs REQ-EXEC-010..012) \u2014 the \"components that compile but are never connected\" detector \u2014 at design.md:135 described as \"Static call-grap\u2026",
+ "open_gaps": [
+  {
+   "gap": "Criterion 8.1's second clause is unfulfilled: wiring_checker.py emits a WIRING candidate to STDOUT only; no component ingests that candidate into feature_list.json. The requirement says 'SHALL represent each wiring obligation as a WIRING coverage item in feature_list.json', but the data path stops at the post-hook's next-turn feedback text. No task creates the WIRING item from the candidate.",
+   "severity": "missing-wiring",
+   "fix": "Add a task (or extend task 19.1) defining the ingestion path: e.g., the initializer/implementer agent, on receiving the WIRING candidate as next-turn feedback, MUST add a corresponding type:'WIRING' CoverageItem to feature_list.json via the PreToolUse status-guard-permitted creation path; OR have wiring_checker.py (or the post-hook) write the item directly under the artifact-guard exception. Specify which actor writes it and how the PreToolUse artifact/status guards (design.md:214-215) admit a n\u2026",
+   "cit": "requirements.md:172; tasks.md:329-331; design.md:214-215"
+  },
+  {
+   "gap": "Criterion 8.2 (Verifier SHALL mark the WIRING item failed on an unreachable handler/route/job/callback) has NO concrete mechanism. The Verifier definition (verifier.md key-behaviors, design.md:255-266) never reads wiring_checker.py output, never mentions WIRING items, and never performs an unproven\u2192failed transition for wiring. There is no task connecting the checker's unreachable-symbol finding to a Verifier-authored failed transition.",
+   "severity": "missing-wiring",
+   "fix": "Add a verifier.md key-behavior + a task: 'On each slice, the Verifier consumes the wiring_checker.py findings (or re-runs it) and, for any WIRING item whose symbol is reported unreachable, performs the unproven\u2192failed transition (the PreToolUse status guard already permits unproven\u2192failed, design.md:215).' Cite REQ-EXEC-011 and add a unit/property test asserting unreachable\u2192failed.",
+   "cit": "requirements.md:173; design.md:255-266"
+  },
+  {
+   "gap": "No Z3 CHECK and no correctness Property pins Requirement 8 / wiring_checker.py. Every other major gate carries a CHECK or a Property; wiring is logically un-pinned. The integration claim 'looks done cannot pass as is wired' rests solely on two example-based tests (19.2, 26.1).",
+   "severity": "underspecified",
+   "fix": "Either (a) add a Property (e.g., 'Property 31: Wiring/Dead-Code Detection \u2014 for any file with a defined-but-never-called non-test symbol, wiring_checker.py emits exactly one WIRING candidate naming that symbol; for any reachable handler, zero candidates') with a Hypothesis test, OR (b) explicitly document in design.md that wiring detection is a runtime/example-tested property with no Z3 model (as was done for the audit-log chain at design.md:1110). Today the absence is silent.",
+   "cit": "design.md:882-1130; verification/formal_verification_merged.py (no wiring CHECK)"
+  },
+  {
+   "gap": "Design thinness: wiring_checker.py gets exactly ONE row in the component inventory (design.md:135) and ZERO narrative/interface/algorithm description in the Components-and-Interfaces body, the data-flow diagram, or any B07/Requirement-8 design section. There is no design discussion of how 'real execution path' is defined for AST reachability, how cross-file/cross-module calls are handled (the task says 'build a call graph for each file' \u2014 i.e., per-file, which cannot see callers in other files), or how entry points are seeded. A per-file AST call graph structurally CANNOT distinguish 'defined-but-never-called-in-this-file' from 'called-from-another-file', so it will false-positive on every p\u2026",
+   "severity": "underspecified",
+   "fix": "Add a design subsection for B07 specifying: entry-point seeding (CLI mains, route decorators, registered callbacks, test files excluded), whether reachability is whole-repo or per-file (and if per-file, how exported symbols are exempted to avoid false positives), and the precise definition of 'real execution path'. Reconcile the per-file scope in tasks.md:327 against the cross-file false-positive risk; likely the analysis must be repo-wide, not per-file.",
+   "cit": "design.md:135; tasks.md:327-328"
+  },
+  {
+   "gap": "Changed-files input contract is asymmetric/underspecified between caller and tool. post_tool_use_hook.py is 'Triggered on Write/Edit/MultiEdit completion' (tasks.md:310) but the task never states how it derives the changed-file list it passes to wiring_checker.py (hook stdin JSON tool_input? git diff?). wiring_checker.py 'Accept a list of changed files as CLI args' (tasks.md:326) but the handoff format (one path per arg vs newline list) is unspecified.",
+   "severity": "underspecified",
+   "fix": "Specify in task 18.1 how the post-hook extracts the edited file path(s) from the PostToolUse hook payload (the tool_input.file_path field) and passes them as argv to wiring_checker.py; and state in task 19.1 the exact argv contract (e.g., one file path per positional arg).",
+   "cit": "tasks.md:310-313,326"
+  },
+  {
+   "gap": "Overlap/role ambiguity with the Semgrep wiring rules (task 24.1) and orphan_detector.py (task 20) is never resolved. wiring_dead_code.yml targets decorator-based routes/handlers and unwired callbacks (tasks.md:385-386) \u2014 exactly the route/handler/callback obligations in criterion 8.2 and the glossary \u2014 while wiring_checker.py's AST approach only finds defined-but-never-called functions (tasks.md:328). It is unclear which tool authoritatively detects route/handler/callback wiring, whether both feed the same WIRING items, and whether they can double-report.",
+   "severity": "inconsistency",
+   "fix": "Add a one-line division-of-labor note: e.g., 'wiring_checker.py (AST) covers plain dead functions; wiring_dead_code.yml (Semgrep) covers decorator-routed handlers and registered-but-uninvoked callbacks; both emit type:WIRING candidates de-duplicated by symbol before ingestion.' Cross-reference tasks 19, 24, and the criterion-8.2 handler/route/callback list.",
+   "cit": "tasks.md:328,385-386; requirements.md:173"
+  },
+  {
+   "gap": "wiring_checker.py output is invisible to observability and audit. Unlike the gate hooks (which call audit_log.append, design.md:209-218) and the OTel span emitters, the wiring check produces no span and no audit entry, so 'we can prove the wiring check ran/what it found' is not part of the tamper-evident record \u2014 despite wiring being a completeness pillar (pain-point cat 1/4).",
+   "severity": "underspecified",
+   "fix": "Decide and document whether wiring findings should be recorded: minimally have post_tool_use_hook.py emit an OTel PostToolUse gate-decision event including the wiring-check summary (it is already in scope for task 36.1 'extend all six hooks to emit OTel gate-decision events'), and note that the PostToolUse path is non-gating so it is informational, not audit-chained.",
+   "cit": "design.md:209-220; tasks.md:539"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "contradiction",
+   "detail": "The build task for THIS component, task 19.1, carries `_Requirements: 8.1, 8.2_` (tasks.md:331) \u2014 i.e. it CLAIMS to deliver criterion 8.2 (the Verifier marks the WIRING item `failed` on an unreachable handler/route/job/callback). But the task BODY (tasks.md:326-330) only builds AST analysis + a stdout WIRING candidate and explicitly exits 0; it does NOT perform or wire any Verifier `unproven\u2192failed` transition. The draft's 8.2 ears_story (status 'gap') correctly says 'No task connects the checker's finding to a Verifier failed transition,' but it fails to flag the sharper defect: task 19.1's own traceability line FALSELY claims 8.2 coverage that its body does not deliver. This is an internal\u2026",
+   "cit": "tasks.md:331 (task 19.1 _Requirements: 8.1, 8.2_) vs tasks.md:326-330 (body); tasks.md:388, tasks.md:410; requirements.md:173 (criterion 8.2)"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft's properties_and_checks asserts: 'The ONLY verification artifact bearing on this component: task 19.2 unit tests (tasks.md:333-336) and task 26.1 Phase-1 integration test (tasks.md:404-405).' This OMITS task 42.1 \u2014 the final PBT-suite consolidation/gate-registration task \u2014 whose `_Requirements:` line explicitly includes 8.1 (tasks.md:718). Task 42.1 is a third verification artifact traced to this component's primary criterion (8.1) and is also the run-locally-and-fix gate. The draft's enumeration of verification artifacts is therefore incomplete and understates the (nominal) coverage that the spec assigns to wiring_checker.py.",
+   "cit": "tasks.md:718 (task 42.1 _Requirements: ... 8.1 ...); draft properties_and_checks 3rd bullet ('ONLY verification artifact ... 19.2 ... 26.1')"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft never cites Property 1 (Coverage Item Schema Invariant), which directly governs the WIRING items this checker produces. Property 1 (design.md:882-886, 'Validates: Requirements 5.1, 5.4') states every item shall have 'a `type` from {functional, NFR, WIRING}, at least one acceptance criterion, and a `status` defaulting to `unproven`.' The checker emits `type:\"WIRING\"` candidates that must conform to exactly this invariant once ingested. The draft's properties_and_checks flatly claims 'none [of the 30 Properties] covers call-graph/dead-code/wiring' and its 5.4 ears_story (status 'partial') discusses the WIRING enum membership without naming Property 1. Property 1 is the schema-invaria\u2026",
+   "cit": "design.md:882-886 (Property 1, Validates 5.1/5.4); tasks.md:33-34 (Property 1 test, Validates 5.1/5.4); draft properties_and_checks 1st bullet & 5.4 ears_story"
+  },
+  {
+   "kind": "missing",
+   "detail": "There is no ears_story for criterion 13.2 (REQ-STEER-002), even though wiring_checker.py runs entirely inside the path that 13.2 governs. Criterion 13.2 (requirements.md:251) mandates 'THE PostToolUse_Hook SHALL be treated as a next-turn forcing function that cannot undo an already-executed action.' The Hook Wiring Table (design.md:216) maps the PostToolUse row \u2014 which runs the wiring check \u2014 to REQ-VERIFY-004 AND REQ-STEER-002, and tasks 18.1 (tasks.md:316: `_Requirements: 9.4, 13.2_`) and 26.1 (tasks.md:410: includes 13.2) both trace the wiring-check path to 13.2. The draft's own 'when' narrative depends on this 'non-blocking, cannot-undo, next-turn-feedback' semantics, yet the ears_storie\u2026",
+   "cit": "requirements.md:251 (criterion 13.2); design.md:216 (PostToolUse row \u2192 REQ-STEER-002); tasks.md:316, tasks.md:410"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's 8.3 ears_story and the glossary/CoverageItem-type stories do not cite the schema-level encoding of the WIRING\u2192integration-test obligation. design.md:334 documents the `type` enum with 'WIRING items require integration-test evidence,' which is the data-model anchor of criterion 8.3 (requirements.md:174) and directly constrains items of the type this checker produces. The draft cites criterion 8.3 only via task 47 (tasks.md:959) and treats 8.3 as a 'generic Evidence_Record gate ... does not involve wiring_checker.py.' That is defensible, but omitting the design.md:334 schema note understates how tightly the WIRING type the checker emits is bound to the integration-test evidence rul\u2026",
+   "cit": "design.md:334 ('WIRING items require integration-test evidence'); requirements.md:174 (criterion 8.3); draft 8.3 ears_story"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's behaviors and config_settings sections do not record the caller-side `MultiEdit` coupling completeness. The PostToolUse matcher is `Write|Edit|MultiEdit` (design.md:178, settings.json) and the PostToolUse trigger row fires on 'Write, Edit, MultiEdit completion' (design.md:216), so the wiring check is invoked after MultiEdit edits too. The draft's config_settings 'PostToolUse matcher' entry lists the default `Write|Edit|MultiEdit` correctly, but its changed-files-input-contract gap (open_gaps) discusses only Write/Edit and omits that MultiEdit can mutate multiple files in one call \u2014 sharpening the underspecified 'how does the post-hook derive the changed-file list' gap (a single M\u2026",
+   "cit": "design.md:178, design.md:216 (matcher/trigger Write|Edit|MultiEdit); tasks.md:310 (post-hook trigger); draft open_gaps 'Changed-files input contract'"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Requirement 8 / criterion 8.1 (REQ-EXEC-010)",
+   "criterion": "THE System SHALL run static call-graph and dead-code analysis on changed files and SHALL represent each wiring obligation as a WIRING coverage item in feature_list.json.",
+   "how": "wiring_checker.py performs the AST call-graph + dead-code analysis (tasks.md:327-328) and emits a WIRING coverage-item *candidate* as JSON to stdout (tasks.md:329). The first clause (analysis) is addressed; the second clause ('represent each wiring obligation as a WIRING coverage item in feature_lis\u2026",
+   "status": "partial",
+   "cit": "requirements.md:172; tasks.md:325-331"
+  },
+  {
+   "req_id": "Requirement 8 / criterion 8.2 (REQ-EXEC-011)",
+   "criterion": "IF a handler, route, job, or callback exists but is unreachable from any real execution path, THEN THE Verifier SHALL mark the corresponding WIRING item failed.",
+   "how": "No concrete mechanism. wiring_checker.py only emits a stdout candidate via the non-blocking PostToolUse path; the Verifier (verifier.md key-behaviors, design.md:255-266) never reads wiring_checker output and never mentions WIRING items or the failed transition. No task wires the checker's unreachabl\u2026",
+   "status": "gap",
+   "cit": "requirements.md:173; design.md:255-266"
+  },
+  {
+   "req_id": "Requirement 8 / criterion 8.3 (REQ-EXEC-012)",
+   "criterion": "WHEN a WIRING item is claimed proven, THE System SHALL require an integration test exercising the real execution path as the attached Evidence_Record.",
+   "how": "Addressed by task 47 (WIRING integration-test evidence, previously untasked) \u2014 a WIRING item flips proven only with an integration test attached as Evidence_Record. This is the generic Evidence_Record gate; it does not involve wiring_checker.py at proof time.",
+   "status": "partial",
+   "cit": "requirements.md:174; tasks.md:959"
+  },
+  {
+   "req_id": "Requirement 5 / criterion 5.4 (REQ-COV-004)",
+   "criterion": "THE System SHALL represent architectural WIRING obligations and NFR items as first-class coverage items in feature_list.json, not as code comments or informal afterthoughts.",
+   "how": "wiring_checker.py emits WIRING-typed item candidates (type 'WIRING' matches the CoverageItem type enum {functional,NFR,WIRING}, requirements.md:122 / design.md:333 / tasks.md:27). But because the candidate is stdout-only with no ingestion path into feature_list.json, the 'first-class coverage item i\u2026",
+   "status": "partial",
+   "cit": "requirements.md:125; tasks.md:329"
+  },
+  {
+   "req_id": "Glossary: WIRING",
+   "criterion": "WIRING: A coverage-item type representing architectural connection obligations (routes, handlers, callbacks, jobs that must be reachable from a real execution path).",
+   "how": "wiring_checker.py is the producer of WIRING-typed candidates; its detection targets (routes, handlers, callbacks, jobs / unreachable symbols) match the glossary scope. The pure-AST approach only finds defined-but-never-called functions; route/handler/callback decorator detection is delegated to the \u2026",
+   "status": "partial",
+   "cit": "requirements.md:35; tasks.md:327-329,385-386"
+  },
+  {
+   "req_id": "Property 11 (Orphan Detection)",
+   "criterion": "For any implementation unit with no requirement ID ref, and any requirement ID mapping to no verification artifact, the orphan-detection check shall fail.",
+   "how": "DOES NOT bear on wiring_checker.py \u2014 Property 11 validates orphan_detector.py (a sibling Phase-1 tool, REQ-6.3), not wiring_checker.py. Listed here to record that the only Phase-1 dead-code Property is assigned to the OTHER tool; wiring_checker.py has no dedicated Property.",
+   "status": "gap",
+   "cit": "design.md:962-968; tasks.md:347-350"
+  }
+ ],
+ "citation_issues": []
+}

@@ -1,0 +1,117 @@
+{
+ "idx": 8,
+ "component": "evidence_collector.py",
+ "file_path": "tools/evidence_collector.py",
+ "phase": "0",
+ "what": "`tools/evidence_collector.py` is a Phase-0 Python tool (NOT a hook) that builds and validates the four-field `Evidence_Record` (`test_file`, `test_name`, `output_hash`, `collected_at`) and computes the content-addressed `output_hash`. Per tasks.md:43-48 it exposes three functions: `collect(test_file, test_name, output_bytes) -> EvidenceRecord` (computes `sha256:<hex>` over `output_bytes`, stamps ISO-8601 `collected_at`); `validate_evidence_record(record: dict) -> bool` (asserts all four fields present and non-empty, raises `ValueError` listing missing fields); and `store_to_feature_list(item_id, record, feature_list_path)` (atomically writes the evidence and flips the item `unproven \u2192 proven\u2026",
+ "open_gaps": [
+  {
+   "gap": "Timezone-naive / deprecated timestamp: collect() is specified to set collected_at from datetime.utcnow() (tasks.md:45). datetime.utcnow() is deprecated and returns a NAIVE datetime (no offset); its isoformat() yields e.g. '2026-06-15T10:30:00' with no 'Z'/+00:00. The schema requires format: date-time (RFC 3339, design.md:405-409) and the Postgres column is TIMESTAMPTZ (design.md:472). A naive ISO string is ambiguous and can fail strict date-time validation.",
+   "severity": "defect",
+   "fix": "Change spec to datetime.now(timezone.utc).isoformat() (timezone-aware, emits +00:00) so collected_at always carries an offset and round-trips through TIMESTAMPTZ. Update tasks.md:45.",
+   "cit": "tasks.md:45; design.md:405-409,472"
+  },
+  {
+   "gap": "Split-brain validation: validate_evidence_record() only checks 'all four fields present and non-empty' (tasks.md:46) \u2014 it does NOT validate output_hash against the schema pattern ^sha256:[a-f0-9]{64}$. The regex test (tasks.md:58) targets collect()'s OUTPUT, not the validator. So a non-empty but malformed output_hash (uppercase hex, missing 'sha256:' prefix, wrong length) passes validate_evidence_record() AND the SubagentStop hook (which calls the same validator, tasks.md:179); only the separate JSON-Schema path in the PreToolUse status guard catches it. The four-field gate is weaker than the schema.",
+   "severity": "inconsistency",
+   "fix": "Make validate_evidence_record() validate output_hash against ^sha256:[a-f0-9]{64}$ and collected_at against ISO-8601, not just non-emptiness; or have it run jsonschema against the EvidenceRecord definition so the tool, the SubagentStop hook, and the schema agree. Cite design.md:402 as canonical.",
+   "cit": "tasks.md:46,58,179; design.md:402"
+  },
+  {
+   "gap": "store_to_feature_list() permits only unproven\u2192proven, narrower than the reconciled transition set. tasks.md:47 and the PreToolUse status-guard task (tasks.md:135: 'validate proposed transition is unproven \u2192 proven only') predate the 2026-06-15 reconciliation that widened permitted transitions to also include unproven\u2192failed and failed\u2192unproven (requirements.md:123,129; design.md:215,374,900). The collector's writer and the status-guard task text were not updated, contradicting the schema enum {unproven,proven,failed} and Property 3.",
+   "severity": "inconsistency",
+   "fix": "Update tasks.md:47 and tasks.md:135: only *\u2192proven requires a complete Evidence_Record; unproven\u2192failed and failed\u2192unproven are permitted without one. Align with requirements.md:129 and design.md:374.",
+   "cit": "tasks.md:47,135; requirements.md:123,129; design.md:215,374"
+  },
+  {
+   "gap": "Property 19 phase/citation mismatch. Property 19 (tasks.md:50-54; design.md:1026-1030) is titled 'Evidence Round-Trip (Store and Retrieve)' and asserts the record is 'stored in Postgres \u2026 retrievable by requirement_id and commit_sha', validating Requirement 16.2 \u2014 yet it is authored as a Phase-0 subtask (3.2) for the Phase-0 collector, which has NO Postgres at Phase 0 (store_to_postgres is Phase-2 task 30.1). The Phase-0 round-trip can only be collect\u2192validate\u2192hash-match (design.md:633), not a Postgres store/retrieve. The property over-claims for the phase it is filed under.",
+   "severity": "underspecified",
+   "fix": "Split into two assertions: a Phase-0 in-memory/file round-trip (collect\u2192validate\u2192hash-match, no Postgres) under task 3.2, and a Phase-2 Postgres store/retrieve round-trip under task 30.2; or re-file Property 19 to Phase 2 and reconcile the 'stored in Postgres' wording at design.md:1028.",
+   "cit": "tasks.md:50-54; design.md:1026-1030; tasks.md:477"
+  },
+  {
+   "gap": "actor_agent not produced by the collector but required by the store. The evidence_records table and Property 24 require actor_agent (= verifier.md, never implementer.md) on every evidence row (design.md:473,1068), but collect()'s signature (tasks.md:45) produces no actor_agent and store_to_postgres()'s signature (tasks.md:477) takes only (record, req_id, commit_sha) \u2014 no parameter carries the verifier identity. The role-separation invariant (Property 24) has no enforcement point in the collector's API.",
+   "severity": "missing-wiring",
+   "fix": "Add actor_agent to collect()/the EvidenceRecord and to store_to_postgres(record, req_id, commit_sha, actor_agent), asserting it equals 'verifier.md' and rejecting implementer-authored evidence at the collector boundary, enforcing Property 24 at write time not only at audit time.",
+   "cit": "tasks.md:45,477; design.md:473,1066-1068"
+  },
+  {
+   "gap": "Design/tasks thinness on hashing semantics. design.md covers evidence_collector in only three one-line inventory cells (134, 263, 633) plus one test line (859); there is NO design narrative on WHAT output_bytes is hashed (raw test stdout? the trace file? a normalized artifact?), how non-deterministic test output is canonicalized so the same proof rehashes identically, or how output_hash relates to the stored artifact (the schema stores only the hash; requirements.md:297 says 'artifact OR content-addressed reference', leaving artifact retention unspecified). For a content-addressed proof system this is the load-bearing detail and it is absent.",
+   "severity": "underspecified",
+   "fix": "Add a design subsection defining the exact byte source for output_hash, a canonicalization rule for non-deterministic output, and whether/where the raw artifact is retained (blob store vs hash-only). Without it, output_hash is not reproducibly verifiable and OPA's zero-evidence count (design.md:1052) cannot detect a fabricated hash.",
+   "cit": "design.md:134,263,633; requirements.md:297"
+  },
+  {
+   "gap": "No empty-bytes / meaningless-proof handling in spec. tasks.md:57 lists 'collect() with empty bytes still produces valid sha256 hash' as a desired test, but the spec never decides whether an EMPTY artifact (zero bytes) is a VALID proof. A test producing no output yields sha256('') = e3b0c442\u2026, a well-formed but evidentially meaningless hash that passes all four-field and schema checks, so the gate would accept it as proof.",
+   "severity": "underspecified",
+   "fix": "Decide and specify: either forbid empty output_bytes in collect() (raise), or require the Verifier to assert the artifact is non-trivial before calling collect(); otherwise an empty/short-circuited test silently mints valid evidence.",
+   "cit": "tasks.md:57; design.md:633"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "REQ-EXEC-012 / Requirement 8.3 (\"WHEN a WIRING item is claimed proven, THE System SHALL require an integration test exercising the real execution path as the attached Evidence_Record\") is entirely absent from the draft's ears_stories. This bears directly on evidence_collector.py: it is the assembler of that integration-test Evidence_Record, and task 47 (\"WIRING integration-test evidence... a WIRING item flips proven only with an integration test... attached as Evidence_Record\") is an explicitly added/previously-untasked obligation. The collector must accept and assemble an integration-test artifact, not just a behavioral/Playwright one. The draft covers REQ-VERIFY-003 (behavioral) but never \u2026",
+   "cit": "requirements.md:174 (Req 8.3); tasks.md:959 (task 47); design.md:334 (WIRING items require integration-test evidence)"
+  },
+  {
+   "kind": "missing",
+   "detail": "Requirement 25.1/25.2 (REQ-VERIFY-007/008) require performance NFR verification to \"attach the result as the Evidence_Record\" (k6/Lighthouse) and accessibility verification (axe-core) to produce evidence on covered screens. Task 51's perf_a11y_verifier emits \"k6/Lighthouse perf budgets + axe-core ... as NFR Evidence_Records.\" These are Evidence_Records the collector must assemble, but the draft frames collect()/output_bytes only around behavioral test output (REQ-VERIFY-003) and never lists Req 25 / REQ-VERIFY-007/008 as bearing on the collector. The NFR-evidence assembly path is unaddressed, and it sharpens the unspecified output_bytes byte-source question for non-test artifacts (Lighthouse\u2026",
+   "cit": "requirements.md:447-448 (Req 25.1/25.2); tasks.md:966 (task 51); design.md:146,1182 (perf_a11y_verifier emits NFR Evidence_Records)"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "The draft's actor_agent gap proposes \"Add actor_agent to collect()/the EvidenceRecord\" \u2014 but the canonical EvidenceRecord JSON Schema is additionalProperties:false over EXACTLY the four fields (design.md:390; requirements.md:29,127). Adding actor_agent to the EvidenceRecord object would be rejected by the very schema the SubagentStop hook and PreToolUse status guard validate against, breaking Property 2 / CHECK-7's four-field framing. The reconciled design deliberately keeps actor_agent OUT of the 4-field JSON record and only in the 7-column evidence_records Postgres row (design.md:473). The draft's suggested fix is self-contradicting, and the draft never surfaces the load-bearing fact that \u2026",
+   "cit": "design.md:390 (additionalProperties:false); design.md:464-478 (evidence_records 7-col row incl. actor_agent); requirements.md:29,127 (exactly four fields)"
+  },
+  {
+   "kind": "missing",
+   "detail": "REQ-STORE-001 (16.1, persist Evidence_Records in managed Postgres) and REQ-STORE-003 (16.3, Postgres single source of truth, reconstructable independently of any model session) are not cited as bearing on store_to_postgres, and the N-25 reconciliation obligation (tasks.md:730) is omitted: when db_connection.health_check() fails, the file-backed fallback MUST reach the SAME allow/block decision and NEVER fail-open, taking the more conservative result on divergence. The draft mentions store_to_postgres's feature_list.json fallback only mechanically and does not flag it as a gate-consistency obligation \u2014 a fail-open or divergent fallback in the collector would silently weaken the zero-evidence \u2026",
+   "cit": "requirements.md:296,298 (REQ-STORE-001/003); tasks.md:730 (N-25 fallback gate-consistency); tasks.md:477,482 (store_to_postgres fallback)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft marks REQ-VERIFY-005 (9.5) \"addressed\" via subagent_stop_hook importing validate_evidence_record(), but the SubagentStop validation surface is broader in the reconciled design. Task 54 / Req 29 (REQ-SPEC-018) adds a required omission_declaration field and a SubagentStop omission-guard; the same hook that calls validate_evidence_record() also rejects results lacking omission_declaration (exit 2). The draft over-scopes validate_evidence_record() as the sole 9.5 enforcement when \"lacks required evidence markers\" is now a compound gate (four-field evidence AND omission_declaration). Not a collector defect, but the draft mis-states the boundary the collector's validator participates in.",
+   "cit": "requirements.md:190 (Req 9.5); requirements.md:476-477 (Req 29/REQ-SPEC-018); design.md:218 (omission-declaration guard); tasks.md:974 (task 54)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's split-brain open_gap (output_hash not regex-validated by validate_evidence_record) is correct but understates the canonical contradiction: design.md:521 explicitly justifies deferring Pydantic/BAML runtime enforcement by claiming \"the SubagentStop schema-validation gate (REQ-COV-006) already enforces Evidence_Record structure at the hook layer.\" That deferral rationale assumes the hook enforces the FULL schema (incl. the sha256 pattern), yet tasks.md:46/179 wire the hook to validate_evidence_record(), which only checks presence+non-emptiness. The spec's own out-of-scope justification (requirements.md:521) rests on an enforcement the tasks do not implement \u2014 the draft should cite \u2026",
+   "cit": "requirements.md:521 (deferral rationale); tasks.md:46,179 (presence-only validator wired to hook); design.md:402 (sha256 pattern only in schema path)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The properties_and_checks list presents CHECK-7a/7b/7c (formal_verification_merged.py:311-338, verified to exist and match) as if component-specific to evidence_collector.py. These checks operate purely on abstract booleans (evidenceHasHash, evidenceHasTestFile, evidenceComplete == And(...)); they model the four-field GATE LOGIC, not the collector's hashing/timestamp behavior. The draft's how_addressed text mostly concedes this, but the list omits the caveat that NO Z3 check exercises collect()'s actual sha256 computation, datetime output, or the ^sha256:[a-f0-9]{64}$ format \u2014 those are only unit-tested (task 3.3). Worth flagging explicitly as an evidence-quality limit so the Z3 coverage is \u2026",
+   "cit": "verification/formal_verification_merged.py:301-338 (abstract boolean axioms); tasks.md:57-59 (format only unit-tested, not Z3-checked)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's timezone-naive timestamp gap correctly targets collect()/schema date-time but misses the stronger Postgres-boundary consequence. evidence_records.collected_at is TIMESTAMPTZ NOT NULL (design.md:472) and the evidence_complete CHECK requires collected_at IS NOT NULL (design.md:476). A naive datetime.utcnow() string inserted via store_to_postgres would be coerced/interpreted by Postgres as a different instant than the JSON/schema path recorded, breaking Property 19's requirement that \"all four fields shall match the original capture values without loss\" (design.md:1028). The naive-timestamp defect is therefore not only a validation risk but a Property-19 round-trip-fidelity defect a\u2026",
+   "cit": "design.md:472,476 (TIMESTAMPTZ + IS NOT NULL CHECK); design.md:1028 (Property 19 lossless match); tasks.md:45 (utcnow)"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-VERIFY-003 (Req 9.3)",
+   "criterion": "WHEN a behavioral check runs, THE Verifier SHALL produce a captured artifact (trace, screenshot, or test output) attached as an Evidence_Record.",
+   "how": "Verifier feeds the captured artifact bytes into collect(output_bytes) to produce the Evidence_Record; task 3.1 cites Requirements 9.3.",
+   "status": "partial",
+   "cit": "requirements.md:188; tasks.md:48 (_Requirements: 5.3, 5.6, 9.3_)"
+  },
+  {
+   "req_id": "Property 19 (Evidence Round-Trip \u2014 Store and Retrieve)",
+   "criterion": "For any evidence capture event, the Evidence_Record stored in Postgres shall be exactly retrievable by requirement_id and commit_sha, all four fields matching without loss.",
+   "how": "Round-trip test on collect\u2192validate\u2192hash-match (task 3.2) and store_to_postgres retrieval; collector is the assembly point.",
+   "status": "partial",
+   "cit": "design.md:1026-1030; tasks.md:50-54"
+  },
+  {
+   "req_id": "REQ-COV-002 (Req 5.2) status-transition guard",
+   "criterion": "Status transitions proceed only along unproven\u2192proven, unproven\u2192failed, failed\u2192unproven; any transition into proven additionally requires a complete Evidence_Record.",
+   "how": "store_to_feature_list() performs the proven flip with completeness check; but it is specified for unproven\u2192proven ONLY (tasks.md:47, mirrored by status-guard tasks.md:135), not the widened failed set.",
+   "status": "partial",
+   "cit": "requirements.md:123,129; tasks.md:47,135"
+  }
+ ],
+ "citation_issues": []
+}

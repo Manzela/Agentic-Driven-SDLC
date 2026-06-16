@@ -1,0 +1,170 @@
+{
+ "idx": 29,
+ "component": "research.md",
+ "file_path": ".claude/agents/research.md",
+ "phase": "0",
+ "what": "`.claude/agents/research.md` is the Claude Code subagent definition for the \"Research_Sub_Agent\" / \"Domain-Baseline Checklist Sourcer.\" When a new product class is encountered for the first time, it researches competitive analysis, industry standards, and open-source reference implementations (querying web sources) to DRAFT a Domain_Baseline_Checklist for that product class. It produces a draft checklist file named by product class under `baselines/` (e.g. `baselines/saas-auth.md`), presents the draft for human review, and persists the approved checklist as a version-controlled artifact linked to `feature_list.json`. Per the epistemic-integrity additions (REQ-SPEC-017 / Property 29 / Req 24.\u2026",
+ "open_gaps": [
+  {
+   "gap": "The component file does not exist on disk. `.claude/agents/` contains only a 0-byte `.gitkeep`; research.md (and initializer/implementer/verifier) are unwritten. Task 10.4 is still `[ ]`. The entire component is spec-only.",
+   "severity": "missing-wiring",
+   "fix": "This is expected pre-implementation state (Phase 0 not started). Flag explicitly that NO agent definition file has been authored yet; the spec's claim of 'four subagent definitions with permission scopes' (PRD:17) is a spec promise, not a built artifact. Implement task 10.4 (tasks.md:218).",
+   "cit": "tasks.md:218"
+  },
+  {
+   "gap": "REQ-SPEC-016/017 enforcement is split into a Phase-3 task (50) while the agent it governs is a Phase-0 component (10.4). The agent is BUILT (Phase 0) ~3 phases before its epistemic-integrity gate and its checklist-approval guard are wired (Phase 3 task 50). For the entire Phase 0-2 window, research.md can emit unlabeled, unfact-checked DRAFT claims and there is no guard preventing a DRAFT checklist from being used for discovery.",
+   "severity": "missing-wiring",
+   "fix": "Either pull the checklist-approval PreToolUse guard and the authority-tier/fact-check enforcement forward into Phase 0 (add subtasks under task 6 and 10.4), or document that REQ-SPEC-016/017 are intentionally deferred and that Phase 0-2 runs must not invoke research on an un-gated product class.",
+   "cit": "tasks.md:965"
+  },
+  {
+   "gap": "The PreToolUse checklist-approval guard (REQ-SPEC-016 / Property 27 / design.md:213) has NO implementation subtask. Task 6.1 implements exactly four checks \u2014 check_plan_approval, check_scope_sequencing, check_artifact_guard, check_status_transition (tasks.md:132-136) \u2014 and does NOT include a check_checklist_approval. By contrast the parallel resumed-state integrity guard DID get an explicit wiring subtask (49.1). Task 50 only references the property and CHECK-12, with no subtask that adds the guard code to pre_tool_use_hook.py.",
+   "severity": "missing-wiring",
+   "fix": "Add a subtask under task 50 (mirroring task 49.1): 'Add check_checklist_approval(event) to pre_tool_use_hook.py \u2014 block any Initializer/discovery Write that references a checklist whose approved_at is NULL in domain_baseline_checklists; chain it with the other PreToolUse checks.' Update task 6.1's title from 'four checks' accordingly.",
+   "cit": "tasks.md:132"
+  },
+  {
+   "gap": "Property 29's 'independent fact-check pass' and 'authority-tier labeling' have NO concrete executable component. No fact_check.py, authority_labeler, or research-claim validator appears in any component table (design.md:140-160) or task. design.md:1120 itself admits 'no Z3 check \u2014 test/runtime verified', but no runtime tool is named \u2014 only a property test (task 39.19).",
+   "severity": "underspecified",
+   "fix": "Name a concrete owner: add a tool (e.g. tools/research_claim_validator.py) or define it as a capability inside research.md's own loop with a SubagentStop/PreToolUse rejection mechanism, then cite it from Property 29 and task 50. Without it, REQ-SPEC-017 has no enforcement mechanism, only a test.",
+   "cit": "design.md:1120"
+  },
+  {
+   "gap": "research.md's own behavior list (design.md:273-278) and task 10.4 (tasks.md:218-221, _Requirements: 3.1, 3.2, 3.3_) omit REQ-SPEC-016, REQ-SPEC-017, AND REQ-SPEC-018 entirely. The agent that is the named subject of all three requirements does not, in its own definition, carry: (a) the do-not-emit-unlabeled-claims obligation, (b) the source-URL/authority-tier obligation, or (c) the omission_declaration field.",
+   "severity": "inconsistency",
+   "fix": "Extend task 10.4's _Requirements_ line to include 3 plus REQ-SPEC-016/017/018, and add the source-URL/authority-tier/fact-check + omission_declaration behaviors to the research.md key-behaviors block in design.md:273-278.",
+   "cit": "tasks.md:221"
+  },
+  {
+   "gap": "Property 27 mis-cites its requirement: 'Validates: Requirements 25 (REQ-SPEC-016)' (design.md:1100), but REQ-SPEC-016 is Requirement 24.1 (requirements.md:441-442). Requirement 25 is Performance/Accessibility (requirements.md:445). Dangling/incorrect cross-citation.",
+   "severity": "inconsistency",
+   "fix": "Correct design.md:1100 to 'Validates: Requirement 24 (REQ-SPEC-016)'. The requirements.md cross-ref table at line 509 already correctly maps Property 27 -> Requirement 24.1.",
+   "cit": "design.md:1100"
+  },
+  {
+   "gap": "Migration-number for the checklist version table is asserted only in tasks.md (006_domain_baseline_checklists.sql, task 28.6) and not stated in design.md's CREATE TABLE block (design.md:498). design.md:152-153 names 007/008 as the 7th/8th tables, implying 001-006 are the original six, but the canonical migration index for domain_baseline_checklists lives only in tasks.md.",
+   "severity": "underspecified",
+   "fix": "Add the migration filename (006_domain_baseline_checklists.sql) to the design.md CREATE TABLE block at design.md:498 so the migration index is canonical in design, not only in tasks.",
+   "cit": "design.md:498"
+  },
+  {
+   "gap": "No actor is specified for INSERTing the domain_baseline_checklists row (the persisted record of research.md's output). research.md has read/write to baselines/ only \u2014 'No access to ... CI' and implicitly no DB write is granted (design.md:280). Yet a row with sha/version/approved_at must be created. Who writes it (research agent? a hook? the human approval action? the Initializer at link-time?) is unspecified.",
+   "severity": "underspecified",
+   "fix": "Specify the DB-row producer for domain_baseline_checklists \u2014 likely the human-approval action or a SessionStart/PostToolUse hook \u2014 and reconcile it against research.md's baselines/-only permission scope (research.md cannot write Postgres under its current scope).",
+   "cit": "design.md:280"
+  },
+  {
+   "gap": "design.md / tasks.md coverage of research.md is THIN relative to the other three subagents and to its own three governing requirements. design.md gives it 12 lines (269-280); tasks.md gives it 4 lines (218-221). There is NO output JSON schema artifact for research (unlike feature_list.schema.json), despite REQ-SPEC-018.3 requiring 'The JSON schema for each subagent output type SHALL include omission_declaration' (requirements.md:478). No checklist file-format schema is defined anywhere (what fields a baselines/*.md must contain, how claims/sources/authority-tiers are structured).",
+   "severity": "underspecified",
+   "fix": "Add a checklist artifact schema (fields per item, per-claim source/authority/fact-check structure) and a research-output JSON schema carrying omission_declaration; cite both from task 10.4 and 54. Without a defined output format, REQ-SPEC-014/017/018.3 cannot be machine-validated.",
+   "cit": "requirements.md:478"
+  },
+  {
+   "gap": "No model / tool binding for the subagent. Unlike a runnable Claude Code agent (which needs frontmatter: name, description, tools, model), no spec file specifies which tools research.md may call (it must query web sources per design.md:275, implying WebSearch/firecrawl, but no tool grant is given) or which model runs it. grep for model:/tools:/sonnet/haiku/opus returns nothing for this agent.",
+   "severity": "missing-wiring",
+   "fix": "Specify research.md frontmatter in task 10.4: allowed tools (a web-search/fetch tool to satisfy 'query competitive analysis + standards + OSS refs') and a model. Note that 'read/write to baselines/ only; no CI' (design.md:280) currently contradicts the need for a web/network tool \u2014 reconcile the permission scope with the web-query behavior.",
+   "cit": "design.md:275"
+  },
+  {
+   "gap": "REQ-SPEC-013..015 are cited as 'PRD references' for Requirement 3 (requirements.md:87) but are NEVER defined as individual EARS statements anywhere \u2014 the PRD requirements list (PRD:54-90) defines REQ-LOOP-005, REQ-COV-007, REQ-STATE-005, REQ-SPEC-016/017 etc. but has no REQ-SPEC-010..015 entries. They exist only as label ranges. Same for REQ-SPEC-010..012 (Requirement 2).",
+   "severity": "underspecified",
+   "fix": "Either define REQ-SPEC-013/014/015 as explicit EARS lines, or document that these IDs are a shorthand alias for Requirement 3's three acceptance criteria. Currently the ID-to-criterion mapping is implicit and unverifiable.",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:54"
+  },
+  {
+   "gap": "Lifecycle vs requirement tension on detection of a 'new' product class. design.md:613 says research runs 'only once per product class... Re-research is triggered only by an explicit operator request', and Req 3.1 says 'WHEN a new product class is encountered for the first time' \u2014 but neither spec defines HOW 'new product class' / 'first encounter' is DETECTED (what data structure is consulted to decide a class is new). No detector component is named.",
+   "severity": "underspecified",
+   "fix": "Name the mechanism that decides a product class is 'new' (e.g. a lookup against domain_baseline_checklists by product_class) and which component performs it (the Initializer). Cite it from design.md:274 and the lifecycle.",
+   "cit": "design.md:613"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "Property 18 (Checklist Version Link Fidelity) is entirely absent from the draft's ears_stories and properties_and_checks, yet it directly governs the linkage of research.md's primary output artifact. design.md:1018-1022: 'For any use of a domain-baseline checklist during proactive discovery, the resulting feature_list.json shall record the exact checklist_ref.path, .version, and .sha ... The recorded SHA must match the actual git blob SHA of the checklist file at the time of use.' This is the machine-checkable pin behind REQ-SPEC-015 / Requirement 3.3 \u2014 the very criterion the draft's own ears_story marks 'addressed' for 3.3. It has a dedicated property test (task 39.9, tasks.md:626-630, tag \u2026",
+   "cit": "design.md:1018-1022; tasks.md:617,626-630"
+  },
+  {
+   "kind": "missing",
+   "detail": "Requirement 28 / REQ-ORCH-004 establishes 'research' as one of the FOUR fixed baseline subagent roles (planner/implementer/verifier/research) against which optional roles are defined: requirements.md:466 'WHERE a project requires roles beyond planner/implementer/verifier/research, THE System SHALL support additional bounded subagent roles ... none SHALL have verifier write access' (PRD:64 identical). This is a requirement-level obligation that NAMES research as a permanent role with an explicit-permission-scope, never-verifier-write-access constraint \u2014 directly constraining research.md's permission model (the 'baselines/ only, no verifier write' scope the draft discusses under config_setting\u2026",
+   "cit": "requirements.md:466; PRD_MERGED_canonical_spec_to_evidence.md:64"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft does not flag that task 50's _Requirements:_ line (tasks.md:965 '_Requirements: 3.1, 3.3._') is INCOMPLETE/mis-scoped for the obligation it implements. Task 50 implements REQ-SPEC-016 AND REQ-SPEC-017 (the checklist-approval gate plus the source-URL/authority-tier/fact-check epistemic gate), but its _Requirements:_ traceability line cites only '3.1, 3.3' \u2014 which are Requirement 3's sourcing criteria, NOT Requirement 24.1 (REQ-SPEC-016) or Requirement 24.2 (REQ-SPEC-017) which task 50 actually closes. Notably, REQ-SPEC-017's source-URL/authority-tier obligation maps to Requirement 3.1 (drafting) but NOT to 3.3 (version-recording) \u2014 and the fact-check/authority gate has no acceptance\u2026",
+   "cit": "tasks.md:965; requirements.md:441-443"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's ears_story for Requirement 24.2 / REQ-SPEC-017 asserts the fact-check enforcement 'lives only in a Phase-3 task with a property test (39.19), no implementation subtask wiring it into the agent or a hook' and elsewhere correctly notes no concrete owner exists \u2014 but it then lists 'Submit to independent fact-check (obligation)' in behaviors citing design.md:1118 as if Property 29 supplies a mechanism. More significantly, the draft's properties_and_checks claims 'Property 29 ... pins its source-URL/authority-tier/fact-check obligation' and the open_gaps suggested_fix says REQ-SPEC-017 'has no enforcement mechanism, only a test.' That is correct, but the draft OVERSTATES the test's re\u2026",
+   "cit": "tasks.md:684-687"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft marks the Z3 ears_stories for CHECK-12a/12b, CHECK-13a/13b, and CHECK-9a as status 'addressed' while only parenthetically noting they are abstract Boolean models. This understates a coverage gap the draft elsewhere argues forcefully: NONE of these Z3 checks reference research.md, the checklist artifact, claims, authority tiers, or omission_declaration concretely. Verified in harness: CHECK-12a/12b operate on bare Booleans checklistIsDraft/checklistUsedForDisc (formal_verification_merged.py:130-131,463-479); CHECK-13a/13b on omissionDeclNull/subagentAccepted13 (lines 481-500); CHECK-9a on unmappedExists/advancementAllowed annotated '[REQ-SPEC-011]' (lines 382-390) \u2014 i.e. CHECK-9a is\u2026",
+   "cit": "verification/formal_verification_merged.py:390,463-500"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft does not flag the migration-numbering CONTRADICTION between tasks.md and design.md for the domain_baseline_checklists table (the persistence store of research.md's output). The draft's open_gaps notes only that the migration filename '006_domain_baseline_checklists.sql' is asserted in tasks.md but absent from design.md's CREATE TABLE block \u2014 framing it as merely 'underspecified.' It is stronger than that: it is an actual numeric COLLISION. tasks.md:445 assigns domain_baseline_checklists to migration 006, but tasks.md:962 assigns requirement_versions to migration 007 and tasks.md:967 assigns gate_audit_log to 008 \u2014 while design.md:140-142 states migrations 001-006 are 'the original \u2026",
+   "cit": "design.md:140-142,427,498; tasks.md:445,962,967"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's dependencies list and by_whom cite the tasks.md:779 dependency-group ('tasks: 9.2, 10.1, 10.2, 10.3, 10.4, 11.1') but do not surface the consequence: research.md (task 10.4) is scheduled in the SAME parallel dependency group as the verifier (10.3) and implementer (10.2), yet research.md's epistemic-integrity gate (task 50) and its checklist-approval consumer guard are Phase-3. The draft notes the Phase-0/Phase-3 split as a gap, but misses that the dependency-group at line 779 makes research.md BUILDABLE-AND-MERGEABLE in the very first parallel wave with no dependency edge to task 50, task 39.17, or task 54 \u2014 there is no ordering constraint forcing the gates to exist before resear\u2026",
+   "cit": "tasks.md:779,953"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Requirement 3.1 / REQ-SPEC-013",
+   "criterion": "WHEN a new product class is encountered for the first time, THE System SHALL run a Research_Sub_Agent that queries competitive analysis, industry standards, and open-source reference implementations to draft a Domain_Baseline_Checklist for that product class, and SHALL present the draft for human re\u2026",
+   "how": "Core charter of research.md; encoded in agent definition (design.md:269-280), lifecycle (design.md:599-603), and task 10.4 (tasks.md:220). Behaviors: query web sources, produce draft named by product class, present for review.",
+   "status": "partial",
+   "cit": "requirements.md:91"
+  },
+  {
+   "req_id": "Requirement 24.1 / REQ-SPEC-016 [DET]",
+   "criterion": "IF a Domain_Baseline_Checklist is in DRAFT (not human-approved), THEN it SHALL NOT be used for discovery. (Z3 CHECK-12a/12b.)",
+   "how": "Enforced NOT in research.md itself but by a PreToolUse checklist-approval guard that confirms non-null approved_at before discovery Write (design.md:213, Property 27 design.md:1094-1100). research.md is the producer of the DRAFT; the gate is the consumer-side enforcement. Z3 CHECK-12a/12b model an a\u2026",
+   "status": "partial",
+   "cit": "requirements.md:442"
+  },
+  {
+   "req_id": "Requirement 24.2 / REQ-SPEC-017 [DET]",
+   "criterion": "WHEN the Research_Sub_Agent drafts a checklist or any sourced claim, THEN every external claim SHALL carry a source URL, each source SHALL be labeled by authority tier (primary/standard/peer-reviewed vs blog/vendor/social), and an independent fact-check pass SHALL flag unverifiable or low-authority-\u2026",
+   "how": "Directly names the Research_Sub_Agent. Mechanism described as Property 29 (design.md:1114-1120) and task 50 (tasks.md:965). BUT: research.md's own behavior list (design.md:273-278) and task 10.4 (tasks.md:218-221) do NOT mention source-URL/authority-tier/fact-check at all; the gate lives only in a P\u2026",
+   "status": "partial",
+   "cit": "requirements.md:443"
+  },
+  {
+   "req_id": "Requirement 29.1 / REQ-SPEC-018",
+   "criterion": "WHEN a subagent (initializer, research, verifier) completes a discovery/research/verification pass, its output SHALL include a non-null omission_declaration field listing by EARS scenario category every scenario class not covered, using [Gap] markers.",
+   "how": "Names 'research' as one of the three subagents whose output must carry omission_declaration. Added to schema + guard by task 54 (tasks.md:974). research.md's own definition (design.md:269-280) does NOT mention omission_declaration \u2014 only the consolidated task 54 retrofits it.",
+   "status": "partial",
+   "cit": "requirements.md:476"
+  },
+  {
+   "req_id": "Requirement 29.3 / REQ-SPEC-018",
+   "criterion": "THE JSON schema for each subagent output type SHALL include omission_declaration as a required, non-nullable field.",
+   "how": "Task 54 adds omission_declaration to 'each subagent output schema (initializer, research, verifier)'. NOTE: no per-subagent output JSON schema file is named anywhere for research \u2014 there is a feature_list schema but no research-output schema artifact in any component table.",
+   "status": "gap",
+   "cit": "requirements.md:478"
+  },
+  {
+   "req_id": "Property 27: Checklist-Approval-Before-Use",
+   "criterion": "For any proactive-discovery pass that references a domain-baseline checklist, the checklist shall have non-null approved_at; the PreToolUse checklist-approval guard shall block discovery using an unapproved checklist. Validates Req 25 (REQ-SPEC-016), CHECK-12.",
+   "how": "Guards research.md's DRAFT output from premature use. Property/test exist (task 39.17), but no implementation subtask adds the guard to pre_tool_use_hook.py. NOTE the citation says 'Requirements 25' but the requirement is Req 24.1 \u2014 internal mis-citation.",
+   "status": "partial",
+   "cit": "design.md:1094"
+  },
+  {
+   "req_id": "Property 29: Research-Claim Authority Labeling",
+   "criterion": "For any claim emitted by the Research subagent into a draft checklist, the claim shall carry an authority-tier label and pass the fact-check pass before human review; unlabeled/unverified claims rejected before approval. Validates Req 24 (REQ-SPEC-017). No Z3 check \u2014 test/runtime verified.",
+   "how": "Property test task 39.19 (tasks.md:684-687) + task 50. No runtime mechanism component is named (no fact_check.py / authority_labeler tool in any component table); 'independent fact-check pass' has no concrete executable owner.",
+   "status": "partial",
+   "cit": "design.md:1114"
+  }
+ ],
+ "citation_issues": []
+}

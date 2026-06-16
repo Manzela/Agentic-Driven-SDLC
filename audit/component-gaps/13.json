@@ -1,0 +1,124 @@
+{
+ "idx": 13,
+ "component": "plan-approved.json",
+ "file_path": "/plan-approved.json",
+ "phase": "0",
+ "what": "`plan-approved.json` (path `/plan-approved.json`, Phase 0) is a small JSON approval-marker file written by a human into the repo root after reviewing the validated spec + `feature_list.json` in plan mode. Its mere presence \u2014 plus a matching `feature_list_sha` \u2014 is the precondition that unlocks all implementation Write/Edit/MultiEdit tools. Its documented contents (design.md:762-770): `approved_by` (email), `approved_at` (ISO-8601), `feature_list_sha` (`sha256:...`, content-binding to the coverage model the human reviewed), `spec_version` (semver), and optional `notes` (operator missing-context injection). It is NOT executable code and NOT built by any task; it is data produced by a human and\u2026",
+ "open_gaps": [
+  {
+   "gap": "feature_list_sha is computed over RAW bytes (`read_bytes()`) with no canonical/normalized JSON form, so any whitespace-only or key-reordering re-write of feature_list.json that the human did NOT review still breaks the SHA and re-blocks (false positive), while there is no canonicalization to make the bind stable. The audit-log hash chain, by contrast, is explicitly specified to hash 'deterministic JSON' \u2014 the plan-gate SHA is held to a weaker, byte-literal standard with no spec.",
+   "severity": "underspecified",
+   "fix": "Specify the canonical form for feature_list_sha (e.g., deterministic/sorted-key JSON serialization, mirroring the gate_audit_log canonical-form rule at design.md:1170) and state it in design.md \u00a7plan-approved.json Gate and in the glossary.",
+   "cit": "design.md:791 (read_bytes); contrast design.md:1170 (audit-log deterministic JSON)"
+  },
+  {
+   "gap": "Z3 CHECK-4f models ONLY presence (`planApproved` Boolean) and does NOT model the feature_list_sha-mismatch block path. The SHA-bind \u2014 which design.md and Property 6 treat as the cryptographic core of the gate \u2014 is therefore formally unverified; only a property test (task 6.2) covers it. Critical Invariant 3 overclaims by implying the whole gate is Z3-proven.",
+   "severity": "missing-wiring",
+   "fix": "Add a CHECK-4g modeling `codeWrite \u2227 planApproved \u2227 shaMismatch \u21d2 block` (a Boolean `shaMatches`), and scope Invariant 3 / CHECK-4f wording to presence only.",
+   "cit": "formal_verification_merged.py:249-253; design.md:792-797"
+  },
+  {
+   "gap": "Requirement-to-design scope mismatch on the SHA bind: NO EARS requirement text (Req 7.4, 18.1, REQ-HITL-001, REQ-EXEC-004) nor the glossary mentions feature_list_sha or SHA-binding at all \u2014 they say 'presence is required.' The SHA bind appears only in design.md and Property 6, so the system's most security-relevant behavior on this component has no requirement backing it. Property 6's 'Validates' line cites 7.4/18.1, neither of which states the SHA rule.",
+   "severity": "inconsistency",
+   "fix": "Add an acceptance criterion to Requirement 18 (e.g., 18.4: 'IF plan-approved.json exists BUT its feature_list_sha does not equal the SHA-256 of the current feature_list.json, THEN the PreToolUse_Hook SHALL block all implementation Write/Edit tools and require re-approval') and add the SHA bind to the glossary entry (requirements.md:43).",
+   "cit": "requirements.md:43, 159, 326; design.md:801, 924"
+  },
+  {
+   "gap": "No task or schema artifact defines or validates plan-approved.json's own structure. Unlike feature_list.json (schema/feature_list.schema.json, task 1) and Evidence_Record, plan-approved.json has NO JSON Schema, no validator, and no creation/scaffold task. check_plan_approval reads `approval[\"feature_list_sha\"]` with a bare dict index, so a present-but-malformed file (missing that key) raises KeyError; the stated mitigation ('missing or corrupt \u2192 PreToolUse blocks, fail closed') depends on the try/except wrapper (task 6.1) rather than a declared schema \u2014 the corrupt-file path is asserted but never tested.",
+   "severity": "underspecified",
+   "fix": "Add a `schema/plan_approved.schema.json` (required: approved_by, approved_at, feature_list_sha, spec_version), validate it inside check_plan_approval before indexing, and add a smoke test for the present-but-corrupt case (currently only the absent case is tested at tasks.md:285).",
+   "cit": "design.md:139, 816; design.md:790-792; tasks.md:130-137, 285"
+  },
+  {
+   "gap": "spec_version field is captured in the file (design.md:767) but is never read, validated, or bound to anything \u2014 there is no check that plan-approved.json.spec_version matches the spec version that produced feature_list.json. It is dead metadata: an approval could carry a stale spec_version while still matching the feature_list_sha.",
+   "severity": "underspecified",
+   "fix": "Either bind spec_version to a recorded spec version in the durable store (block on mismatch) or document it as advisory-only metadata in design.md.",
+   "cit": "design.md:767"
+  },
+  {
+   "gap": "The 18.2 'missing-context injection' obligation maps only to an optional free-text `notes` field that no component consumes. The requirement promises operator-injected missing context unlocks implementation, but nothing parses, stores, or routes `notes` into the Coverage_Model, run state, or agent context. The injection is a dead end.",
+   "severity": "missing-wiring",
+   "fix": "Specify where notes/missing-context is consumed (e.g., injected into run_state and surfaced to the Initializer/Implementer on next session) or drop the 'missing-context injection' phrasing from Req 18.2.",
+   "cit": "requirements.md:327; design.md:769"
+  },
+  {
+   "gap": "No revocation / staleness / expiry semantics. plan-approved.json never expires and has no nonce or single-use property; once written with a matching SHA it permanently unlocks writes for that coverage model. There is no mechanism to revoke an approval short of mutating feature_list.json (to force a SHA mismatch) or deleting the file, and neither is specified as an operator action.",
+   "severity": "underspecified",
+   "fix": "Specify an explicit revoke path (operator deletes/invalidates plan-approved.json) and optionally an `expires_at`/`approved_for_session` field so a stale approval cannot silently authorize a much later run.",
+   "cit": "design.md:758-801 (no expiry/revocation specified)"
+  },
+  {
+   "gap": "Path ambiguity: the inventory lists the path as `/plan-approved.json` (absolute-looking, design.md:139) but the hook resolves `Path(\"plan-approved.json\")` (cwd-relative, design.md:781). In any agent session whose cwd is not the repo root (e.g., a per-slice git worktree, which the system deliberately uses \u2014 design.md \u00a7Sandbox & Worktree Isolation), the relative lookup would miss the root-level marker and the gate would mis-fire. The path resolution base is never pinned.",
+   "severity": "defect",
+   "fix": "Resolve plan-approved.json against the repo root explicitly (e.g., `git rev-parse --show-toplevel`) rather than cwd, and reconcile the inventory's `/plan-approved.json` notation with the relative Path() used in code.",
+   "cit": "design.md:139 vs design.md:781; design.md:514-527 (worktree cwd isolation)"
+  },
+  {
+   "gap": "Design/tasks thinness: there is NO task that creates, scaffolds, documents, or schema-validates plan-approved.json \u2014 it appears in tasks.md ONLY as something the hook checks (6.1) and tests exercise (16.1, 17.1). For a file that is the single gate unlocking all implementation, the absence of a documented format/schema task and of operator-facing authoring documentation (how a human writes it correctly, how to compute feature_list_sha) is itself a coverage gap.",
+   "severity": "underspecified",
+   "fix": "Add a Phase 0 task to (a) author schema/plan_approved.schema.json, (b) document the human authoring procedure, and cross-link it from the Initializer's plan-mode hand-off step.",
+   "cit": "tasks.md:130-137, 285, 295-296 (only consumer/test references; no producer/schema task)"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "Requirement 4.5 (REQ-SPEC-005) is the EARS criterion that produces the precondition for plan-approved.json and is the ONLY requirement criterion that names the 'request human plan approval' obligation in machine-checkable EARS form: 'WHEN violation_count == 0, THE System SHALL emit the validated spec and feature_list.json and request human plan approval before any implementation begins.' The draft's `when` prose cites this as 'REQ-SPEC-005 / Req 18.2' but it is NOT in the ears_stories array. This is the upstream gating criterion that creates the spec+feature_list.json artifacts the human reviews and SHA-binds \u2014 it should be a first-class ears_story (status: addressed, since the Initializer/p\u2026",
+   "cit": "requirements.md:109 (Requirement 4.5 / REQ-SPEC-005); design.md:96-98, 760"
+  },
+  {
+   "kind": "missing",
+   "detail": "The Stop-hook reentrancy/`stop_hook_active` mechanism is unrelated, but there is a genuinely missing hook-wiring obligation: the plan gate is now ALSO an audit-log PRODUCER. The hook-wiring table row for 'PreToolUse \u2014 plan gate' was reconciled (2026-06-15) to 'calls audit_log.append(...) on the decision' enforcing REQ-AUDIT-001, and task 52.3 explicitly modifies pre_tool_use_hook.py to call audit_log.append on EVERY allow/block decision. The draft's `outputs` mentions the gate decision 'feeds the gate-decision audit log' generically citing design.md:210, but it does NOT surface this as a dependency on `audit_log.py`/task 52.3 in `dependencies`, nor flag that the plan-gate's audit-append path\u2026",
+   "cit": "design.md:210 (REQ-AUDIT-001 on the plan gate row); tasks.md:967-970 (task 52, 52.3 wires audit_log.append into pre_tool_use_hook.py)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's `by_whom` and ears_stories repeatedly assert CHECK-4f is the Z3 pin for this component, and open_gap #2 correctly notes the SHA-bind is unmodeled. However the draft UNDERSTATES a second, harder limitation now verifiable in the harness: CHECK-4f's core axiom `Implies(codeWrite, planApproved)` (verification/formal_verification_merged.py:143) abstracts plan approval to a SINGLE global Boolean with NO model of the protected-tool set {Write,Edit,MultiEdit}, no model of file existence vs. content, and no model of cwd/worktree path resolution. So the Z3 'proof' is purely propositional: it proves 'if codeWrite then planApproved' is consistent, but cannot catch the path-resolution defect \u2026",
+   "cit": "verification/formal_verification_merged.py:143, 250-252; requirements.md:369"
+  },
+  {
+   "kind": "missing",
+   "detail": "Design error-handling table row 'plan-approved.json missing OR corrupt \u2192 PreToolUse blocks (fail closed)' (design.md:816) is the documented contract for the corrupt-file path. The draft cites design.md:816 inside open_gap #4 but only to argue the corrupt path is 'asserted but never tested.' It never lists this as an ears_story/behavior in its own right: the component has an explicit fail-closed obligation for the CORRUPT (not merely absent) case, which is a distinct behavior from the two it documents (absent \u2192 block; SHA-mismatch \u2192 block). Given check_plan_approval indexes approval['feature_list_sha'] with a bare dict key (design.md:792), a present-but-corrupt JSON or a present file missing \u2026",
+   "cit": "design.md:816 (corrupt \u2192 fail closed); design.md:790-792 (bare dict index)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's `by_whom` states the file is 'Z3-pinned by CHECK-4f (formal_verification_merged.py:249-253)' and lists it under properties_and_checks as pinning 'only the presence branch via the Boolean planApproved.' Verified against the harness, even 'presence branch' overstates: CHECK-4f asserts the abstract pair {codeWrite, \u00acplanApproved} is UNSAT against the axiom Implies(codeWrite, planApproved) \u2014 this is a tautological consistency check of the axiom itself, not a check that any code path reads Path('plan-approved.json').exists(). No file, path, tool-name, or existence predicate appears in the Z3 model (only the Bools planApproved/codeWrite at lines 68-69). The draft should scope the claim\u2026",
+   "cit": "verification/formal_verification_merged.py:68-69, 143, 250-252"
+  },
+  {
+   "kind": "weak",
+   "detail": "open_gap #6 (notes/missing-context injection is a dead end) is correct but understates the requirement-side strength: Requirement 18.2 (requirements.md:327) makes 'missing-context injection' a SHALL obligation ('THE System SHALL present them in plan mode for human approval AND missing-context injection before unlocking implementation') \u2014 it is a mandated system behavior, not merely an optional field description. The draft frames the gap as 'maps only to an optional free-text notes field' but does not flag that this makes the ears_story for 18.2 arguably status:weak/partial-bordering-unaddressed rather than the milder 'partial' it assigns: the SHALL clause 'missing-context injection \u2026 before \u2026",
+   "cit": "requirements.md:327; design.md:768 (notes optional)"
+  },
+  {
+   "kind": "missing",
+   "detail": "No ears_story or gap addresses the relationship between plan-approved.json and Requirement 22 / Property 25 (Amendment Monotonicity, REQ-COV-007). When a requirement is amended post-approval, the coverage item re-enters `unproven` and a requirement_versions row is written (requirements.md:433; design.md:1152). If the amendment also mutates feature_list.json bytes, the feature_list_sha bind breaks and the plan gate re-blocks \u2014 which is the intended interaction \u2014 BUT the docs never state whether an amendment that touches only the Postgres requirement_versions/coverage_items tables (not feature_list.json bytes) leaves a STALE plan-approved.json validly unlocking writes. This is a real coverage \u2026",
+   "cit": "requirements.md:433 (Req 22); design.md:1140-1153 (requirement_versions); design.md:791 (SHA over feature_list.json bytes only)"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Requirement 18.2 (REQ-HITL-002)",
+   "criterion": "WHEN the validated spec and `feature_list.json` are ready, THE System SHALL present them in plan mode for human approval and missing-context injection before unlocking implementation.",
+   "how": "Initializer enters plan mode and presents spec+coverage model (design.md:97, 235, 760); the human then writes plan-approved.json. The `notes` field is the documented 'missing-context injection' slot. PARTIAL: 'missing-context injection' is named only as a free-text `notes` field with no schema, vali\u2026",
+   "status": "partial",
+   "cit": "requirements.md:327; design.md:767-769, 760"
+  },
+  {
+   "req_id": "Critical Invariant 3 (Z3 CHECK-4f)",
+   "criterion": "No implementation Write or Edit tool may run unless `plan-approved.json` exists. (CHECK-4f: UNSAT)",
+   "how": "Encoded as core axiom `Implies(codeWrite, planApproved)` (line 143) and asserted UNSAT under `codeWrite \u2227 \u00acplanApproved`. NOTE: the Z3 model abstracts presence to a single Boolean `planApproved`; it does NOT model the `feature_list_sha` mismatch path \u2014 so the SHA-bind half of the gate (design.md:792\u2026",
+   "status": "partial",
+   "cit": "requirements.md:369; formal_verification_merged.py:143, 249-253"
+  },
+  {
+   "req_id": "Glossary: plan-approved.json",
+   "criterion": "The approval marker file whose presence is required before any implementation Write/Edit tool is permitted.",
+   "how": "Glossary definition is presence-only and does NOT mention the `feature_list_sha` binding that the design treats as load-bearing \u2014 a glossary/design scope mismatch (presence vs presence+SHA).",
+   "status": "partial",
+   "cit": "requirements.md:43"
+  }
+ ],
+ "citation_issues": []
+}

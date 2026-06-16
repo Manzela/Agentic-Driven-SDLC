@@ -1,0 +1,151 @@
+{
+ "idx": 17,
+ "component": "state_integrity.py",
+ "file_path": "tools/state_integrity.py",
+ "phase": "2",
+ "what": "`tools/state_integrity.py` (Phase 2) is the resumed-state-integrity tool for REQ-STATE-005. It is configured to: (1) recompute a \"resumed-state hash\" of the session's durable/working state and compare it against the hash recorded in the durable store (Postgres `run_state`); (2) write the boolean result into `run_state.resume_integrity_ok` (TRUE = hashes match, FALSE = mismatch). It is the computation half of a two-part gate: SessionStart computes/records the flag via this tool (non-blocking); a separate PreToolUse \"integrity guard\" check reads `run_state.resume_integrity_ok` and blocks (exit 2) the first implementation Write/Edit of the resumed session when the flag is FALSE, releasing only \u2026",
+ "open_gaps": [
+  {
+   "gap": "The resumed-state HASH ALGORITHM is completely unspecified. Unlike the audit-log (REQ-AUDIT, which fully pins genesis sentinel sha256(\"\"), canonical JSON field list, and entry_hash = sha256(canonical_row||prev_hash) in design.md:455 / 1168-1176), nowhere does any canonical file state WHAT state_integrity.py hashes (git SHA? feature_list.json? run_state row? claude-progress.txt? all?), the hash function, or the canonical serialization. 'Recomputes the resumed-state hash' is asserted ~6 times with zero algorithm. Without this, the recompute on resume and the originally-recorded hash cannot be guaranteed to use the same inputs, so the comparison is undefined.",
+   "severity": "underspecified",
+   "fix": "Add a 'Resumed-State Hash' subsection to design.md (sibling to the audit-log hash-chain spec) pinning: the exact input set (recommend canonical JSON of the durable run_state progress fields + feature_list.json SHA + last_commit_sha), deterministic-JSON serialization, and hash = sha256 over that canonical form. Pin WHERE the original hash is recorded (a run_state.state_hash column) and WHEN it is written (each checkpoint/Slice commit).",
+   "cit": "design.md:143, design.md:219, design.md:1088"
+  },
+  {
+   "gap": "There is NO durable column to hold the recorded hash to compare against. The run_state schema (design.md:480-496) has resume_integrity_ok BOOLEAN but no state_hash / recorded_hash column. state_integrity.py is said to compare the recomputed hash to 'the durable store's recorded hash' (requirements.md:437) but the durable store has nowhere to store it. The comparison input does not exist in the data model.",
+   "severity": "missing-wiring",
+   "fix": "Add a column (e.g. state_hash TEXT) to the run_state table in design.md:480-496 and migration 005_run_state.sql (task 28.5), written on each PreCompact/Slice checkpoint, and have state_integrity.py compare its recompute against this column.",
+   "cit": "design.md:480-496, requirements.md:437"
+  },
+  {
+   "gap": "Requirement-number collision in the citation chain. Property 26 (design.md:1090) says 'Validates: Requirements 27 (REQ-STATE-005)', but requirements.md numbers this Requirement 23 (requirements.md:435 'Requirement 23: Resumed-State Integrity'; mapping table requirements.md:508 cites Requirement 23). Property 25/26/27 in design.md all cite Requirements 26/27/25, off by the same offset \u2014 a systematic mis-numbering. A reader following design.md:1090 lands on the wrong requirement.",
+   "severity": "inconsistency",
+   "fix": "Fix design.md:1090 to 'Validates: Requirement 23 (REQ-STATE-005)'; audit sibling Property 25/27 'Validates' lines (design.md:1080, 1100) for the same off-by-N error and align them to requirements.md Requirements 22/24.",
+   "cit": "design.md:1090, requirements.md:435, requirements.md:508"
+  },
+  {
+   "gap": "'CHECK-11 pins state_integrity.py' is overstated. The component table (design.md:143) and addendum bullet (design.md:1180) cite 'CHECK-11' as if it machine-checks this tool. The actual CHECK-11 family (formal_verification_merged.py:444-461) is a 2-Boolean abstraction (resumeHashMismatch, runProceeds) proving only Implies(mismatch, \u00acproceeds). It never references state_integrity.py, resume_integrity_ok, the SessionStart-computes/PreToolUse-enforces split, the hash inputs, or operator reconciliation. Z3 validates requirement LOGIC, not the tool \u2014 the spec's own 'Honest limit' (PRD:79) admits Z3 proves the logic model not the implementation, but the component table carries no such caveat.",
+   "severity": "inconsistency",
+   "fix": "Reword design.md:143 and design.md:1180 from 'CHECK-11' to 'logic-validated by CHECK-11a/11b; implementation/wiring validated by Property 26 PBT (tasks.md 39.16)', matching how the audit-log row (Property 28) is honestly captioned 'no Z3 check \u2014 runtime/CI verified' (design.md:1110).",
+   "cit": "design.md:143, verification/formal_verification_merged.py:451-461"
+  },
+  {
+   "gap": "state_integrity.py is NOT wired into the SessionStart hook implementation task (task 7 / 7.1, tasks.md:162-169) nor the run-state manager task (task 31, tasks.md:485-490). Task 7.1's body lists only 'read git status / progress file / feature_list.json / inject summary' \u2014 it never mentions computing the hash, calling state_integrity.py, or writing resume_integrity_ok. The only build site is addendum task 49 (tasks.md:963), which lives OUTSIDE the Phase-2 numbered block (27\u201333) and never edits task 7.1 to add the call. So design says SessionStart calls it, but no task makes session_start_hook.py call it.",
+   "severity": "missing-wiring",
+   "fix": "Add a subtask under task 7 (or an explicit edit step in task 49) modifying .claude/hooks/session_start_hook.py to import state_integrity, compute the hash, and write run_state.resume_integrity_ok \u2014 mirroring how task 52.3 explicitly wires audit_log.append into the three hooks. Also place task 49 inside the Phase-2 block or cross-link it from task 7.",
+   "cit": "tasks.md:162-169, tasks.md:963"
+  },
+  {
+   "gap": "The design component-inventory row (design.md:143) says state_integrity.py 'Recomputes the resumed-state hash on SessionStart AND the PreToolUse integrity guard blocks on mismatch', conflating two components into one row and implying state_integrity.py blocks. It does not \u2014 the PreToolUse guard reads a bool flag, and (per design.md:212) it blocks on 'resume_integrity_ok is false', i.e. on the FLAG, not on a live 'mismatch'. The 'blocks on mismatch' phrasing hides that no hash is recompared at PreToolUse time (the mismatch was decided earlier at SessionStart).",
+   "severity": "inconsistency",
+   "fix": "Reword design.md:143 to scope the row to state_integrity.py only ('computes the hash and writes the flag; non-blocking') and let the existing PreToolUse-integrity-guard row (design.md:212) own the block, stated as 'blocks when resume_integrity_ok == false', not 'on mismatch'.",
+   "cit": "design.md:143, design.md:212"
+  },
+  {
+   "gap": "No release / operator-reconciliation MECHANISM is specified. Requirements.md:438 says the guard releases 'only after operator reconciliation flips it true', and PRD:55 'require operator reconciliation', but no file defines HOW the operator flips resume_integrity_ok to true (a CLI? a tool? re-running state_integrity.py with an --accept flag? a manual SQL update?), nor what reconciliation entails (re-recording the durable hash). The unblock path is a dangling obligation.",
+   "severity": "underspecified",
+   "fix": "Specify a reconciliation entry point (e.g. python3 tools/state_integrity.py --reconcile --session <id> that re-records the durable hash from the current accepted state and sets resume_integrity_ok=true), and document it in design.md Error Handling alongside the other fail-closed flows (design.md:805-816).",
+   "cit": "requirements.md:438, PRD_MERGED_canonical_spec_to_evidence.md:55"
+  },
+  {
+   "gap": "Thin design coverage / no prose section. state_integrity.py appears only in three table rows, one Property, and a one-line addendum bullet (design.md:1180). There is no narrative subsection (contrast the dedicated subsections for the no-progress watchdog, plan-approved gate, and audit-log hash chain). For the sole guard against corrupted-resume \u2014 a named pain-point category \u2014 this thinness is itself a gap: failure modes (hash recompute fails, durable hash absent on first run, Postgres down at SessionStart) are discussed nowhere.",
+   "severity": "underspecified",
+   "fix": "Add a 'Resumed-State Integrity' design subsection covering: inputs to the hash, where/when the baseline hash is stored, first-run behavior (no baseline \u2192 resume_integrity_ok should default true/NULL-as-allow, not false), and SessionStart-time DB-unavailable behavior (fall back to file-backed hash per tasks.md:730).",
+   "cit": "design.md:1180, design.md:805-816"
+  },
+  {
+   "gap": "First-run / no-baseline behavior is undefined and risks a false-positive block. resume_integrity_ok is a plain BOOLEAN with no SQL default (design.md:492). If a brand-new (non-resumed) session has no recorded durable hash, state_integrity.py's comparison is undefined; if it writes FALSE (or the column reads NULL and the guard treats NULL as 'not ok'), the PreToolUse integrity guard would block the very first write of a legitimate fresh run. The spec never states the guard treats NULL/absent-baseline as pass.",
+   "severity": "defect",
+   "fix": "Define explicitly that on a session with no prior durable hash (fresh run), state_integrity.py sets resume_integrity_ok=TRUE (or the guard treats NULL as allow), so only an actual recorded-vs-recomputed mismatch blocks. Add a unit/property case to task 39.16 asserting a first-run session is never blocked by the integrity guard.",
+   "cit": "design.md:492, design.md:212"
+  },
+  {
+   "gap": "The tool is not named in requirements.md or the PRD, only in design.md/tasks.md. REQ-STATE-005 / Requirement 23 (requirements.md:437-438) and PRD:55/85 describe the behavior ('compute the resumed-state hash', 'PreToolUse integrity guard') but never reference tools/state_integrity.py by name, so the requirement-to-implementation trace for this file depends entirely on design.md:143 and tasks.md:963. A reader of requirements.md alone cannot find the owning artifact.",
+   "severity": "underspecified",
+   "fix": "Add the implementation pointer 'see tools/state_integrity.py (design Component Inventory; task 49)' to Requirement 23 in requirements.md, mirroring how other requirements cite their PRD references, so the trace is anchored in the requirements doc too.",
+   "cit": "requirements.md:437-438, PRD_MERGED_canonical_spec_to_evidence.md:55"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "NO mechanism is specified for the PreToolUse integrity guard to detect (a) that the session is a RESUME (vs a fresh first run) and (b) that a given Write/Edit/MultiEdit is the FIRST one of the session. The PreToolUse hook is registered with no matcher (design.md:168-173, fires on every tool), and task 49.1 says only 'BLOCKS the session's first Write/Edit/MultiEdit ... when false' without defining how 'first' or 'resumed' is tracked. run_state has no is_resume / first_write_done / session-origin field (design.md:481-496). Property 26 and Requirement 23.2 both scope the block to the 'first implementation write of a resumed session', but no durable state lets the guard recognize that moment. Th\u2026",
+   "cit": "design.md:168-173, design.md:212, tasks.md:964, design.md:481-496"
+  },
+  {
+   "kind": "missing",
+   "detail": "There is NO specified moment, hook, or column that WRITES the durable baseline hash that SessionStart's recompute compares against. design.md:220 (PreCompact hook-wiring row) lists its checkpoint outputs as 'claude-progress.txt, current evidence state, and feature_list.json to git' \u2014 it does NOT record a resumed-state hash. Requirement 11.4 (the per-Slice incremental commit, requirements.md:222) also says nothing about recording a hash. So requirements.md:437's 'the durable store's recorded hash' is never produced by any specified producer. The draft's 'no durable column' gap is about WHERE to store it, but it does not separately flag that NO hook/task is assigned to PRODUCE/record the basel\u2026",
+   "cit": "design.md:220, requirements.md:222, requirements.md:437"
+  },
+  {
+   "kind": "missing",
+   "detail": "Task 28.5 (the migration that BUILDS the run_state table, tasks.md:441-443) does NOT include the resume_integrity_ok column. Its body lists only 'status CHECK {...}, stop_hook_active boolean, no_progress_n counter' and cites Requirements 11.1/16.1 \u2014 it omits resume_integrity_ok entirely, even though design.md:492 DDL includes it. So the very column this component writes is absent from the task that creates the table (contrast task 28.8, which fully enumerates the gate_audit_log columns). The draft's open_gaps flag the MISSING state_hash column and the lack of a SQL default, but never note that resume_integrity_ok itself is dropped from the build task \u2014 a concrete migration/design desync that\u2026",
+   "cit": "tasks.md:441-443, design.md:492"
+  },
+  {
+   "kind": "missing",
+   "detail": "The central nouns of REQ-STATE-005 are undefined glossary terms. The glossary (requirements.md:19-44) defines Coverage_Model, Postgres, SessionStart_Hook, PreToolUse_Hook, etc., but never defines 'resumed-state hash', 'durable store's recorded hash', or 'operator reconciliation' \u2014 the three concepts on which this component's correctness rests. The draft's 'tool not named in requirements/PRD' gap is adjacent but narrower (it is about tracing tools/state_integrity.py by filename); it does not flag that the operative DOMAIN TERMS the requirement is written in are themselves never defined, which is what makes the hash inputs and the reconciliation action ambiguous at the requirements layer.",
+   "cit": "requirements.md:19-44, requirements.md:437-438"
+  },
+  {
+   "kind": "weak",
+   "detail": "The systematic Property-numbering collision is broader than the draft states and the draft's suggested target numbers are partly wrong. Verified against design.md: Property 25 'Validates: Requirements 26' (should be 22 \u2014 REQ-COV-007 is Requirement 22); Property 26 'Validates: Requirements 27' (should be 23); Property 27 'Validates: Requirements 25' (should be 24 \u2014 REQ-SPEC-016); Property 28 'Validates: Requirements 28' (should be 27 \u2014 REQ-AUDIT); Property 29 'Validates: Requirements 24' (REQ-SPEC-017 is Requirement 24.2). The draft flags only Property 26 and gestures at 25/27, and its suggested fix says align 25/27 'to requirements.md Requirements 22/24' \u2014 but it misses that Property 28 and \u2026",
+   "cit": "design.md:1080, design.md:1090, design.md:1100, design.md:1110, design.md:1120"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "Internal inconsistency in what SessionStart does that the draft did not catch: the Phase-0 spine table row 4 (design.md:626) describes the SessionStart hook as only 'Loads git status + progress file + coverage model' with NO integrity computation, matching task 7.1 (tasks.md:163-169) \u2014 yet the hook-wiring table (design.md:219) and Property 26 (design.md:1088) say SessionStart computes the hash. The draft flags the task-7.1 omission but does not note that design.md's OWN spine row (626) contradicts design.md:219, so the design document is internally inconsistent about the SessionStart hook's responsibilities, not just out of sync with tasks.md.",
+   "cit": "design.md:626, design.md:219, tasks.md:163-169"
+  },
+  {
+   "kind": "missing",
+   "detail": "The component's Postgres-down behavior has a specified obligation the spec leaves logically incomplete, beyond the draft's 'fail-closed' behavior. tasks.md:730 requires the PreToolUse integrity guard, on DB-down, to 'fall back to the file-backed state (feature_list.json + claude-progress.txt) and reach the SAME allow/block decision ... never fail-open.' But resume_integrity_ok lives ONLY in run_state (Postgres) and as a file-backed duplicate via claude-progress.txt (task 31.1, tasks.md:486-488) \u2014 yet task 31.1's save_run_state enumerates writing claude-progress.txt as a duplicate WITHOUT mentioning resume_integrity_ok, and the baseline hash has no file-backed home at all (no producer, per ot\u2026",
+   "cit": "tasks.md:730, tasks.md:486-488"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft marks several stories status 'addressed' (Requirement 23.1, Requirement 23.2, Property 26) when core wiring is absent: the resume_integrity_ok column is dropped from build-task 28.5, no producer records the baseline hash, no state tracks 'first write of a resumed session', and the hash algorithm is undefined. Given those, 'addressed' overstates implementability \u2014 'partial' is the defensible label for the 23.1/23.2/Property-26 rows, consistent with how the draft itself marks the thinner Requirement-11.3 and CHECK-11a/11b rows 'partial'. Separately, the draft's '11.3 = REQ-STATE-003' binding is over-precise: requirements.md:215 maps Requirement 11 to the whole REQ-STATE-001..004 fami\u2026",
+   "cit": "requirements.md:215, design.md:219, tasks.md:441-443"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-STATE-003 / Requirement 11.3",
+   "criterion": "WHEN a session starts, THE SessionStart_Hook SHALL load git status, progress file, and Coverage_Model so a resumed session re-orients deterministically; it SHALL additionally COMPUTE the resumed-state hash and write run_state.resume_integrity_ok (bool) \u2014 but, being non-blocking, it SHALL NOT itself \u2026",
+   "how": "state_integrity.py is the 'COMPUTE the resumed-state hash' mechanism this criterion folds into the SessionStart hook. Non-blocking contract honored (SessionStart row: 'Nothing ... cannot block').",
+   "status": "partial",
+   "cit": "requirements.md:221"
+  },
+  {
+   "req_id": "Z3 CHECK-11a",
+   "criterion": "resumeHashMismatch \u2227 runProceeds is UNSAT \u2014 integrity gate blocks [REQ-STATE-005].",
+   "how": "Harness asserts abstract invariant Implies(resumeHashMismatch, Not(runProceeds)) and proves mismatch+proceed UNSAT. Validates the LOGIC of REQ-STATE-005, not state_integrity.py's hashing/wiring (tool name never appears in harness).",
+   "status": "partial",
+   "cit": "verification/formal_verification_merged.py:451-455"
+  },
+  {
+   "req_id": "Z3 CHECK-11b",
+   "criterion": "\u00acresumeHashMismatch \u2227 runProceeds is SAT \u2014 clean resume allowed.",
+   "how": "Harness proves a clean (matching-hash) resume is allowed to proceed, i.e. gate is not vacuously blocking. Abstract Booleans only.",
+   "status": "partial",
+   "cit": "verification/formal_verification_merged.py:457-461"
+  },
+  {
+   "req_id": "Glossary: SessionStart_Hook",
+   "criterion": "The Claude Code SessionStart hook that restores run state at the start of a session.",
+   "how": "state_integrity.py is the integrity-computation augmentation of this glossary component; the glossary entry itself does not mention integrity (pre-reconciliation wording).",
+   "status": "partial",
+   "cit": "requirements.md:27"
+  },
+  {
+   "req_id": "PRD \u00a74/\u00a75 merge delta",
+   "criterion": "a resumed-state hash check added to SessionStart plus a PreToolUse integrity guard (REQ-STATE-005).",
+   "how": "PRD acknowledges the design delta but does NOT name state_integrity.py \u2014 it describes the behavior only.",
+   "status": "partial",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:85"
+  }
+ ],
+ "citation_issues": [
+  "design.md:455 is a phantom citation. The draft's open_gaps section cites 'design.md:455 / 1168-1176' as the location of the audit-log hash-chain spec (genesis sentinel sha256(\"\"), canonical JSON field list, and entry_hash formula). Line 455 is 'id SERIAL PRIMARY KEY' inside the traceability_links DDL block \u2014 completely unrelated to the audit log. The correct citation for the hash-chain spec is design.md:1155-1176 (gate_audit_log DDL at 1155-1167, hash-chain spec comment block at 1168-1176). The '1168-1176' half of the compound citation is correct; '455' is wrong."
+ ]
+}

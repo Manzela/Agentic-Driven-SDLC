@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""Stop-hook decision logic for the spec-to-evidence control plane.
+
+Implements REQ-GATE-002 / REQ-LOOP-005 (spine slice S3-stophook, task 5.1):
+the `evaluate_stop` decision over plain dicts, plus the `check_no_progress`
+watchdog. These are PURE, IMPORTABLE functions — no Claude-Code runtime, no
+Postgres, no stdin. They take plain dicts (the run_state row and the
+feature_list document) and return a plain decision dict. The Claude-Code Stop
+hook entrypoint (`main`) reads JSON from stdin, calls `evaluate_stop`, and maps
+the decision to an exit code; but the importable core has zero I/O so the
+verifier can exercise it directly.
+
+ORDER IS LOAD-BEARING (the infinite-block fix, design.md "No-Progress Watchdog"
+~lines 952-1039): HANDOFF triggers (cap / budget / no-progress) are evaluated
+FIRST and ALLOW termination (exit 0). At HANDOFF the in-scope items are EXPECTED
+to remain unproven, so checking the unproven-items gate first and blocking would
+force the agent to keep working past its cap — the infinite-block defect. Only
+AFTER no HANDOFF trigger fires do the blocking gates (violation_count, unproven
+in-scope items) apply. Any exception in the body fails CLOSED (returns block),
+per REQ-GATE-005 ("ambiguous states SHALL resolve to blocked, not passed").
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from typing import Any
+
+# ── Module constants ────────────────────────────────────────────────────────
+# DEFAULTs bound to the task-44 execution-bounds config (Requirement 20 NFR
+# registry); an operator may override them there. Defined here so the importable
+# core has no external dependency.
+
+MAX_TURNS_PER_SLICE = 25       # DEFAULT iteration cap per slice (matches --max-turns 25)
+N_PROGRESS_WINDOW = 3          # DEFAULT no-progress consecutive-slice window (N=3)
+SPEC_COMPLETION_HARD_CAP = 7   # DEFAULT spec-completion HARD pass cap (lex-specialis HANDOFF)
+
+
+# ── Decision constructors ───────────────────────────────────────────────────
+
+def _allow(terminal: str | None, reason: str) -> dict:
+    """ALLOW termination (exit 0). `terminal` is the terminal state reached:
+    COMPLETE (all proven, no violations) or HANDOFF (a cap/budget/no-progress
+    trigger fired)."""
+    return {"decision": "allow", "terminal": terminal, "reason": reason}
+
+
+def _block(reason: str) -> dict:
+    """BLOCK termination (exit 2). No terminal state — the run must continue."""
+    return {"decision": "block", "terminal": None, "reason": reason}
+
+
+# ── No-progress watchdog (REQ-LOOP-002) ─────────────────────────────────────
+
+def check_no_progress(run_state: dict) -> bool:
+    """Return True iff the no-progress predicate has fired.
+
+    No-progress (REQ-LOOP-002) is operationalized as a *streak counter*:
+    `run_state["no_progress_n"]` is the number of consecutive no-progress slices
+    observed so far (advanced by the loop driver when a slice produces neither a
+    newly-proven item nor a commit, reset to 0 on any progress). The predicate
+    FIRES only once the streak reaches the N_PROGRESS_WINDOW (=3) threshold.
+
+    This function is a pure read of that counter — it does not mutate run_state
+    and does not query slice history; the streak is maintained durably on the
+    run_state row by the loop driver. A missing/None counter reads as 0 (no
+    streak), so a fresh run is never spuriously flagged.
+    """
+    streak = run_state.get("no_progress_n", 0)
+    if streak is None:
+        streak = 0
+    return int(streak) >= N_PROGRESS_WINDOW
+
+
+# ── Stop decision (REQ-GATE-002 / REQ-LOOP-005) ─────────────────────────────
+
+def evaluate_stop(run_state: dict, feature_list: dict) -> dict:
+    """Decide whether an agent stop attempt is allowed or blocked.
+
+    Returns {"decision": "allow"|"block",
+             "terminal": "COMPLETE"|"HANDOFF"|None,
+             "reason": str}.
+
+    The entire body is wrapped so ANY exception fails CLOSED (returns block):
+    an ambiguous/erroring evaluation must never read as a clean COMPLETE.
+    """
+    try:
+        if run_state is None:
+            return _block("Stop blocked: run_state is None. Fail closed.")
+        if feature_list is None:
+            return _block("Stop blocked: feature_list is None. Fail closed.")
+
+        items = feature_list.get("items", [])
+        # Gates count ONLY in-scope items (Reconciliation 2026-06-15).
+        in_scope_items = [i for i in items if i.get("in_scope")]
+
+        # ── HANDOFF triggers take precedence and ALLOW termination (exit 0).
+        #    REQ-LOOP-005 / Requirement 21: iteration cap, cost budget, and
+        #    no-progress route to HANDOFF and MUST NOT block. Evaluated BEFORE
+        #    the unproven-items gate ON PURPOSE — at HANDOFF the in-scope items
+        #    are EXPECTED to remain unproven, so blocking here would force the
+        #    agent past its cap (the infinite-block defect; Z3 CHECK-5b/5c/8c).
+
+        # (1) Iteration cap.
+        iteration_count = run_state.get("iteration_count", 0) or 0
+        if int(iteration_count) >= MAX_TURNS_PER_SLICE:
+            return _allow(
+                "HANDOFF",
+                f"HANDOFF: iteration cap reached "
+                f"(iteration_count={iteration_count} >= MAX_TURNS_PER_SLICE="
+                f"{MAX_TURNS_PER_SLICE}). Escalate to a human (REQ-LOOP-005).",
+            )
+
+        # (2) Cost budget. budget_exceeded is a precomputed predicate on the
+        #     run_state row (the loop driver computes token_cost_usd >=
+        #     TOKEN_BUDGET). Truthy → HANDOFF.
+        if run_state.get("budget_exceeded"):
+            return _allow(
+                "HANDOFF",
+                "HANDOFF: token budget exceeded. Escalate to a human "
+                "(REQ-LOOP-005).",
+            )
+
+        # (3) No-progress watchdog (N=3 consecutive no-progress slices).
+        if check_no_progress(run_state):
+            unproven = [
+                i.get("id") for i in in_scope_items
+                if i.get("status") != "proven"
+            ]
+            return _allow(
+                "HANDOFF",
+                f"HANDOFF: no progress over {N_PROGRESS_WINDOW} consecutive "
+                f"slices (no items proven and no commits). Unproven: {unproven}. "
+                f"Escalate to a human (REQ-LOOP-005).",
+            )
+
+        # ── Blocking gates (exit 2) — reached only when NO HANDOFF trigger is
+        #    active. Here continuation is actually desired.
+
+        # (a) Spec-completion violations (REQ-SPEC-021). A validator error
+        #     (< 0) fails closed; outstanding violations (> 0) block.
+        violation_count = run_state.get("violation_count", 0)
+        if violation_count is None:
+            return _block(
+                "Stop blocked: violation_count is None (spec validator error). "
+                "Fail closed."
+            )
+        if int(violation_count) < 0:
+            return _block(
+                "Stop blocked: spec validator error (violation_count < 0). "
+                "Fail closed."
+            )
+        if int(violation_count) > 0:
+            return _block(
+                f"Stop blocked: {violation_count} spec-completion violation(s) "
+                f"remain (REQ-SPEC-021)."
+            )
+
+        # (b) Empty-coverage-model gate. `items: []` (or no in-scope items) is a
+        #     valid INIT state but NEVER a valid COMPLETE state — an all-empty
+        #     model would trivially satisfy the completion gate below and read as
+        #     COMPLETE before discovery has run. Require discovery first.
+        if not in_scope_items:
+            return _block(
+                "Stop blocked: feature_list.json has zero in-scope items "
+                "(items: []). This is a valid INIT state, not COMPLETE — run "
+                "discovery before termination."
+            )
+
+        # (c) Completion gate. ANY in-scope item not EXACTLY 'proven' blocks
+        #     (fail-closed; a 'failed' or 'unproven' item blocks identically).
+        #     This is the ONLY legitimate exit-2 path where continuation is
+        #     desired.
+        not_proven = [i for i in in_scope_items if i.get("status") != "proven"]
+        if not_proven:
+            return _block(
+                f"Stop blocked: {len(not_proven)} in-scope item(s) not proven: "
+                f"{[i.get('id') for i in not_proven]}"
+            )
+
+        # All in-scope items proven, no violations, no HANDOFF trigger → COMPLETE.
+        return _allow(
+            "COMPLETE",
+            f"COMPLETE: all {len(in_scope_items)} in-scope item(s) proven, no "
+            f"outstanding violations, no HANDOFF trigger active.",
+        )
+
+    except Exception as exc:  # noqa: BLE001 — fail CLOSED on any error.
+        return _block(
+            f"Stop blocked: evaluate_stop raised {type(exc).__name__}: {exc}. "
+            f"Fail closed."
+        )
+
+
+# ── Claude-Code Stop hook entrypoint ────────────────────────────────────────
+# Thin I/O shell over the pure core. Reads the Stop event JSON from stdin
+# (expects optional 'run_state' and 'feature_list' objects), evaluates, prints
+# the decision dict, and maps decision → exit code (allow=0, block=2). All
+# decision logic lives in evaluate_stop; this shell is intentionally trivial.
+
+def main(argv: list[str] | None = None) -> int:
+    raw = sys.stdin.read()
+    try:
+        event: dict[str, Any] = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError:
+        # Unparseable event → fail closed.
+        decision = _block("Stop blocked: unparseable Stop event JSON. Fail closed.")
+        print(json.dumps(decision))
+        return 2
+
+    run_state = event.get("run_state") or {}
+    feature_list = event.get("feature_list") or {}
+    decision = evaluate_stop(run_state, feature_list)
+    print(json.dumps(decision))
+    return 0 if decision["decision"] == "allow" else 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

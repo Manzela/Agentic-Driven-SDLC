@@ -1,0 +1,23 @@
+[
+ {
+  "title": "Schema file does not exist \u2014 materialize it and check off task 2.1",
+  "anchor": "design.md:290-413 (the inline FeatureList JSON Schema block) and tasks.md:25 ([ ] 2.1 Implement schema/feature_list.schema.json)",
+  "change": "Create the file schema/feature_list.schema.json by materializing the design.md:290-413 draft-07 schema verbatim (incorporating the fixes in the sibling edits below), and flip task 2.1 in tasks.md:25 from [ ] to [x]. Every Phase-0 gate (PreToolUse status guard, feature_list_init validation at tasks.md:240, design.md:623 acceptance smoke) depends on this concrete artifact existing; today there is no schema/ directory and git ls-files returns nothing.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "feature_list.schema.json (schema/)"
+  ]
+ },
+ {
+  "title": "Add plan_approved.schema.json, validate before indexing, and test the corrupt-file path",
+  "anchor": "Inventory row `schema/` (design.md:138); check_plan_approval bare index `approval[\"feature_list_sha\"]` (design.md:792); tasks 6.1 (tasks.md:132) and smoke tests (tasks.md:285, 295-296)",
+  "change": "Author a sibling `schema/plan_approved.schema.json` (required: approved_by, approved_at, feature_list_sha, spec_version; notes optional) and have check_plan_approval validate the parsed approval object against it BEFORE indexing `approval[\"feature_list_sha\"]`, so a present-but-malformed file (missing key / non-JSON) fails closed via an explicit schema check rather than relying on the bare KeyError + try/except. Add a smoke/integration test for the present-but-corrupt case (currently only the ABSENT case is tested at tasks.md:285 and 295) asserting exit 2 when plan-approved.json exists but is malformed or missing feature_list_sha.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "plan-approved.json",
+   "plan-approved.json"
+  ]
+ }
+]

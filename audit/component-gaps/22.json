@@ -1,0 +1,176 @@
+{
+ "idx": 22,
+ "component": "omission_guard (capability in subagent_stop_hook.py)",
+ "file_path": ".claude/hooks/subagent_stop_hook.py",
+ "phase": "0",
+ "what": "`omission_guard` is a capability (not a standalone file) that lives inside `.claude/hooks/subagent_stop_hook.py`. It is the \"omission-declaration gate\": at the Claude Code `SubagentStop` hook event it inspects the returned subagent result and REJECTS (exit 2, blocking, fail-closed) any result whose `omission_declaration` field is null or absent; otherwise it allows the result (exit 0). The `omission_declaration` field is meant to enumerate, by EARS scenario category (Primary / Alternate / Exception / Recovery / Non-Functional / Edge-Case), every scenario class the subagent did NOT cover, using `[Gap]` markers (GitHub Spec-Kit pattern). It is one of TWO distinct gates the same host hook perfo\u2026",
+ "open_gaps": [
+  {
+   "gap": "The host file does not exist. `.claude/hooks/` contains only `.gitkeep`; `subagent_stop_hook.py` is absent, so `omission_guard` (a capability inside it) is entirely unimplemented. Task 54 and task 8 are open/unchecked. Expected at Phase 0, but the capability has ZERO running code.",
+   "severity": "missing-wiring",
+   "fix": "Implement `.claude/hooks/subagent_stop_hook.py` per tasks 8 and 54: parse the SubagentStop payload, run BOTH the Evidence_Record validator and the omission-declaration guard, exit 2 on either failure.",
+   "cit": ".claude/hooks/.gitkeep (only file present); tasks.md:974"
+  },
+  {
+   "gap": "settings.json \u2014 the binding that makes the hook fire \u2014 does not exist anywhere on disk (find for settings*.json returns nothing). Without it the guard never runs even once implemented.",
+   "severity": "missing-wiring",
+   "fix": "Author `.claude/settings.json` per task 9.1 / design.md:181-186 registering SubagentStop as a command hook; smoke-test that it is command-type (task 9.2).",
+   "cit": "design.md:181-186; tasks.md:191-194"
+  },
+  {
+   "gap": "No subagent output schema artifact exists, so REQ-SPEC-018.3 ('THE JSON schema for each subagent output type SHALL include omission_declaration as required, non-nullable') has no target. Agent definitions (design.md:226-281) describe behaviors only and declare no output schema; there is no schema/ file for initializer/research/verifier outputs analogous to feature_list.schema.json.",
+   "severity": "missing-wiring",
+   "fix": "Add an explicit subagent-output JSON Schema (e.g. schema/subagent_output.schema.json) with `omission_declaration` required & non-nullable, referenced by initializer.md/research.md/verifier.md, validated by the guard. Cite it from task 54.",
+   "cit": "requirements.md:478; design.md:226-281"
+  },
+  {
+   "gap": "REQ-SPEC-018.1 demands the field LIST every uncovered scenario class BY EARS CATEGORY (Primary/Alternate/Exception/Recovery/Non-Functional/Edge-Case) using `[Gap]` markers, but the only mechanism (CHECK-13a/13b and the guard) is a single null/non-null boolean. A result with `omission_declaration: \"\"` or `{}` or a non-null value omitting categories/[Gap] markers would PASS. The structured-content half has no validating mechanism.",
+   "severity": "underspecified",
+   "fix": "Either (a) downgrade REQ-SPEC-018.1 to 'present and non-null' to match the mechanism, or (b) specify schema-level enforcement (six category keys, each an array; regex/marker check for `[Gap]`) plus a property test. State which.",
+   "cit": "requirements.md:476; verification/formal_verification_merged.py:484-488"
+  },
+  {
+   "gap": "Non-emptiness ambiguity. requirements.md:477 and design.md:148/1128 say 'absent or null' \u2192 exit 2; they do NOT say empty. The Evidence_Record gate by contrast rejects 'absent OR empty'. So an empty-but-non-null omission_declaration is accepted \u2014 likely unintended and inconsistent with the sibling gate.",
+   "severity": "inconsistency",
+   "fix": "Decide and state uniformly: if empty must also block, change wording to 'absent, null, or empty' in requirements.md:477, design.md:148/218/1128, and add an `omissionDeclEmpty` boolean to the harness so CHECK-13 covers it.",
+   "cit": "requirements.md:477 vs requirements.md:124/127"
+  },
+  {
+   "gap": "Audit-call inconsistency. design.md:218 (omission-guard wiring row) says it calls audit_log.append 'on the block decision' only, whereas REQ-AUDIT-001 (requirements.md:460) and task 52.3 require the call on EVERY allow/block decision. The allow path of the omission guard would skip the audit append as written.",
+   "severity": "inconsistency",
+   "fix": "Reword design.md:218 to 'calls audit_log.append(...) on the allow/block decision' to match REQ-AUDIT-001 and the sibling SubagentStop row (design.md:217).",
+   "cit": "design.md:218 vs requirements.md:460"
+  },
+  {
+   "gap": "Two gates, one host, no specified ordering or combined semantics. The host subagent_stop_hook.py performs BOTH the Evidence_Record four-field validation (task 8 / REQ-VERIFY-005) and the omission guard (task 54 / REQ-SPEC-018). Nothing specifies evaluation order, joint failure reporting, or how a single exit code is composed when both fail. The build-order test for component 5 (design.md:627) only tests the Evidence_Record path, never the omission path.",
+   "severity": "underspecified",
+   "fix": "In design.md (around 217-218) specify the guard-chain order inside the host hook and that exit 2 is returned if EITHER gate fails, with both reasons surfaced; add an omission-path row to the build-order acceptance test at design.md:627.",
+   "cit": "design.md:217-218, 627; tasks.md:176, 974"
+  },
+  {
+   "gap": "No Property-30 test subtask exists. Task 54 says 'Property 30 test in subtask' but has NO 54.x subtask, and the PBT block (tasks.md:569-684) provides test subtasks 39.15\u201339.19 for Properties 25\u201329 only \u2014 there is no 39.20 / test_omission.py for Property 30. tasks.md:569 header still reads 'all 29 correctness properties' while line 717 says 'all 30 properties' \u2014 a 29-vs-30 count mismatch.",
+   "severity": "defect",
+   "fix": "Add a concrete subtask (e.g. 39.20 `tests/property/test_omission.py` \u2014 Property 30, CHECK-13a/13b) or a 54.x subtask; reconcile the task-39 header to '30 correctness properties' to match line 717 and requirements.md:514.",
+   "cit": "tasks.md:974 vs tasks.md:569 vs tasks.md:717"
+  },
+  {
+   "gap": "Glossary/term coverage thin. The SubagentStop_Hook glossary entry (requirements.md:24) describes only the Evidence_Record role and omits the omission-declaration responsibility; and there is no glossary term defining `omission_declaration` itself (its type, six-category enum, `[Gap]` convention) \u2014 unlike Evidence_Record which is fully glossed.",
+   "severity": "underspecified",
+   "fix": "Add an `omission_declaration` glossary term (object keyed by the six EARS categories, each a `[Gap]`-marked list) and extend the SubagentStop_Hook term to mention it.",
+   "cit": "requirements.md:24, 29"
+  },
+  {
+   "gap": "design.md/tasks.md coverage of THIS capability is thin relative to its sibling. No dedicated design subsection for the omission guard (only the one-line component row 148, the one-line wiring row 218, and Property 30 prose at 1124-1130); no error-message contract; no example payload; the host hook gets one build-order line (627) that ignores the omission path. By contrast the Evidence_Record gate has task 8 with subtasks 8.1/8.2, a build-order test, and round-trip tests. The omission guard has no implementation subtask of its own beyond the single task-54 line.",
+   "severity": "underspecified",
+   "fix": "Add a design subsection 'SubagentStop omission-declaration gate' specifying input payload shape, the null/absent(/empty) predicate, the stderr message naming `omission_declaration`, allow/block audit behavior, and ordering vs the Evidence_Record gate; add task-54 subtasks mirroring 8.1/8.2.",
+   "cit": "design.md:148, 218, 627, 1124-1130; tasks.md:974"
+  },
+  {
+   "gap": "Phase-label inconsistency: omission_guard component (design.md:148 = Phase 0) vs host file (design.md:130 = Phase 0/1) vs its build task (task 54 sits in the undated P3 'Added tasks' block with no phase, while the Evidence half is the Phase-0 spine, component 5 of the 14-item build order). A Phase-0 gate whose only build task is an undated addendum creates ambiguity about whether the omission gate is part of the Phase-0 spine that 'must be runnable end-to-end before Phase 1'.",
+   "severity": "inconsistency",
+   "fix": "Pin the omission guard's phase explicitly (logically Phase 0 per design.md:148) and either fold task 54's hook-extension into the Phase-0 build order or annotate that the omission guard is a Phase-0 capability delivered by task 54.",
+   "cit": "design.md:130 vs 148; tasks.md:973-974"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "OTel gate-decision emission obligation (REQ-OBS-003 / Requirement 12.3) is entirely absent from the draft. Requirement 12.3 states 'WHEN a hook makes a gate decision, THE System SHALL emit that decision \u2014 event, tool, allow/block, reason, requirement ID \u2014 to the same trace endpoint as agent spans,' and task 36.1 explicitly extends ALL SIX hooks including `SubagentStop` to emit a `hook.decision` OTel span with attributes `hook.event`, `tool.name`, `decision`, `reason`, `requirement.id`. The omission_guard's allow/block decision is therefore obligated to emit an OTel span, but the draft's ears_stories, outputs, dependencies, and open_gaps never mention REQ-OBS-003 / task 36 / OTel at all \u2014 it \u2026",
+   "cit": "requirements.md:236 (Req 12.3); tasks.md:539-542 (task 36.1)"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft fails to flag that the Phase-0 spine acceptance tests (tasks 16.1 and 17.1) \u2014 the end-to-end smoke/integration tests that gate the whole spine before Phase 1 \u2014 invoke `subagent_stop_hook.py` but exercise ONLY the Evidence_Record/`output_hash` path, never the omission path. The draft's open_gaps cover the missing build-order row at design.md:627 and the missing PBT subtask (39.20), but it misses that the two PRIMARY Phase-0 e2e tests that actually run the host hook (16.1: 'subagent_stop_hook.py with complete Evidence_Record \u2192 exit 0; missing output_hash \u2192 exit 2'; 17.1: same) have no omission-declaration assertion. Since the draft itself argues omission_guard is a Phase-0 capability\u2026",
+   "cit": "tasks.md:287, 299-300 (tasks 16.1/17.1) vs draft open_gaps citing only design.md:627"
+  },
+  {
+   "kind": "missing",
+   "detail": "REQ-AUDIT-003 (audit-log retention as execution-proof) is not addressed for this component's audit obligation. The draft's audit-call EARS story and outputs reference REQ-AUDIT-001 (the append call) and REQ-AUDIT-002 (chain verify) but omit REQ-AUDIT-003 / Requirement 27.3, which obligates the hash-chained gate-decision log (which the omission_guard appends to) to be RETAINED as the execution-proof complement to SLSA. Task 52.3 \u2014 the wiring task that makes subagent_stop_hook.py call audit_log.append \u2014 is tagged `_Requirements: REQ-AUDIT-001, REQ-AUDIT-003`, so REQ-AUDIT-003 is an explicit obligation on the very wiring that connects omission_guard to the audit log, yet it appears nowhere in t\u2026",
+   "cit": "requirements.md:459 (Req 27.3); tasks.md:970 (task 52.3 _Requirements trailer)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's audit-call EARS story (REQ-AUDIT-001 row) and the audit-log output understate the field-content obligation. REQ-AUDIT-001 / Requirement 27.1 requires the appended entry to carry SEVEN fields: event, tool, allow/block, reason, requirement ID, actor agent, AND timestamp. The omission guard, applying to results from initializer/research/verifier subagents, must populate `actor_agent` and `requirement_id` for its decision \u2014 but the draft never notes that the omission-block decision has no obvious `requirement_id` (the gate is a structural presence check not tied to a single REQ id) nor which `actor_agent` value is recorded (the subagent whose result is rejected, or the hook). This is\u2026",
+   "cit": "requirements.md:457 (Req 27.1: seven fields incl. requirement ID + actor agent + timestamp)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The 'Scope to three subagents' behavior and the REQ-SPEC-018.1 ears story under-handle the implementer-exclusion question. REQ-SPEC-018.1 names exactly (initializer, research, verifier) as the producers of `omission_declaration`, and design.md:218 scopes the guard's TRIGGER to those three \u2014 but the host `SubagentStop` hook fires on EVERY subagent result (the Evidence_Record sibling gate at design.md:217 and the settings.json registration at 181-186 are unmatched/unconditional). Nothing in the spec says how the host hook distinguishes an initializer/research/verifier result (subject to the omission gate) from an implementer result (not subject to it) \u2014 there is no subagent-type discriminator \u2026",
+   "cit": "design.md:218 (three-subagent scope) vs design.md:181-186 (unconditional SubagentStop registration)"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "The draft's CHECK-13b ears_story/behaviors claim CHECK-13b shows 'acceptance is REACHABLE when the field is present,' but slightly overstates what the harness proves about THIS guard. The harness axiom is only `Implies(omissionDeclNull, Not(subagentAccepted13))` (line 487). CHECK-13b merely asserts that `Not(omissionDeclNull) \u2227 subagentAccepted13` is SAT \u2014 i.e. the rule is non-vacuous \u2014 but because there is NO axiom forcing acceptance when the field is present, CHECK-13b does NOT prove the guard ALLOWS a present-field result; it only proves the guard does not FORBID it. The Evidence_Record sibling gate (co-resident, unmodeled in CHECK-13) could still block a present-omission result. The draf\u2026",
+   "cit": "verification/formal_verification_merged.py:487, 496-500"
+  },
+  {
+   "kind": "weak",
+   "detail": "The non-emptiness inconsistency gap is correctly identified by the draft but its severity/scope is understated: the draft frames it as requirements.md:477 ('absent or null') vs the Evidence gate's 'absent or empty.' It misses that the JSON-schema half (REQ-SPEC-018.3 / Requirement 29.3, requirements.md:478) requires `omission_declaration` to be 'required, non-nullable' but says NOTHING about non-empty, AND that the EvidenceRecord schema in design.md uses `additionalProperties:false` + per-field non-empty CHECK constraints (design.md:390, 474-477) as the model for 'structured non-empty field' \u2014 a model omission_declaration has no analog for. So the empty/`{}`/`\"\"` acceptance hole exists at TH\u2026",
+   "cit": "requirements.md:478 (29.3 non-nullable, silent on empty); design.md:474-477 (Evidence non-empty CHECK as the contrast model)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft repeatedly frames CHECK-13a/13b as the component-specific formal pinning of omission_guard ('FORMAL OWNER: CHECK-13a/13b'; 'machine-checked by CHECK-13a/13b'). Verified against the harness, CHECK-13a/13b model a generic two-boolean implication (`omissionDeclNull \u2192 \u00acsubagentAccepted13`) with NO reference to the SubagentStop hook, exit codes, the three-subagent scope, the [Gap] categories, or any artifact \u2014 it is the same abstract gate-shape used for CHECK-7a (evidence), CHECK-10a (amendment), CHECK-12a (checklist). The draft does acknowledge the categorical half is unmodeled, but by labeling CHECK-13a/13b the component's 'FORMAL OWNER' it overstates how component-specific the check \u2026",
+   "cit": "verification/formal_verification_merged.py:481-500 (generic two-bool implication, no hook/exit/scope)"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-SPEC-018 / Requirement 29.1",
+   "criterion": "WHEN a subagent (initializer, research, verifier) completes a discovery, research, or verification pass, THEN its output SHALL include a non-null `omission_declaration` field listing, by EARS scenario category (Primary/Alternate/Exception/Recovery/Non-Functional/Edge-Case), every scenario class the \u2026",
+   "how": "Field-production obligation on the subagent SIDE (not the guard itself). The guard at REQ-SPEC-018.2 enforces presence. The per-category `[Gap]` enumeration and the categorical taxonomy are NOT machine-checked: CHECK-13a/13b only model a single boolean `omissionDeclNull`, so 'lists every uncovered c\u2026",
+   "status": "partial",
+   "cit": "requirements.md:476"
+  },
+  {
+   "req_id": "REQ-SPEC-018 / Requirement 29.2",
+   "criterion": "THE SubagentStop hook SHALL reject any subagent result whose `omission_declaration` field is absent or null, with exit 2.",
+   "how": "This IS the omission_guard. Specified in design (component row 148, wiring row 218, Property 30 at 1128) and formally pinned by CHECK-13a/13b. No implementation exists (host file absent).",
+   "status": "partial",
+   "cit": "requirements.md:477"
+  },
+  {
+   "req_id": "REQ-SPEC-018 / Requirement 29.3",
+   "criterion": "THE JSON schema for each subagent output type SHALL include `omission_declaration` as a required, non-nullable field.",
+   "how": "Task 54 calls to add the field to each subagent output schema, BUT no subagent output JSON schema artifact exists anywhere in the spec \u2014 the agent definitions (design.md:226-281) describe behaviors only and declare no output schema. So this criterion has no target artifact.",
+   "status": "gap",
+   "cit": "requirements.md:478"
+  },
+  {
+   "req_id": "REQ-VERIFY-005 / Requirement 9.5",
+   "criterion": "IF a subagent's result lacks required evidence markers, THEN THE SubagentStop_Hook SHALL block acceptance of that result.",
+   "how": "Sibling gate in the SAME host hook (Evidence_Record four-field validation, task 8). Relevant because omission_guard shares the host; the two gates' interaction/ordering is unspecified.",
+   "status": "partial",
+   "cit": "requirements.md:190"
+  },
+  {
+   "req_id": "Glossary: SubagentStop_Hook",
+   "criterion": "The Claude Code `SubagentStop` hook that validates evidence schema before accepting a subagent's result.",
+   "how": "Glossary term defines the host hook only by its Evidence_Record role; it does NOT mention the omission-declaration responsibility, so the glossary is stale w.r.t. REQ-SPEC-018.",
+   "status": "partial",
+   "cit": "requirements.md:24"
+  },
+  {
+   "req_id": "Glossary: Evidence_Record (absence of an omission_declaration term)",
+   "criterion": "Evidence_Record is fully glossed with four fields; there is NO glossary term for `omission_declaration` defining its shape/type/category enum.",
+   "how": "The only structured field the host hook checks that is undefined as a glossary term.",
+   "status": "gap",
+   "cit": "requirements.md:29"
+  },
+  {
+   "req_id": "Property 30",
+   "criterion": "For any subagent result returned to the SubagentStop hook, the result shall include a non-null `omission_declaration` enumerating by EARS category every uncovered scenario class using `[Gap]` markers; the hook shall reject any result whose `omission_declaration` is absent or null with exit 2.",
+   "how": "Stated in design.md:1124-1130; machine-checked by CHECK-13a/13b (the null\u2192not-accepted implication only). The categorical-enumeration/[Gap] half is asserted in prose but not modeled.",
+   "status": "partial",
+   "cit": "design.md:1124"
+  },
+  {
+   "req_id": "REQ-AUDIT-001 (as it bears on omission_guard)",
+   "criterion": "audit_log.append(event,tool,decision,reason,requirement_id,actor_agent) SHALL be called by subagent_stop_hook.py on every allow/block decision.",
+   "how": "design.md:218 says the omission-guard wiring row calls audit_log.append on the BLOCK decision; requirements.md:460 and tasks 52.1/52.3 name subagent_stop_hook.py as a caller. Inconsistency: 218 says 'on the block decision' while REQ-AUDIT-001 / task 52.3 require it on EVERY allow/block decision.",
+   "status": "partial",
+   "cit": "design.md:218"
+  }
+ ],
+ "citation_issues": []
+}

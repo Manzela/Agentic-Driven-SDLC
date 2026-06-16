@@ -1,0 +1,218 @@
+{
+ "idx": 2,
+ "component": "pre_tool_use_hook.py",
+ "file_path": ".claude/hooks/pre_tool_use_hook.py",
+ "phase": "0",
+ "what": "`pre_tool_use_hook.py` (`.claude/hooks/pre_tool_use_hook.py`, Phase 0) is the Claude Code `PreToolUse` command-type hook \u2014 the system's sole TRUE prevention gate (exit 2 / deny blocks a tool call BEFORE it executes, unlike `PostToolUse` which cannot undo). It chains independent guard checks and returns the first blocking decision: (1) PLAN-APPROVAL gate \u2014 block any `Write`/`Edit`/`MultiEdit` if `plan-approved.json` is absent OR if its `feature_list_sha` no longer matches the SHA-256 of the current `feature_list.json`; (2) SCOPE-SEQUENCING gate \u2014 block any `Bash` worktree-create/slice-assign while any prior-slice item is `unproven`; (3) ARTIFACT-PROTECTION guard \u2014 block any tool targeting `fe\u2026",
+ "open_gaps": [
+  {
+   "gap": "The component does not exist. .claude/hooks/ contains only .gitkeep \u2014 there is no pre_tool_use_hook.py file. Every gate analyzed here is design/task text only; the system's sole prevention gate is unbuilt, yet design.md:619 says the Phase-0 spine 'must be runnable end-to-end before any other work begins'.",
+   "severity": "missing-wiring",
+   "fix": "Implement .claude/hooks/pre_tool_use_hook.py per task 6 (chained checks + try/except exit-2) before any Phase-1 work; the Phase-0 spine-runnable claim is currently false.",
+   "cit": ".claude/hooks/.gitkeep (no .py); design.md:619-625; tasks.md:130-137"
+  },
+  {
+   "gap": "settings.json does not exist anywhere in the repo, so the PreToolUse binding that makes this hook fire is unwired. The JSON in design.md:168-173 is documentation only; Claude Code never invokes the hook without the real settings file.",
+   "severity": "missing-wiring",
+   "fix": "Create .claude/settings.json with the hooks block exactly as design.md:159-200 and add a Phase-0 task to author/commit it (no task currently creates settings.json).",
+   "cit": "design.md:159-200 (no corresponding file or task)"
+  },
+  {
+   "gap": "REQ-17.5 mandates a LIVE PreToolUse exit-2 secret-block gate ('NOT only via an offline test'), but it is wired nowhere: design's PreToolUse hook table has no secret-block row, task 6's steps and _Requirements: line omit 17.5, and the only mechanisms are Property 20 (offline test) and task 45 (CI gitleaks) \u2014 exactly the offline/CI-only enforcement the requirement explicitly rejects.",
+   "severity": "missing-wiring",
+   "fix": "Add a check_secret_block(event) to the hook scanning tool args/prompt/span/URL against secret regexes returning exit-2; add it to task 6's check list and cite 17.5 in task 6's _Requirements:.",
+   "cit": "requirements.md:314; design.md:210-215; tasks.md:130-137"
+  },
+  {
+   "gap": "Task 6 implements only 4 of the 6 PreToolUse sub-gates the design hook table defines. The checklist-approval guard (design.md:213, REQ-SPEC-016, Property 27, CHECK-12) has NO implementation sub-task anywhere; the integrity guard is added only later by task 49.1. So two formally-verified guards have design rows and Z3 checks but no build task tying them into the hook.",
+   "severity": "missing-wiring",
+   "fix": "Add a task (under task 6 or Req 24) implementing check_checklist_approval(event) reading domain_baseline_checklists.approved_at and blocking DRAFT-checklist discovery writes; cross-reference Property 27/CHECK-12.",
+   "cit": "design.md:213,1094-1098; tasks.md:130-137 (absent)"
+  },
+  {
+   "gap": "Internal contradiction on permitted status edges. Requirement 5.2/5.8 and design Property 3 (design.md:900) now ALLOW unproven\u2192failed and failed\u2192unproven, but task 6.4's property-test acceptance still says 'assert only status: proven writes are allowed' \u2014 which would FAIL a legitimate unproven\u2192failed write and contradicts the widened edge set.",
+   "severity": "inconsistency",
+   "fix": "Rewrite task 6.4 to assert the full permitted-edge set {unproven\u2192proven (needs evidence), unproven\u2192failed, failed\u2192unproven} and reject only identity mutations and other transitions.",
+   "cit": "requirements.md:123,129; design.md:900; tasks.md:154"
+  },
+  {
+   "gap": "No Z3 CHECK covers the status-transition guard's failed-state edges, the artifact guard, or the plan-SHA re-binding. The harness models planApproved (CHECK-4f), scope sequencing (CHECK-6a), resume integrity (CHECK-11), checklist (CHECK-12) but has no boolean for the failed status or the transition edge set, so the most-recently-widened guard logic (5.8) is unverified by the formal model the spec leans on.",
+   "severity": "underspecified",
+   "fix": "Add a CHECK-family modeling status edges as enumerated constants: assert any edge not in {unproven\u2192proven\u2227evidence, unproven\u2192failed, failed\u2192unproven} is UNSAT, and that into-proven without complete evidence is UNSAT.",
+   "cit": "formal_verification_merged.py:88-131 (no failed/transition var); requirements.md:129"
+  },
+  {
+   "gap": "Integrity-guard chaining order is contradictory between tasks. Task 49.1 says 'chain it BEFORE the existing plan/scope/artifact/status checks', but task 6.1 defines the chain as plan\u2192scope\u2192artifact\u2192status with no slot for the integrity (or checklist) guard, and 'Chain all four checks' (tasks.md:136) is never updated to 'six checks'. The actual ordering across 6 guards is unspecified.",
+   "severity": "underspecified",
+   "fix": "Update task 6.1 to define the full ordered chain (integrity \u2192 plan \u2192 scope \u2192 artifact \u2192 status \u2192 checklist-approval [+secret]) and change 'Chain all four checks' to the full set.",
+   "cit": "tasks.md:136,964"
+  },
+  {
+   "gap": "REQ-AUDIT-001 producer wiring is split from the build task. Design names this hook an audit-log producer (design.md:144,210) and requirements.md:460 mandates it call audit_log.append on every decision, but task 6 never mentions audit_log; the wiring lands only in task 52.3 (Phase 2). A Phase-0 hook that emits no audit entries violates REQ-AUDIT-001 for the whole Phase-0/1 window.",
+   "severity": "missing-wiring",
+   "fix": "Either add audit_log.append calls to task 6 (with a stub producer) or explicitly note in task 6 that audit production is deferred to task 52.3 and accept the Phase-0 audit-log gap.",
+   "cit": "requirements.md:460; design.md:144,210; tasks.md:130-137,970"
+  },
+  {
+   "gap": "Dangling citation: Property 26 says 'Validates: Requirements 27 (REQ-STATE-005)'. Requirement 27 is the Tamper-Evident Audit Log, not REQ-STATE-005 (which is Requirement 23). The parenthetical REQ-ID is right but the bare 'Requirements 27' is a wrong cross-reference for the integrity guard this hook hosts.",
+   "severity": "inconsistency",
+   "fix": "Change Property 26's 'Validates: Requirements 27' to 'Requirements 23' (REQ-STATE-005).",
+   "cit": "design.md:1090"
+  },
+  {
+   "gap": "Artifact guard is thinly specified: the 'protected-artifact list' and destructive-Bash set are named only as examples (rm -rf, DROP TABLE, git reset --hard) with no canonical list, no glob/regex definition, and no handling of equivalent destructive forms (truncate, find -delete, force-push). REQ-STEER-003's 'protected artifact (tests, coverage-model schema, CI config)' is not pinned to concrete path globs.",
+   "severity": "underspecified",
+   "fix": "Define explicit PROTECTED_PATHS globs and a DESTRUCTIVE_BASH regex set in design and reference them from task 6.3; add a property test enumerating bypass-equivalent destructive commands.",
+   "cit": "design.md:214; tasks.md:134"
+  },
+  {
+   "gap": "Count drift: PRD \u00a70.1 credits design with a '13-row hook-wiring table', but design.md's hook-wiring table has 12 data rows (design.md:209-220) \u2014 exactly the self-count drift the spec elsewhere forbids. The 'missing' 13th row is plausibly the absent secret-block PreToolUse gate.",
+   "severity": "inconsistency",
+   "fix": "Reconcile the figure: correct PRD to '12-row', or add the missing secret-block row (which would make 13 and close the REQ-17.5 gap simultaneously).",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:17; design.md:209-220"
+  },
+  {
+   "gap": "Scope-gate trigger is a heuristic with no precise definition. 'Bash worktree-create or slice-assign call' is matched by unspecified means \u2014 there is no defined detection of which Bash commands count, so the gate can be bypassed (worktree created via a wrapper script or a non-Bash tool) while CHECK-6a only proves the abstract boolean.",
+   "severity": "underspecified",
+   "fix": "Define the exact command/argument patterns (e.g. 'git worktree add') and tool surfaces the scope gate inspects; add a property test for bypass forms; note CHECK-6a abstracts this.",
+   "cit": "tasks.md:133; design.md:211; formal_verification_merged.py:288"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "REQ-OBS-003 / criterion 12.3 ('WHEN a hook makes a gate decision, THE System SHALL emit that decision \u2014 event, tool, allow/block, reason, requirement ID \u2014 to the same trace endpoint as agent spans') is a binding obligation ON THIS COMPONENT but has NO ears_story in the draft. Task 36.1 explicitly extends 'all six hooks (Stop, PreToolUse, PostToolUse, SubagentStop, SessionStart, PreCompact) to emit OTel gate-decision events' \u2014 PreToolUse is named. The draft demotes this to a single low-confidence bullet in `outputs` ('Gate-decision telemetry ... not detailed in task 6') and never lists 12.3/REQ-OBS-003 as an EARS criterion this component must satisfy, nor flags that task 6 omits OTel emission\u2026",
+   "cit": "requirements.md:236 (12.3); tasks.md:539-542 (task 36.1 names PreToolUse); design.md:16"
+  },
+  {
+   "kind": "missing",
+   "detail": "The schema-validation obligation is absent from both behaviors and ears_stories. design.md:138 states 'JSON Schema for feature_list.json. PreToolUse validates against this.' and the Phase-0 spine table (design.md:623) states the schema is 'JSON Schema that PreToolUse validates writes against' with test 'rejects an example missing output_hash'. So PreToolUse must JSON-Schema-validate every feature_list.json write against schema/feature_list.schema.json. The draft lists the schema only as a passive dependency, gives no behavior for it, no ears_story, and \u2014 critically \u2014 does not flag that task 6's check_status_transition does NOT perform schema validation (task 6.1 validates transition edges + \u2026",
+   "cit": "design.md:138,623; tasks.md:131-135 (task 6 has no schema-validation step)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft marks the CHECK-12a/12b ears_story 'addressed' and claims it is 'enforced at PreToolUse checklist-approval guard,' implying the Z3 check is component-specific. The actual harness axiom is fully abstract: `Implies(checklistIsDraft, Not(checklistUsedForDisc))` with booleans checklistIsDraft/checklistUsedForDisc and NO model of PreToolUse, 'first write', exit-2, or any hook. CHECK-12 proves only the logic relation 'a DRAFT checklist is not used for discovery'; it does not verify any PreToolUse wiring. Attributing component-specific PreToolUse enforcement to this generic check overstates coverage \u2014 especially since the draft itself elsewhere admits NO task implements the checklist guar\u2026",
+   "cit": "verification/formal_verification_merged.py:464-479 (no PreToolUse in axiom or check)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The CHECK-11a/11b ears_story is marked 'addressed' with how_addressed citing 'integrity guard ... CHECK-11a/11b.' The harness models only `Implies(resumeHashMismatch, Not(runProceeds))` over a generic boolean runProceeds \u2014 it does NOT model 'first implementation write,' 'PreToolUse,' or 'exit 2.' The Z3 check proves the abstract relation 'a resume with a hash mismatch cannot proceed,' not the component-specific claim that THIS hook's integrity guard blocks the first write. The draft presents the generic logic proof as if it verifies the PreToolUse first-write enforcement, overstating how much of the component's behavior is machine-checked.",
+   "cit": "verification/formal_verification_merged.py:444-461 (generic runProceeds; no first-write/PreToolUse model)"
+  },
+  {
+   "kind": "missing",
+   "detail": "Postgres-unavailable fallback for the STATUS guard and SCOPE guard is under-addressed. The draft's 'Postgres-unavailable fallback' behavior cites only tasks.md:730, but criterion 12.3-adjacent design.md:815 ('Postgres unavailable | Fall back to feature_list.json as sole source of truth for gate decisions. Log warning to OTel.') is a second, design-level source the draft never cites, and the draft does not flag that the scope gate (which reads prior-slice statuses) and status guard inherit this fallback. More importantly the draft does not surface that there is NO Phase-0 task wiring this fallback into pre_tool_use_hook.py \u2014 task 6 reads feature_list.json file-only and the DB path/fallback re\u2026",
+   "cit": "design.md:815; tasks.md:730; tasks.md:131-135 (task 6 file-only, no DB-fallback wiring)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The REQ-AUDIT-001 ears_story is marked 'partial' but understates the severity and mis-times the gap. requirements.md:460 mandates pre_tool_use_hook.py CALL audit_log.append(...) on EVERY allow/block decision, and design.md:210 lists the PreToolUse plan-gate row as already an audit-log producer ('calls audit_log.append(...) on the decision'). The draft notes wiring is deferred to task 52.3 but does not flag the harder contradiction: design.md:210 presents audit production as an intrinsic part of the PreToolUse plan-gate behavior (Phase 0 framing) while the only build task (52.3) is Phase 2 \u2014 so the design's own hook-wiring table describes a Phase-0 capability that no Phase-0/1 task delivers, \u2026",
+   "cit": "requirements.md:460; design.md:210,217; tasks.md:970 (52.3 is Phase 2)"
+  },
+  {
+   "kind": "missing",
+   "detail": "REQ-COV-001 (criterion 5.1) is not represented as an ears_story even though the artifact guard's protected target IS feature_list.json and the status guard enforces the 'status field defaulting to unproven' / type-enum identity that 5.1 defines. The draft's ears_stories jump from the glossary entry to REQ-COV-002 (5.2) and never anchors the component to 5.1's structural requirement that the status guard must preserve (id/type/dependencies/acceptance_criteria/status). Since check_status_transition and check_artifact_guard both enforce 5.1-defined identity, omitting 5.1 leaves the schema-identity basis of those guards untraced.",
+   "cit": "requirements.md:122 (5.1); design.md:214-215"
+  },
+  {
+   "kind": "weak",
+   "detail": "The artifact-guard ears_story for REQ-STEER-003 (13.3) is 'partial' but the draft does not cite the precise protected-artifact enumeration the design fixes. design.md:214 names the trigger as 'Any tool targeting feature_list.json schema, tests/, CI config, or destructive Bash (rm -rf, DROP TABLE)' \u2014 note the design hook-wiring row lists only `rm -rf` and `DROP TABLE`, while task 6.3/design status-guard text adds `git reset --hard`. The draft asserts the destructive set is {rm -rf, DROP TABLE, git reset --hard} as if canonical, but the two canonical sources disagree on membership (design row omits git reset --hard). This source-level inconsistency in the protected/destructive set is stronger \u2026",
+   "cit": "design.md:214 (rm -rf, DROP TABLE only); tasks.md:134 (adds git reset --hard)"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "The draft correctly flags the task-6.4 'only status: proven writes are allowed' contradiction against the widened edge set, but misses a SECOND internal contradiction in task 6.1 itself: task 6.1's check_status_transition step literally says 'validate proposed transition is `unproven \u2192 proven` only' (tasks.md:135), directly contradicting requirements.md:123/129 and design.md:215/374 which now permit unproven\u2192failed and failed\u2192unproven. So the BUILD step (6.1), not just the test step (6.4), encodes the narrow pre-reconciliation edge set. The draft attributes the narrow-edge defect only to the test (6.4) and treats 6.1 as correct, understating the scope of the contradiction.",
+   "cit": "tasks.md:135 ('unproven \u2192 proven only'); requirements.md:123,129; design.md:215,374"
+  },
+  {
+   "kind": "missing",
+   "detail": "REQ-SEC-002 (criterion 17.2) \u2014 secret-in-diff blocking \u2014 is adjacent to but distinct from the 17.5 gap the draft documents, and bears on this component's protected/destructive surface. While 17.2 is CI-gated (task 45/40.2, gitleaks), the draft's 17.5 gap analysis would be strengthened by noting that 17.2 and 17.5 are deliberately split (17.2 = CI/commit-time, 17.5 = live PreToolUse) \u2014 and that ONLY 17.5 names PreToolUse. The draft's open_gap on 17.5 is correct but does not distinguish it from 17.2, risking the reader concluding gitleaks (17.2) satisfies 17.5; the specs explicitly separate them and 17.5 forbids the offline-only path that 17.2 represents.",
+   "cit": "requirements.md:311 (17.2 CI block); requirements.md:314 (17.5 live PreToolUse); tasks.md:957 (task 45 = 17.2)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's config_settings lists the 60-second 'hook validator timeout' (requirements.md:354) as owned by the Requirement-20 registry and cites design.md:814 \u2014 but design.md:814 is the spec_validator.py Z3 timeout (Stop-hook path), NOT a pre_tool_use_hook.py timeout. There is no evidence in any of the three specs that the 60s validator timeout applies to pre_tool_use_hook.py; the PreToolUse hook does not invoke the Z3 validator. Attributing this threshold to this component is a mis-assignment \u2014 the timeout governs spec_validator.py/stop_hook, making this config entry weakly/incorrectly scoped to the PreToolUse hook.",
+   "cit": "design.md:814 (spec_validator Z3 timeout); requirements.md:354"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-COV-002 (5.2)",
+   "criterion": "IF a tool action would delete, reorder, or modify a coverage item's identity, THEN THE PreToolUse_Hook SHALL block it; transitions proceed only along unproven\u2192proven, unproven\u2192failed, failed\u2192unproven (into proven additionally requires a complete Evidence_Record).",
+   "how": "check_artifact_guard + check_status_transition; Property 3; design status-guard row admits failed edges.",
+   "status": "partial",
+   "cit": "requirements.md:123; design.md:215,898-900; tasks.md:134-135"
+  },
+  {
+   "req_id": "REQ-COV-006 (5.6)",
+   "criterion": "Evidence_Record has exactly four required fields; a transition to proven SHALL be rejected if any is absent/empty (Z3 CHECK-7a/7c).",
+   "how": "Status guard mirrors the check at write time; primary enforcement is SubagentStop (CHECK-7).",
+   "status": "partial",
+   "cit": "requirements.md:127; design.md:215"
+  },
+  {
+   "req_id": "REQ-COV (5.8)",
+   "criterion": "Allow unproven\u2192failed and failed\u2192unproven; ONLY a transition to proven requires a complete Evidence_Record.",
+   "how": "Design status-guard row and Property 3 permit the failed edges; status guard must enforce the full edge set.",
+   "status": "partial",
+   "cit": "requirements.md:129; design.md:215,900"
+  },
+  {
+   "req_id": "REQ-STEER-003 (13.3)",
+   "criterion": "IF a tool call targets a protected artifact (tests, coverage-model schema, CI config) or a destructive operation, THEN THE PreToolUse_Hook SHALL block it.",
+   "how": "check_artifact_guard against protected-artifact list + destructive Bash patterns; design artifact-guard row.",
+   "status": "partial",
+   "cit": "requirements.md:252; design.md:214; tasks.md:134"
+  },
+  {
+   "req_id": "REQ-SEC-005 (17.5)",
+   "criterion": "Secrets prohibition SHALL be enforced at the PreToolUse_Hook (exit 2 blocks a tool call whose prompt, span attributes, or URL would carry a secret), NOT only via an offline test.",
+   "how": "NOT wired: design's PreToolUse table has no secret-block gate, task 6 omits it and does not cite 17.5; only Property 20 (offline test) + task 45 (CI gitleaks) exist \u2014 exactly the offline-only path the requirement forbids.",
+   "status": "gap",
+   "cit": "requirements.md:314; design.md:210-215; tasks.md:130-137"
+  },
+  {
+   "req_id": "REQ-SPEC-016 (Req 24.1)",
+   "criterion": "IF a Domain_Baseline_Checklist is in DRAFT (not human-approved), THEN it SHALL NOT be used for discovery (Z3 CHECK-12).",
+   "how": "Design adds a PreToolUse checklist-approval guard row; Property 27; CHECK-12a/12b. No implementation task creates this check.",
+   "status": "partial",
+   "cit": "requirements.md:442; design.md:213,1094-1098; formal_verification_merged.py:463-469"
+  },
+  {
+   "req_id": "REQ-AUDIT-001 (Req 27.4)",
+   "criterion": "tools/audit_log.py append(...) SHALL be CALLED by stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py on every allow/block decision.",
+   "how": "Design names this hook an audit-log producer; wiring is task 52.3 (Phase 2), not task 6.",
+   "status": "partial",
+   "cit": "requirements.md:460; design.md:144,210; tasks.md:970"
+  },
+  {
+   "req_id": "Property 2",
+   "criterion": "Evidence Schema Enforcement (Four-Field Gate) \u2014 reject any transition to proven missing/empty any of the four fields.",
+   "how": "check_status_transition enforces evidence completeness at write time.",
+   "status": "partial",
+   "cit": "design.md:890-892"
+  },
+  {
+   "req_id": "Property 3",
+   "criterion": "Identity-Mutation Blockade \u2014 PreToolUse blocks delete/reorder/change of id/type/acceptance_criteria; permitted edges now include unproven\u2192failed, failed\u2192unproven.",
+   "how": "check_artifact_guard + check_status_transition; tests 6.2/6.4. CONTRADICTION: task 6.4 still asserts 'only status:proven writes are allowed', not updated for the widened failed edges.",
+   "status": "partial",
+   "cit": "design.md:898-900; tasks.md:151-155"
+  },
+  {
+   "req_id": "Property 27",
+   "criterion": "Checklist-Approval-Before-Use \u2014 PreToolUse checklist-approval guard blocks discovery using an unapproved checklist.",
+   "how": "Design row only; NO implementation sub-task names this check.",
+   "status": "partial",
+   "cit": "design.md:1094-1098; tasks.md:130-137 (absent)"
+  },
+  {
+   "req_id": "Property 20",
+   "criterion": "Secret-Free Prompts, Spans, and URLs \u2014 content rejected before emission if it matches secret patterns (Validates 17.5).",
+   "how": "Specified only as an offline property test (task 39.11); NOT wired into the PreToolUse hook as the live exit-2 gate REQ-17.5 demands.",
+   "status": "gap",
+   "cit": "design.md:1034-1038; tasks.md:640-644"
+  }
+ ],
+ "citation_issues": []
+}

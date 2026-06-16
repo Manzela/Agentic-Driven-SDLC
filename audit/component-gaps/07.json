@@ -1,0 +1,129 @@
+{
+ "idx": 7,
+ "component": "spec_validator.py",
+ "file_path": "tools/spec_validator.py",
+ "phase": "0",
+ "what": "`tools/spec_validator.py` is a non-LLM, Z3-backed EARS validator. It encodes each compiled EARS requirement statement as a Z3 Boolean formula via an SMT-lib translation table (Ubiquitous\u2192`(assert P)`, Event-driven/State-driven/Optional\u2192`(assert (=> T P))`, Unwanted\u2192`(assert (=> C (not Q)))`), NLP-parsing each statement to extract trigger/condition variables, outcome variables, and numeric constraints (design.md:531-563). It exposes `validate_spec(requirements: list[dict]) -> dict` returning EXACTLY four fields `{contradictions, ambiguities, uncovered, violation_count}` (design.md:133; tasks.md:66; Property 14 design.md:986-990). It runs four consistency analyses per spec: (1) Consistency \u2014 `\u2026",
+ "open_gaps": [
+  {
+   "gap": "Missing producer-wiring: validate_spec() returns violation_count, and the Stop hook reads run_state.violation_count, but NO task or design step copies the validator's returned violation_count INTO run_state.violation_count. The Stop hook's spec gate (REQ-SPEC-021) is therefore reading a value with no specified writer. Task 4 builds the validator; Task 5 builds the Stop hook reader; nothing wires the two.",
+   "severity": "missing-wiring",
+   "fix": "Add a subtask under Task 4 (or the Initializer wiring Task 10.1/Task 43) that on each elaboration pass calls run_state_manager.save_run_state with violation_count = validate_spec(...)['violation_count'] (including the -1 timeout sentinel), so the Stop hook reads a value the validator actually produced.",
+   "cit": "tasks.md:66 (producer) vs design.md:724 (consumer); no write step at design.md:717-726 or any Task 4/5 subtask"
+  },
+  {
+   "gap": "Cap conflation / unenforced 7-pass cap at the Stop hook: Req 4.4 requires HANDOFF at the spec-completion hard cap (7 passes), and Req 4.6 keys the lex-specialis tiebreak on `iteration_count < SPEC_COMPLETION_HARD_CAP`. But the Stop hook code only checks `run_state.iteration_count >= MAX_TURNS_PER_SLICE` (25 turns/slice). The 7-pass spec cap and the 25-turn slice cap are different counters; nothing maps the 7-pass cap into the Stop hook's iteration_count, so the documented lex-specialis resolution is not realizable as written.",
+   "severity": "inconsistency",
+   "fix": "Introduce a distinct run_state field (e.g. spec_pass_count) and have the Stop hook (or the Initializer loop) HANDOFF when spec_pass_count >= SPEC_COMPLETION_HARD_CAP (7), separately from the 25-turn MAX_TURNS_PER_SLICE check; reconcile design.md:699 and design.md:842 to reference the same counter the tiebreak names.",
+   "cit": "design.md:699,718-726,842; requirements.md:108,110; design.md:487 (iteration_count)"
+  },
+  {
+   "gap": "Dangling REQ-IDs: REQ-SPEC-020..024 (cited as the PRD references for Requirement 4) and REQ-SPEC-021 (cited repeatedly as the Stop-hook spec-gate requirement) are NEVER defined as EARS statements anywhere in the four spec files \u2014 they appear only as references. REQ-SPEC-021's normative content exists only as Req 4.2 prose.",
+   "severity": "underspecified",
+   "fix": "Either add explicit REQ-SPEC-020..024 EARS definitions (mapping REQ-SPEC-021 = the criterion-4.2 Stop-block) to requirements.md, or replace the dangling REQ-SPEC-0xx references with the canonical Requirement 4.x criterion numbers to remove the dangling citations.",
+   "cit": "requirements.md:101 (PRD references REQ-SPEC-020..024); design.md:209,718,726,842 (REQ-SPEC-021 referenced, never defined)"
+  },
+  {
+   "gap": "Thin acceptance test couples the validator to the harness: the Phase-0 'test to pass' for spec_validator.py (component #10) is `python3 formal_verification_merged.py exits 0`, which tests the STATIC 34-assertion harness, not validate_spec()'s own runtime behavior on a real EARS spec. A correct harness exit says nothing about whether spec_validator.py's NLP parse, encoding, consistency/completeness/vacuity/independence checks, or four-field return actually work.",
+   "severity": "underspecified",
+   "fix": "Change the design.md:632 test-to-pass to invoke validate_spec() on a fixture spec containing a known contradiction, a known UNMAPPED item, and a vague adjective, asserting the returned {contradictions, ambiguities, uncovered, violation_count} matches expected counts; keep the harness run as a separate check.",
+   "cit": "design.md:632; design.md:591 (validator only 'extends' the harness pattern)"
+  },
+  {
+   "gap": "EARS pattern six-vs-five mismatch persists in normative text: the glossary lists SIX patterns including 'Complex' (requirements.md:31), and Req 1.4 says 'exactly one of the FIVE EARS patterns' \u2014 internally contradictory within requirements.md. The reconciliation note (design.md:1188) resolves it as 'Complex = composition of five', but the glossary line itself was never amended, so a reader of requirements.md alone sees a 6-pattern glossary feeding a 5-pattern validator.",
+   "severity": "inconsistency",
+   "fix": "Amend requirements.md:31 to annotate 'Complex' as a documented composition of the five base patterns (not a 6th assignable enum value), matching design.md:1188 and the schema enum, so requirements.md is internally consistent.",
+   "cit": "requirements.md:31 vs requirements.md:65; design.md:347,1188"
+  },
+  {
+   "gap": "Vague-adjective set divergence: requirements.md Req 1.2 example set is {fast, secure, scalable, optimized}, while the implemented Property 17 / Task 4.4 set is {fast, secure, scalable, optimized, efficient, reliable, performant}. The requirement's example is non-exhaustive but the spec never states the authoritative full set, leaving the scanner's coverage underspecified at the requirements layer.",
+   "severity": "underspecified",
+   "fix": "State the authoritative adjective set (the 7-element Property-17 set) once in Req 1.2 or the Req-20 threshold registry and reference it from Property 17 and Task 4.4, so the implemented set is requirement-backed rather than only test-backed.",
+   "cit": "requirements.md:63 (4-element example) vs design.md:1012 / tasks.md:87 (7-element set)"
+  },
+  {
+   "gap": "Output\u2192field mapping for contradictions/ambiguities/uncovered is unspecified: the design enumerates four analysis passes (Consistency, Completeness, Vacuity, Independence) but never states how their results populate the four return fields \u2014 e.g., whether Vacuity feeds `ambiguities`, what `violation_count` sums, or where the Independence verdict surfaces. validation_count's composition (sum of the other three? plus vague-adjective hits?) is never defined.",
+   "severity": "underspecified",
+   "fix": "Add a one-line mapping in the EARS\u2192SMT section: contradictions = unsat-core count; uncovered = UNMAPPED count; ambiguities = vacuity + vague-adjective hits; violation_count = sum of the three (>=0), or -1 on timeout \u2014 so the four-field contract is fully defined.",
+   "cit": "design.md:554-563 (four checks) vs design.md:133 (four fields); no mapping given"
+  },
+  {
+   "gap": "Design/tasks coverage of this component is otherwise adequate but the runtime call-graph is thin: design.md states the Initializer 'Runs spec_validator.py after every elaboration pass' but neither design nor tasks specifies the loop-control mechanism that decrements/compares violation_count across passes (Property 15 convergence) \u2014 i.e., who stores the prior-pass violation_count to compute strict decrease. This convergence-state ownership is unassigned.",
+   "severity": "underspecified",
+   "fix": "Assign prior-pass violation_count storage to run_state (e.g. prev_violation_count) and specify in Task 10.1 (Initializer) that the loop compares current vs prior to enforce Property 15 strict-decrease-or-HANDOFF.",
+   "cit": "design.md:231,994-998; tasks.md:204-206 (no convergence-state field)"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "Requirement 29 (Structured Omission Declaration / REQ-SPEC-018, Property 30, CHECK-13a/13b) bears directly on spec_validator.py's runtime context but is entirely absent from the draft's ears_stories and open_gaps. The Initializer is the validator's SOLE runtime caller and the agent that EMITS the validated spec output; Req 29.1 explicitly names 'initializer' as a producer that SHALL include a non-null `omission_declaration` field (by EARS scenario category, with `[Gap]` markers), and Req 29.2 has the SubagentStop hook REJECT (exit 2) the Initializer's result if that field is absent/null. This means the very pass-output that the validator drives to `violation_count==0` is independently gated \u2026",
+   "cit": "requirements.md:474-478 (Req 29.1 names 'initializer', 29.2 SubagentStop exit-2 reject); design.md:218 (SubagentStop omission-declaration guard, subagent result initializer/research/verifier), design.md:1124-1130 (Property 30); tasks.md:974 (Task 54); design.md:148 (omission_guard)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's ears_stories entry for Req 1.1 is marked status='addressed' and claims the validator 'enforces machine-checkability via the four checks,' and the by_whom/what sections imply spec_validator.py is the enforcement point for the Req 1.1 atomic-requirement schema (unique ID, EARS-pattern statement, priority field, >=1 machine-checkable acceptance criterion). This overstates coverage: Task 4.1 (the validator implementation task) maps ONLY to `_Requirements: 1.2, 1.4, 4.1, 4.2, 4.3` \u2014 Req 1.1 is NOT in the validator's task mapping; it is mapped solely to Task 10.1 (the Initializer agent). None of the four Z3 analyses (Consistency/Completeness/Vacuity/Independence) nor the vague-adjectiv\u2026",
+   "cit": "tasks.md:70 (`_Requirements: 1.2, 1.4, 4.1, 4.2, 4.3` \u2014 no 1.1); tasks.md:206 (Req 1.1 mapped to Task 10.1 Initializer); requirements.md:62 (Req 1.1 four sub-fields); design.md:554-563 (four checks \u2014 none verify priority/ID/AC presence)"
+  },
+  {
+   "kind": "missing",
+   "detail": "Validator input-contract gap for the Completeness/UNMAPPED check: the signature is `validate_spec(requirements: list[dict]) -> dict` (tasks.md:66, design.md:133), but the Completeness check 'for each domain-baseline item, check that at least one formula asserts its corresponding outcome variable; items with no asserting formula are flagged UNMAPPED' (design.md:559) requires the DOMAIN-BASELINE item set as input \u2014 which is not a parameter of validate_spec(requirements) and lives in `domain_baseline_checklists` / the checklist file, not in the requirements list. The draft enumerates the Completeness behavior and even notes the four-field output-mapping gap, but never flags that the validator c\u2026",
+   "cit": "tasks.md:66 (`validate_spec(requirements: list[dict])`); design.md:133,632 (same signature); design.md:559 (Completeness needs per-domain-baseline-item check); requirements.md:78 (Req 2.2 UNMAPPED source)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The vague-adjective scanner's 'without a numeric bound' predicate is undefined and the draft does not flag it. Property 17 / Task 4.4 / Req 1.2 all require rejecting a vague adjective 'without a numeric bound' / 'without an associated numeric bound,' but NO doc specifies how the scanner detects the presence of a numeric bound (digit regex? unit grammar? proximity to the adjective? a parsed comparison predicate?). The draft documents the 7-vs-4 adjective-SET divergence but treats the bound-detection logic as settled; in fact the core accept/reject decision of the scanner hinges on an unspecified 'numeric bound' detector, which is the actual operative gap in Req 1.2 enforcement (a requirement \u2026",
+   "cit": "requirements.md:63 ('without a quantified numeric bound'); design.md:1010-1014 (Property 17, 'without an associated numeric bound'); tasks.md:68,87 ('without a numeric bound') \u2014 no definition of bound-detection anywhere"
+  },
+  {
+   "kind": "weak",
+   "detail": "Independence-check coverage is overstated as component-specific where the docs only specify it generically. The draft's ears_stories (CHECK-5 entry) and behaviors assert the validator runs an Independence analysis asserting `predA\u2260predB \u2227 gateA=gateB` is SAT, citing design.md:561 and fvm:256-261, and lists it as one of the four per-spec checks. But design.md:561 and tasks.md:67 describe this only as a static design-time check ('confirms gate decisions are independent of prediction variables') with no tasked mechanism for the runtime validator to construct gate/prediction variables from an arbitrary EARS spec \u2014 there are no gate/prediction variables in a plain requirements list, and Property \u2026",
+   "cit": "design.md:561 (Independence as design-time check); tasks.md:67 (one line, no variable-construction mechanism); tasks.md:574,579,659 (Property 4 tested against completion gate, not validate_spec); design.md:874 (test_completion_gate.py)"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Req 4.2 (REQ-SPEC-021)",
+   "criterion": "WHEN the spec agent attempts to end its turn AND violation_count > 0, THEN THE Stop_Hook SHALL block termination and return the enumerated violations.",
+   "how": "Stop hook reads run_state.violation_count and returns block() while > 0; but the producer that copies validate_spec()'s violation_count INTO run_state is never specified (see open_gaps).",
+   "status": "partial",
+   "cit": "requirements.md:106; design.md:209,724-726"
+  },
+  {
+   "req_id": "Req 4.4",
+   "criterion": "IF the spec-completion loop reaches its hard pass cap (DEFAULT = 7 passes), THEN THE System SHALL halt to human handoff and surface remaining violations.",
+   "how": "SPEC_COMPLETION_HARD_CAP=7 governs the Initializer loop; HANDOFF emits remaining violations. The 7-pass cap is enforced inside the agent loop, NOT in the Stop hook (which only checks the 25-turn MAX_TURNS_PER_SLICE).",
+   "status": "partial",
+   "cit": "requirements.md:108; design.md:842; tasks.md:204; cap-conflation gap below"
+  },
+  {
+   "req_id": "Req 4.6 (lex specialis)",
+   "criterion": "AT the hard pass cap (7) WITH violation_count > 0, the REQ-LOOP-005 HANDOFF (exit 0) SHALL take precedence over the criterion-4.2 Stop-block (exit 2).",
+   "how": "Documented tiebreak: exit-2 block applies only on passes before the cap (iteration_count < SPEC_COMPLETION_HARD_CAP); exit-0 HANDOFF wins at cap. Encoded conceptually but the Stop-hook code keys on MAX_TURNS_PER_SLICE (25), not on the 7-pass cap variable.",
+   "status": "partial",
+   "cit": "requirements.md:110; design.md:716-726,842"
+  },
+  {
+   "req_id": "Req 1.4",
+   "criterion": "WHEN a requirement is authored or modified, THE Spec_Compiler SHALL validate against the EARS schema and assign exactly one of the five EARS patterns.",
+   "how": "Validator/encoder operates over five base patterns and assigns exactly one (Property 16); the glossary's sixth 'Complex' pattern is reconciled as a documented composition of the five \u2014 but the validator does not assign 'Complex'.",
+   "status": "partial",
+   "cit": "requirements.md:65; design.md:1002-1006,1188; six-vs-five mismatch below"
+  },
+  {
+   "req_id": "Glossary: EARS",
+   "criterion": "Patterns: Ubiquitous, Event-driven, State-driven, Unwanted behaviour, Optional, Complex (SIX listed).",
+   "how": "Validator handles five (no 'Complex'); reconciliation note treats 'Complex' as a composition. Glossary still lists six, schema enum lists five.",
+   "status": "partial",
+   "cit": "requirements.md:31; design.md:347,1188"
+  },
+  {
+   "req_id": "Phase-0 spine test (design #10)",
+   "criterion": "spec_validator.py test-to-pass: `python3 formal_verification_merged.py` exits 0 (all 34 checks pass).",
+   "how": "The acceptance test for the validator component is the HARNESS exit code, not a direct test of validate_spec() on a real spec \u2014 a coupling/proxy that does not exercise spec_validator.py's own code path.",
+   "status": "partial",
+   "cit": "design.md:632; gap below"
+  }
+ ],
+ "citation_issues": []
+}

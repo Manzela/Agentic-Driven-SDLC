@@ -1,6 +1,6 @@
 # Spec-to-Evidence Control System — Forensic Audit Findings
 
-> ⚠️ **SUPERSEDED (2026-06-15) by [`audit/verification-report.md`](verification-report.md).** This earlier audit was performed against a larger "canonical merged" copy (`PRD_MERGED_canonical_spec_to_evidence.md`) that **does not exist** in this repository; many of its line citations point beyond the actual file EOFs and its harness count (32/29) undercounts the live self-counting harness (**34**). It is retained for provenance only. For the authoritative, applied analysis against the live files, see `verification-report.md` and `reconciliation-report.md`.
+> ⚠️ **SUPERSEDED (2026-06-15) by [`audit/verification-report.md`](verification-report.md).** This earlier audit was performed against a larger "canonical merged" copy (`PRD_MERGED_canonical_spec_to_evidence.md`) that **does not exist** in this repository; many of its line citations point beyond the actual file EOFs and its harness count (32/29) undercounts the live self-counting harness (**34**). It is retained for provenance only. For the authoritative, applied analysis against the live files, see `verification-report.md` and `reconciliation-report.md`. *(Update 2026-06-15: the `PRD_MERGED_canonical_spec_to_evidence.md` file this audit flagged as nonexistent was subsequently materialized into `.kiro/specs/spec-to-evidence-control/`, and the spec was expanded to **32 requirements**. The current-state analysis and final reconciliation are in `meta-analysis-harness-and-audit-trail.md`.)*
 
 
 **Date:** 2026-06-15

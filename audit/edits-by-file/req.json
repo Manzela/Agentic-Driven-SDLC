@@ -1,0 +1,412 @@
+[
+ {
+  "title": "Fix glossary wording implying evidence is always present on every item",
+  "anchor": "Glossary feature_list.json entry, requirements.md:28",
+  "change": "Line 28 reads '...with type, status, dependencies, acceptance criteria, and evidence' as if evidence is always present, but evidence is optional and present only on proven items. Reword to '...with type, status, dependencies, acceptance criteria, in_scope, and (when proven) an Evidence_Record.'",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Cross-reference the 'Complex' EARS-pattern resolution from the glossary, Req 1.4, and Property 16",
+  "anchor": "Glossary EARS line listing six patterns incl. Complex (requirements.md:31); Req 1.4 'five EARS patterns' (requirements.md:65)",
+  "change": "The glossary lists six EARS patterns (incl. Complex) while the schema enum (design.md:347), Req 1.4, and Property 16 use five; design.md:1188 resolves this ('Complex = a documented composition of the five base patterns; no schema change') but that resolution is not referenced anywhere the reader hits the five-vs-six mismatch. Add a parenthetical to the glossary line 31 (and a note in Req 1.4 and Property 16) pointing to the design.md:1188 resolution so 'six' (glossary) and 'five' (schema/Req 1.4) are explicitly reconciled.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "feature_list.json"
+  ]
+ },
+ {
+  "title": "Update glossary: SessionStart_Hook responsibilities + add a Progress_File term",
+  "anchor": "Glossary entry 'SessionStart_Hook' (requirements.md:27) and the glossary block (requirements.md:17-48) which defines Coverage_Model (L19) and feature_list.json (L28) but no progress-file term",
+  "change": "Two glossary gaps: (1) the SessionStart_Hook entry still reads only 'restores run state at the start of a session' \u2014 append '...and computes the resumed-state integrity hash, writing run_state.resume_integrity_ok (non-blocking; enforced by the PreToolUse integrity guard, Requirement 23)'. (2) criterion 11.3 (requirements.md:221) names 'the progress file' as a first-class load target, but no Progress_File glossary term exists (Coverage_Model and feature_list.json do). Add a glossary entry: 'Progress_File: the version-controlled claude-progress.txt checkpoint that SessionStart reads and PreCompact writes.'",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "session_start_hook.py"
+  ]
+ },
+ {
+  "title": "REQ-VERIFY-004 under-specifies the PostToolUse check set (omits type-check AND AST)",
+  "anchor": "Requirement 9, acceptance criterion 4 (requirements.md:189): \"WHEN a file edit completes, THE PostToolUse_Hook SHALL run lint, SAST, and wiring checks...\"",
+  "change": "Amend criterion 9.4 to enumerate the full check set so requirement, design hook-wiring row (design.md:216), and task 18.1 (tasks.md:311) agree: change 'run lint, SAST, and wiring checks' to 'run lint, type-check (mypy), SAST (Semgrep), and wiring checks'. This reconciles the requirement with design.md:216 ('lint, type check, SAST (Semgrep), wiring check') and task 18.1 which runs ruff+mypy+semgrep+wiring_checker. Note that the structural layer's AST analysis (REQ-VERIFY-001) is performed inside wiring_checker.py via the ast module (task 19.1, tasks.md:327), so the wiring check subsumes AST \u2014 state this so 'lint+type+SAST+wiring' is not misread as omitting the structural-layer AST element.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "post_tool_use_hook.py"
+  ]
+ },
+ {
+  "title": "Define dangling REQ-SPEC-020..024 / REQ-SPEC-021 EARS statements or replace with canonical Req 4.x numbers",
+  "anchor": "requirements.md:101 'PRD references: REQ-SPEC-020..024' (Requirement 4); REQ-SPEC-021 referenced at design.md:209,718,726,842 but never EARS-defined",
+  "change": "REQ-SPEC-020..024 appear ONLY as PRD references (requirements.md:101, 385) and REQ-SPEC-021 is cited 4x in design.md as the Stop-hook spec-gate requirement but is never defined as an EARS statement anywhere. Either (a) add explicit REQ-SPEC-020..024 EARS definitions under Requirement 4 mapping REQ-SPEC-021 = criterion 4.2 (the violation_count>0 Stop-block), or (b) replace the dangling REQ-SPEC-0xx citations in design.md:209/718/726/842 with the canonical Requirement 4.2/4.6 criterion numbers, removing the dangling references.",
+  "severity": "defect",
+  "adds_wiring": false,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Amend glossary 'Complex' EARS pattern to a documented composition of the five base patterns",
+  "anchor": "requirements.md:31 glossary 'EARS ... Patterns: Ubiquitous, Event-driven, State-driven, Unwanted behaviour, Optional, Complex' vs requirements.md:65 (Req 1.4 'exactly one of the five EARS patterns')",
+  "change": "requirements.md:31 lists SIX patterns including 'Complex' while Req 1.4 (line 65) says 'exactly one of the five EARS patterns' \u2014 internally contradictory within requirements.md. Annotate the glossary 'Complex' entry at line 31 as a documented composition of the five base patterns (not a 6th assignable enum value), matching design.md:1188 and the schema ears_pattern enum (design.md:347, which lists only the five). This makes requirements.md internally consistent and aligns with what spec_validator.py and Property 16 actually assign.",
+  "severity": "inconsistency",
+  "adds_wiring": true,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "State the authoritative 7-element vague-adjective set in the requirements layer",
+  "anchor": "requirements.md:63 (Req 1.2) 'non-deterministic adjective (e.g., \"fast\", \"secure\", \"scalable\", \"optimized\")'",
+  "change": "Req 1.2 gives a 4-element 'e.g.' example set {fast, secure, scalable, optimized}, but the implemented Property 17 (design.md:1012) and Task 4.4 (tasks.md:87) use the 7-element set {fast, secure, scalable, optimized, efficient, reliable, performant}. The requirement never states the authoritative full set, so the scanner's coverage is only test-backed. State the 7-element set once in Req 1.2 (or the Req 20 threshold registry) and reference it from Property 17 and Task 4.4 so the implemented set is requirement-backed.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "spec_validator.py"
+  ]
+ },
+ {
+  "title": "Add EARS criterion + glossary text backing the feature_list_sha bind",
+  "anchor": "Requirement 18 acceptance criteria (lines 324-328); glossary entry `plan-approved.json` (line 43); Property 6 'Validates: 7.4, 18.1' (design.md:926)",
+  "change": "Add acceptance criterion 18.4: 'IF plan-approved.json exists BUT its feature_list_sha does not equal the canonical SHA-256 of the current feature_list.json, THEN the PreToolUse_Hook SHALL block all implementation Write/Edit/MultiEdit tools and require re-approval.' Add the SHA-binding to the glossary definition at requirements.md:43 (currently presence-only) so the glossary matches the load-bearing design behavior. Update Property 6's 'Validates' line (design.md:926) to cite the new 18.4 alongside 7.4/18.1, since neither 7.4 nor 18.1 states the SHA rule.",
+  "severity": "inconsistency",
+  "adds_wiring": true,
+  "components": [
+   "plan-approved.json"
+  ]
+ },
+ {
+  "title": "Wire the 18.2 missing-context 'notes' injection to a consumer or drop the phrasing",
+  "anchor": "Requirement 18.2 (requirements.md:327, 'present them in plan mode for human approval and missing-context injection'); design.md:768-769 `notes` field",
+  "change": "Req 18.2 makes 'missing-context injection' a SHALL obligation but the only realization is a free-text `notes` field consumed by nothing. EITHER specify a consumer in design.md (e.g. the Initializer reads plan-approved.json.notes on next session and injects it into run_state / the Implementer's context, with a task to do so) OR strike 'and missing-context injection' from the 18.2 criterion so the SHALL no longer promises an unimplemented behavior. As written the obligation is unaddressed, not merely 'partial'.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "plan-approved.json"
+  ]
+ },
+ {
+  "title": "Postgres glossary entry omits amendment history and audit log from durable-store contents",
+  "anchor": "- **Postgres**: The managed relational database used as the durable store for requirements, coverage state, traceability links, evidence, and run state.",
+  "change": "Update the Postgres glossary entry (requirements.md:44) to enumerate the now-eight-table durable store: add 'requirement-amendment history' and 'gate-decision audit log' to the list 'requirements, coverage state, traceability links, evidence, and run state' \u2014 both are first-class durable tables post-reconciliation (design.md:427 lists eight tables; migrations 007/008).",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/007_requirement_versions.sql"
+  ]
+ },
+ {
+  "title": "Normalize 'timestamp' to created_at in REQ-AUDIT-001 and note it is DB-assigned",
+  "anchor": "requirements.md:457 `1. THE System SHALL append every gate decision (event, tool, allow/block, reason, requirement ID, actor agent, timestamp) ...`",
+  "change": "Field-name drift: Req 27.1 lists 'timestamp', the DDL/canonical form name the column 'created_at' (design.md:1164,1170), and the producer append() signature omits it entirely. Change 'timestamp' to 'created_at (timestamp)' in requirements.md:457 and add a note in Req 27.4/27.5 that created_at is DB-assigned (DEFAULT now()) and therefore not a producer argument \u2014 one canonical name across all three surfaces.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/008_gate_audit_log.sql"
+  ]
+ },
+ {
+  "title": "Fix dangling Z3 'CHECK (audit chain)' citation in the cross-ref matrix",
+  "anchor": "requirements.md:510 matrix row `| \u2014 (audit-log tamper-evidence) | Property 28 | CHECK (audit chain) | Requirement 27 |`",
+  "change": "The matrix names Z3 group 'CHECK (audit chain)' for Property 28, but no such check exists in verification/formal_verification_merged.py (the new-8 group is CHECK-10a..13b = amendment, resumed-state, checklist, omission; grep for audit/chain/tamper/prev_hash/entry_hash returns zero). design.md:1110 itself says 'no Z3 check \u2014 runtime/CI verified'. Change the Z3-group cell from 'CHECK (audit chain)' to '\u2014 (runtime/CI, no Z3)' so the matrix matches design.md:1110 and the harness self-count (34 = 14+12+8, no audit check). Also correct the harness path reference to verification/formal_verification_merged.py where cited.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "db/migrations/008_gate_audit_log.sql"
+  ]
+ },
+ {
+  "title": "Operationalize REQ-AUDIT-003 retention (window / archival / immutability)",
+  "anchor": "requirements.md:459 `3. THE System SHALL retain the hash-chained gate-decision log as the execution-proof complement to SLSA build provenance ...`",
+  "change": "REQ-AUDIT-003 asserts 'SHALL RETAIN' the log as a long-lived compliance substrate but no retention window, archival/partitioning strategy, storage location, or immutability-of-archived-segments is defined anywhere in requirements.md/design.md/tasks.md. Add a concrete retention sub-clause to Req 27 (requirements.md:459) and a corresponding design note near design.md:1156-1177: define the minimum retention duration, whether/how old segments are archived or partitioned, and that archived segments remain hash-verifiable (the chain extends across archive boundaries), then wire it as a task under task 52.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "db/migrations/008_gate_audit_log.sql"
+  ]
+ },
+ {
+  "title": "Add requirements-doc implementation pointer for tools/state_integrity.py",
+  "anchor": "### Requirement 23: Resumed-State Integrity (requirements.md:435-438), acceptance criteria 1-2 \u2014 never reference tools/state_integrity.py by name",
+  "change": "Requirement 23 / REQ-STATE-005 describes the behavior ('compute the resumed-state hash', 'PreToolUse integrity guard') but never names the owning artifact, so a reader of requirements.md alone cannot trace it. Add an implementation pointer such as 'Implementation: tools/state_integrity.py (see design Component Inventory; tasks.md task 49).' to Requirement 23, mirroring how other requirements cite their references.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Define the central REQ-STATE-005 domain terms in the glossary",
+  "anchor": "## Glossary (requirements.md:17-48) \u2014 defines Coverage_Model, Postgres, SessionStart_Hook, PreToolUse_Hook, etc., but has no entry for 'resumed-state hash', 'durable store's recorded hash', or 'operator reconciliation'",
+  "change": "The three concepts on which Requirement 23 correctness rests are undefined glossary terms, which is what makes the hash inputs and the reconciliation action ambiguous at the requirements layer. Add glossary entries for 'Resumed-State Hash' (the sha256 over the canonical durable+file state \u2014 cross-ref the design hash-algo spec), 'Recorded State Hash' (the baseline persisted in run_state.state_hash), and 'Operator Reconciliation' (the human-driven re-record-and-unblock action that flips resume_integrity_ok true).",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "state_integrity.py"
+  ]
+ },
+ {
+  "title": "Fix dangling Z3 CHECK placeholder for Property 28 in the cross-reference mapping table",
+  "anchor": "Line 510: | \u2014 (audit-log tamper-evidence) | Property 28 | CHECK (audit chain) | Requirement 27 |",
+  "change": "Replace the non-existent Z3 group id 'CHECK (audit chain)' in the Property 28 row with an honest runtime/CI marker that matches design.md:1110 ('no Z3 check \u2014 runtime/CI verified'). Change the 'Z3 group' cell to '\u2014 (runtime/CI: audit_verify.py + Property 28 PBT, task 39.18)'. The harness (formal_verification_merged.py) self-counts 34 = 14 core + 12 Kiro + 8 new (CHECK-10a..13b = amendment/resume/checklist/omission); there is NO audit-chain CHECK, so the current cell points at a CHECK id that does not exist in the harness. Do NOT add a fake CHECK to keep the 34 count honest unless you also bump the self-count.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "audit_log.py"
+  ]
+ },
+ {
+  "title": "Reconcile caller-set: REQ-AUDIT-001.4 names 3 hooks but design wires a 4th producer call site",
+  "anchor": "Line 460: Requirement 27.4 '...SHALL be CALLED by stop_hook.py, pre_tool_use_hook.py, and subagent_stop_hook.py on every allow/block decision'",
+  "change": "Add a clarifying clause to Requirement 27.4 that subagent_stop_hook.py includes BOTH its evidence-schema decision (design.md:217) and its omission-declaration-guard block decision (design.md:218) as audit-log call sites \u2014 i.e. 3 hook files / 4 decision points. As written, the requirement enumerates exactly three call sites while design.md:218 adds a fourth append() invocation (the omission guard), so requirement text and design wiring table disagree on the producer call-site set.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "audit_log.py"
+  ]
+ },
+ {
+  "title": "Specify a retention/archival policy (or accept unbounded) for REQ-AUDIT-003",
+  "anchor": "Line 459: Requirement 27.3 'THE System SHALL retain the hash-chained gate-decision log as the execution-proof complement to SLSA build provenance.'",
+  "change": "REQ-AUDIT-003 says 'retain' and append-only but bounds neither growth nor retention duration; the gate_audit_log DDL (design.md:1156-1167) has no retention column or policy. An append-only hash chain cannot prune the middle without breaking verification. Add a retention clause: either (a) a chain-compatible checkpoint-and-archive of a verified prefix that records the archived prefix's tip hash as the new genesis-equivalent prev_hash, or (b) an explicit statement that unbounded retention is accepted for v1.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "audit_log.py"
+  ]
+ },
+ {
+  "title": "Replace dangling 'CHECK (audit chain)' Z3 citation with runtime/CI marker",
+  "anchor": "| \u2014 (audit-log tamper-evidence) | Property 28 | CHECK (audit chain) | Requirement 27 |",
+  "change": "In the cross-reference table (requirements.md:510), change the 'Z3 group' cell for the audit-log tamper-evidence / Property 28 row from 'CHECK (audit chain)' to '\u2014 (runtime/CI \u2014 no Z3)'. The merged harness ends at CHECK-13b and contains no audit-chain assertion (verified); design.md:1110 and PRD:79 both state tamper-evidence is runtime/CI-verified with no Z3 check.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "audit_verify.py"
+  ]
+ },
+ {
+  "title": "Add a glossary term for the secrets-scanner tool family",
+  "anchor": "Glossary, after line 47 ('Semgrep_CodeQL: The SAST tools used in CI ...')",
+  "change": "The secrets-scanner is the only security-gate tool family with no glossary entry (Semgrep_CodeQL, Playwright, OPA_Conftest, SLSA all defined). Add: 'Secrets_Scanner: the CI tool (gitleaks by default; trufflehog as an acceptable alternative) used to detect committed secrets/credentials/tokens in a PR diff and fail the build (REQ-17.2).'",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "secrets-scan.yml"
+  ]
+ },
+ {
+  "title": "Resolve REQ-SPEC-018.1 structured-content enforcement gap (categorical [Gap] enumeration is unenforced; mechanism is null/non-null boolean only)",
+  "anchor": "Requirement 29 Structured Omission Declaration, criterion 1 (requirements.md:476): 'WHEN a subagent ... SHALL include a non-null omission_declaration field listing, by EARS scenario category ... using a [Gap] marker for each omitted class.' vs criterion 2 (requirements.md:477) + CHECK-13a/13b which only model a single boolean omissionDeclNull",
+  "change": "State explicitly which of two paths governs the structured-content half. EITHER (a) add a sentence to 29.1/29.2 clarifying the SubagentStop guard enforces presence/non-null ONLY, and the per-category [Gap] enumeration is a non-gating authoring convention (downgrading the machine-checked claim); OR (b) extend 29.3 / the subagent_output schema to require the six category keys (each an array) plus a [Gap]-marker format constraint, and add a property-test obligation for it. Pick one and record it, so that omission_declaration: \"\" or {} omitting categories cannot silently satisfy a criterion the harness never checks.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "omission_guard (capability in subagent_stop_hook.py)"
+  ]
+ },
+ {
+  "title": "Non-emptiness inconsistency: omission gate accepts 'absent or null' only, Evidence sibling gate rejects 'absent or empty'; REQ-SPEC-018.3 silent on empty",
+  "anchor": "Requirement 29 criterion 2 (requirements.md:477): 'THE SubagentStop hook SHALL reject any subagent result whose omission_declaration field is absent or null, with exit 2.' \u2014 contrast with Requirement 5.6 (requirements.md:127): 'rejected if any of the four fields is absent or empty', and criterion 29.3 (requirements.md:478) which is silent on empty",
+  "change": "Decide and state uniformly whether an empty-but-non-null omission_declaration ('', {}, []) blocks. If yes: change 29.2 wording to 'absent, null, or empty', mirror in design.md:148 and design.md:218 and Property 30 (design.md:1128), make 29.3 require non-empty (analogous to the EvidenceRecord additionalProperties:false + non-empty CHECK at design.md:474-477), and add an omissionDeclEmpty predicate to the harness so CHECK-13 covers the empty case. If no: add a one-line note to 29.2 that empty IS accepted by design, to make the divergence from the Evidence gate explicit and intentional.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "omission_guard (capability in subagent_stop_hook.py)"
+  ]
+ },
+ {
+  "title": "Glossary lacks an omission_declaration term and the SubagentStop_Hook term omits the omission-declaration responsibility",
+  "anchor": "Glossary entry (requirements.md:24): '**SubagentStop_Hook**: The Claude Code SubagentStop hook that validates evidence schema before accepting a subagent's result.'; and Evidence_Record term (requirements.md:29) \u2014 there is no omission_declaration term",
+  "change": "Extend the SubagentStop_Hook glossary term to mention BOTH responsibilities: '...validates evidence schema AND enforces the omission-declaration gate (rejects any subagent result whose omission_declaration is absent/null) before accepting a subagent's result.' Add a new glossary term '**omission_declaration**: A structured field on initializer/research/verifier subagent outputs, keyed by the six EARS scenario categories (Primary/Alternate/Exception/Recovery/Non-Functional/Edge-Case), each a list of [Gap]-marked uncovered scenario classes; non-null and required (REQ-SPEC-018).' \u2014 mirroring how Evidence_Record is fully glossed.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "omission_guard (capability in subagent_stop_hook.py)"
+  ]
+ },
+ {
+  "title": "Register the 0.8/0.7 eval thresholds in the Requirement-20 threshold registry with an owner and override path",
+  "anchor": "3. THE System SHALL register the following additional DEFAULT thresholds in the threshold registry *(Reconciliation 2026-06-15: numeric defaults added)*:",
+  "change": "Add two entries to the Req 20.3 registry: 'faithfulness threshold = 0.8 (DEFAULT, configurable) \u2014 OWNER: the quality owner (Req 9)' and 'answer-relevancy threshold = 0.7 (DEFAULT, configurable) \u2014 OWNER: the quality owner (Req 9)', each with an explicit operator-override path, and drop the 'e.g.' qualifier at requirements.md:483/484 so 0.8/0.7 are authoritative DEFAULTs not illustrations. Req 20.2 mandates ALL numeric thresholds be configurable DEFAULTs requiring operator override; the eval metrics currently appear only as 'e.g.' examples and are unowned, violating that invariant.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "deepeval_gate.py"
+  ]
+ },
+ {
+  "title": "Specify the eval input/dataset source and reconcile criterion-2 WHEN-guard with the unconditional REQUIRED check",
+  "anchor": "2. WHEN a CI run includes LLM output evaluation, THEN the eval step SHALL gate on configured metric thresholds (e.g., faithfulness \u2265 0.8, answer relevancy \u2265 0.7) using DeepEval `assert_test()`, failing the build if any threshold is not met.",
+  "change": "Name the producer of the evaluable output and the dataset source for the DeepEval LLMTestCase fields (input / actual_output / retrieval_context) \u2014 e.g., a golden-set fixture under tests/eval/ or evidence captured from Verifier runs \u2014 and reconcile the WHEN-guard with criterion 3: state what happens when a CI run contains NO LLM output (the REQUIRED `deepeval-gate` check must define whether it passes vacuously or is skipped, so the unconditional REQUIRED status at criterion 3 is not either always-green-and-meaningless or blocking-with-nothing-to-evaluate). Faithfulness and answer-relevancy are RAG-style metrics needing (input, actual_output, retrieval_context) tuples; no producer is sourced anywhere in the spec.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "deepeval_gate.py"
+  ]
+ },
+ {
+  "title": "Make REQ-EVAL-001 traceability concrete: add a verification mechanism (smoke test) and/or a cross-ref-table row",
+  "anchor": "| \u2014 (omission-declaration gate) | Property 30 | CHECK-13a/13b | Requirement 29 |",
+  "change": "Add a row to the property\u2194requirement cross-reference table (requirements.md:505-512) for Requirement 30 stating it carries NO Z3 Property/CHECK and is verified by CI behavior (the `deepeval-gate` named tool) \u2014 making the PRD:130 traceability claim ('every new requirement carries a Z3 check OR a named verification tool') concrete and killing the Property-30-vs-Requirement-30 collision trap (Property 30 belongs to Requirement 29; Requirement 30 has no property). Pair with a tasks.md smoke/integration test task asserting `deepeval-gate` fails the build when a metric is below threshold, since the harness stops at CHECK-13b and no PBT property covers REQ-EVAL-001.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "deepeval_gate.py"
+  ]
+ },
+ {
+  "title": "Define eval metric terms in the requirements glossary",
+  "anchor": "- **Playwright**: The E2E test framework used to produce behavioral proofs (captured traces/screenshots) as evidence.",
+  "change": "Add glossary entries defining the DeepEval-specific terms that gate a REQUIRED merge check: 'faithfulness', 'answer relevancy', and 'eval-gate' (deepeval-gate). The requirements.md glossary (lines 15-48) defines OTel, SLSA, Semgrep_CodeQL, etc., but none of the three eval terms that a REQUIRED check depends on \u2014 leaving the gate's core metrics undefined.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "deepeval_gate.py"
+  ]
+ },
+ {
+  "title": "Document whether deepeval-gate decisions are captured in the gate_audit_log, or why CI-status-check gates are out of its scope",
+  "anchor": "4. **Producer:** a new `tools/audit_log.py` SHALL expose `append(event, tool, decision, reason, requirement_id, actor_agent)`, and it SHALL be CALLED by `stop_hook.py`, `pre_tool_use_hook.py`, and `subagent_stop_hook.py` on every allow/block decision; `tools/audit_verify.py` SHALL recompute the chain.",
+  "change": "Add a one-line scope note to REQ-AUDIT (Req 27) stating that the hash-chained gate_audit_log captures Claude Code hook decisions, and that CI-status-check gates (deepeval-gate, zap-baseline, coverage-gate, secrets-scan, audit-chain-verify) are recorded via GitHub check-run history / SLSA rather than the hook audit log \u2014 OR, if a deepeval-gate block should be in the chain, add it to the producer caller list. Today a REQUIRED merge-gate decision (deepeval-gate) is captured by neither the audit-log caller list nor an explicit out-of-scope note, leaving a hole in the 'we can prove what happened' chain.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "deepeval_gate.py"
+  ]
+ },
+ {
+  "title": "Fix B15\u2192B16 baseline-block collision for Requirement 31 (DAST) in both matrix row and header",
+  "anchor": "Line 418 matrix row `| 31 DAST Baseline Security Scan | B15 | REQ-SEC-008 |` AND line 487 header `**Baseline block:** B15 | **PRD references:** REQ-SEC-008` (Requirement 31)",
+  "change": "Reassign Requirement 31 / REQ-SEC-008 from B15 to B16. B15 is 'Durable storage' (line 397, mapped to Requirement 16 / REQ-STORE-001..003); B16 is 'Supply-chain & security gates' (line 398, REQ-SEC-001..005) which is the correct home for a DAST security scan. Change BOTH the traceability-matrix row (line 418) and the Requirement-31 header (line 487) from `B15` to `B16`. Do NOT use B17 ('Human-in-the-loop approval') \u2014 the kill-switch (Req 32) is dual-tagged B16/B17 only because it spans gates+approval; a pure DAST scan belongs to B16 alone. B16 is already defined in the baseline-block list (line 398), so no list change is needed.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "zap-baseline.yml"
+  ]
+ },
+ {
+  "title": "Add Glossary entry for 'DAST'",
+  "anchor": "Glossary block, requirements.md:15-48 (defines Semgrep_CodeQL at line 47 and SLSA at line 37, but not DAST; 'DAST' is used in the Requirement 31 title at line 486 and criterion 31.2 at line 489)",
+  "change": "Add a Glossary entry after the Semgrep_CodeQL entry (line 47): '**DAST**: Dynamic Application Security Testing \u2014 black-box scanning of a running application; here the OWASP ZAP baseline passive scan (REQ-SEC-008).' DAST is currently used in the Requirement 31 title/criterion without a definition, unlike the peer security terms Semgrep_CodeQL and SLSA which are defined.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "zap-baseline.yml"
+  ]
+ },
+ {
+  "title": "Annotate REQ-SEC-008 as a [DET] CI-gate obligation explicitly outside the formal-verification harness scope",
+  "anchor": "Requirement 31 header/criteria, requirements.md:486-490 (no Property, no Z3 CHECK; harness formal_verification_merged.py has zero hits for zap/dast/REQ-SEC-008 \u2014 only REQ-SEC-004 at line 144)",
+  "change": "Add a one-line note at the Requirement 31 header (line 486) marking REQ-SEC-008 as a [DET] CI-gate obligation outside the Z3 formal-verification harness scope (as is implicitly true for secrets-scan, coverage-gate, deepeval-gate), so the absence of a Property/CHECK is documented intent rather than an oversight. This resolves the ambiguity flagged by the harness-coverage EARS item.",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "zap-baseline.yml"
+  ]
+ },
+ {
+  "title": "Kill-switch \u226430s polling interval missing from Requirement-20 threshold registry",
+  "anchor": "Requirement 20.3 list (requirements.md:356-359): '- **Cost/token budget** = 1,000,000 tokens per Slice ... - **Reasoning-loop K** = 3 ... - **Retry budget** = 3 per Slice \u2014 OWNER: the implementer loop ...'",
+  "change": "Register the kill-switch polling interval as a new bullet under Requirement 20.3: '- **Kill-switch flag-propagation interval** = \u226430 s (configurable) \u2014 OWNER: the Delivery Owner / Operator (owns the flagd deployment); the affected agent capability is disabled within this interval without a process restart (REQ-CTRL-001 / Requirement 32.2).' This restores the REQ-20.2 'all numeric DEFAULTs are configurable with an owner' discipline.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "flagd"
+  ]
+ },
+ {
+  "title": "No accountable owner/role named for kill-switch flag flips",
+  "anchor": "Requirement 32 acceptance criteria (requirements.md:494-496)",
+  "change": "Add an acceptance criterion to Requirement 32 naming the accountable human role and binding the action: 'THE System SHALL restrict kill-switch flag toggles to the Delivery Owner / Operator role; each toggle SHALL be authenticated and recorded.' This binds the B17 (Human-in-the-loop) mapping to an actor, analogous to how plan-approval binds to plan-approved.json written by a named human. Pair with the audit-log wiring edit so the toggle is recorded in the tamper-evident chain.",
+  "severity": "underspecified",
+  "adds_wiring": true,
+  "components": [
+   "flagd"
+  ]
+ },
+ {
+  "title": "Kill-switch toggles produce no audit-log / OTel trail",
+  "anchor": "Requirement 32 acceptance criteria (requirements.md:494-496); cross-ref Requirement 27 gate_audit_log (requirements.md:455-462) and REQ-OBS (requirements.md:236)",
+  "change": "Add an acceptance criterion to Requirement 32: 'WHEN a kill-switch flag is set or cleared, THE System SHALL append a gate_audit_log entry (event, actor_agent/operator, decision, reason, requirement_id, timestamp) via tools/audit_log.append(...) AND emit an OTel gate-decision event to the same trace endpoint as other gate decisions, so the toggle is in the tamper-evident hash chain (REQ-AUDIT-001..003) and observable (REQ-OBS-003).' Mirror in design.md by listing the kill-switch toggle among audit_log.append callers in the new Kill-Switch subsection.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "flagd"
+  ]
+ },
+ {
+  "title": "B16/B17 coverage matrix never updated to show Requirement 32 extends those blocks",
+  "anchor": "Domain-Baseline Coverage Matrix rows: '| B16 | Supply-chain & security gates | Requirement 17 (REQ-SEC-001..005) | MAPPED |' and '| B17 | Human-in-the-loop approval | Requirement 18 (REQ-HITL-001..003) | MAPPED |' (requirements.md:398-399)",
+  "change": "Make the B16/B17 trace internally consistent with the addendum extension table (requirements.md:419). Either (a) add Requirement 32 to the B16 and B17 rows, e.g. 'Requirement 17 (REQ-SEC-001..005); extended by Requirement 32 (REQ-CTRL-001)', or (b) add a footnote marker on both rows pointing to the addendum baseline-traceability table at line 405-419. Keeps the declarative 'extends those same blocks, no requirement orphaned' assertion (requirements.md:403) reflected in the actual matrix.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "flagd"
+  ]
+ },
+ {
+  "title": "Bind Spec_Compiler glossary entry to its realizing component initializer.md",
+  "anchor": "- **Spec_Compiler**: The component responsible for transforming product intent into atomic, individually-testable requirements with IDs and acceptance criteria.",
+  "change": "Append a realization clause to the Spec_Compiler glossary entry so a requirements-only reader can trace the abstract component to its Phase-0 implementation: '(realized by `.claude/agents/initializer.md` \u2014 Phase 0; see design.md Subagent Definitions).' This is the only place the abstract\u2192concrete binding lives outside design.md/tasks.md.",
+  "severity": "missing-wiring",
+  "adds_wiring": true,
+  "components": [
+   "initializer.md"
+  ]
+ },
+ {
+  "title": "Reconcile EARS pattern count: glossary 'six' vs Req 1.4 'five'",
+  "anchor": "- **EARS**: Easy Approach to Requirements Syntax \u2014 the requirements-expression standard used throughout. Patterns: Ubiquitous, Event-driven, State-driven, Unwanted behaviour, Optional, Complex.",
+  "change": "Amend the glossary EARS entry to state the five base patterns plus 'Complex' as an explicit composition, not a sixth enum value: '...Patterns: five base patterns \u2014 Ubiquitous, Event-driven, State-driven, Unwanted behaviour, Optional \u2014 plus Complex (a documented composition of the five base patterns, not a separate enum value; the feature_list.json ears_pattern enum and spec_validator.py operate only over the five).' This aligns the glossary with Req 1.4's 'exactly one of the five EARS patterns', Property 16's five-value enum, and the reconciliation note already in design.md:1187-1188.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "initializer.md"
+  ]
+ },
+ {
+  "title": "Make Requirement 1.2 cite the canonical vague-adjective set",
+  "anchor": "2. IF a candidate requirement contains a non-deterministic adjective (e.g., \"fast\", \"secure\", \"scalable\", \"optimized\") without a quantified numeric bound, THEN THE Spec_Compiler SHALL reject it and require a quantified criterion before acceptance.",
+  "change": "Change Req 1.2's parenthetical from the 4-example illustrative list to the canonical 7-member set used by the spec_validator scanner (tasks.md:68) and Property 17 (design.md:1012), or explicitly mark it non-exhaustive: 'a non-deterministic adjective (the canonical reject-set is {fast, secure, scalable, optimized, efficient, reliable, performant}; the validator may extend it)'. As written, the 4-example requirement implies a smaller reject-set than the validator the initializer routes through actually enforces.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "initializer.md"
+  ]
+ },
+ {
+  "title": "omission_declaration scope omits the implementer; resolve 18.1-vs-18.3 inconsistency at the implementer SubagentStop boundary",
+  "anchor": "1. WHEN a subagent (initializer, research, verifier) completes a discovery, research, or verification pass, THEN its output SHALL include a non-null `omission_declaration` field",
+  "change": "REQ-SPEC-018.1 (requirements.md:476) enumerates only '(initializer, research, verifier)' while REQ-SPEC-018.3 (requirements.md:478) says 'THE JSON schema for EACH subagent output type SHALL include omission_declaration as a required, non-nullable field' and the SubagentStop omission guard (design.md:218) rejects any subagent result lacking it. This leaves the implementer's SubagentStop return contract ambiguous: the implementer legitimately emits NO Evidence_Record, so subagent_stop_hook (tasks.md:177-183, REQ-VERIFY-005/9.5) and the omission guard need an explicit rule for the implementer\u2192verifier handoff. Resolve by either (a) explicitly listing the implementer in 18.1 with its own omission_declaration obligation, or (b) stating in 18.1/design.md:218 that the implementer subagent is exempt from the evidence-field and omission-declaration checks at SubagentStop (it produces a commit, not evidence) \u2014 and reflect the chosen rule in subagent_stop_hook.py task 8.1 and the omission_guard component (design.md:148).",
+  "severity": "inconsistency",
+  "adds_wiring": true,
+  "components": [
+   "implementer.md"
+  ]
+ },
+ {
+  "title": "Reconcile Phase-0 five-layer claim with Phase 1/3 perf_a11y_verifier deferral",
+  "anchor": "Requirement 9.1 (requirements.md:186) 'verify each Slice across five layers ... performance + accessibility'; perf_a11y_verifier Phase '1/3' (design.md:146, design.md:1182); task 51 (tasks.md:966)",
+  "change": "requirements.md:186 asserts the Verifier runs all five layers unconditionally, but the fifth layer (perf_a11y_verifier) is Phase 1/3 (design.md:146, design.md:1182) and its implementation is task 51 in the Phase-4-era added-task block (tasks.md:966), while the Verifier itself ships in Phase 0. The Phase-0 spine therefore cannot deliver the fifth layer. Scope requirements.md:186 to note the performance/accessibility layer activates in Phase 1/3 (the structural/semantic/behavioral/security layers ship in Phase 0), OR move perf_a11y_verifier to Phase 0. Keep consistent with the design Component Inventory Phase column.",
+  "severity": "inconsistency",
+  "adds_wiring": false,
+  "components": [
+   "verifier.md"
+  ]
+ },
+ {
+  "title": "Define REQ-SPEC-013..015 (and REQ-SPEC-010..012) as explicit EARS lines or document the alias mapping",
+  "anchor": "### Requirement 3: Domain-Baseline Checklist Sourcing \u2014 **PRD references:** REQ-SPEC-013..015 (requirements.md:87); and Requirement 2 \u2014 REQ-SPEC-010..012 (requirements.md:73)",
+  "change": "REQ-SPEC-013/014/015 (cited for Requirement 3) and REQ-SPEC-010/011/012 (cited for Requirement 2) appear ONLY as label ranges (requirements.md:73, 87, 384, 401) and are never defined as individual EARS statements; the ID-to-criterion mapping is implicit and unverifiable. Add an explicit mapping note under Requirement 2 and Requirement 3 stating that REQ-SPEC-010=2.1, 011=2.2, 012=2.3 and REQ-SPEC-013=3.1, 014=3.2, 015=3.3 (or render them as explicit EARS sub-IDs). This is a cross-component issue shared with the Proactive-Discovery component (Requirement 2).",
+  "severity": "underspecified",
+  "adds_wiring": false,
+  "components": [
+   "research.md"
+  ]
+ }
+]

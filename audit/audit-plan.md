@@ -1,6 +1,6 @@
 # Spec-to-Evidence Control System — Remediation Plan
 
-> ⚠️ **SUPERSEDED (2026-06-15) by [`audit/verification-report.md`](verification-report.md).** This plan was keyed to a "canonical merged" copy that does not exist here (its citations point beyond the live file EOFs). Its "No fixes applied — approval gate is open" status is also out of date: the remediation **has now been applied and verified** — see `reconciliation-report.md`. Retained for provenance only.
+> ⚠️ **SUPERSEDED (2026-06-15) by [`audit/verification-report.md`](verification-report.md).** This plan was keyed to a "canonical merged" copy that does not exist here (its citations point beyond the live file EOFs). Its "No fixes applied — approval gate is open" status is also out of date: the remediation **has now been applied and verified** — see `reconciliation-report.md`. Retained for provenance only. *(Update 2026-06-15: the `PRD_MERGED_canonical_spec_to_evidence.md` copy this plan was keyed to was subsequently materialized into `.kiro/specs/spec-to-evidence-control/`, and the spec was expanded to **32 requirements / 49 waves / 57 tasks**. See `meta-analysis-harness-and-audit-trail.md`.)*
 
 
 **Companion to:** `audit/findings.md`. Prioritized fix list. **No fixes applied — approval gate is open.**

@@ -1,0 +1,110 @@
+{
+ "idx": 6,
+ "component": "pre_compact_hook.py",
+ "file_path": ".claude/hooks/pre_compact_hook.py",
+ "phase": "2",
+ "what": "`pre_compact_hook.py` (canonical path `.claude/hooks/pre_compact_hook.py`) is the Claude Code `PreCompact` command-type hook. It is configured to checkpoint the run's progress and evidence state to durable files + git immediately before Claude Code trims/compacts the context window, so a later session can re-orient from disk rather than from lost in-context memory. Concretely (per tasks.md task 25.1, the only place its body is specified): (a) append a current progress summary \u2014 coverage item IDs and status counts \u2014 to `claude-progress.txt`; (b) write a JSON snapshot of the current `feature_list.json` evidence state to `claude-progress-evidence-snapshot.json`; (c) `git add -f` both files and \u2026",
+ "open_gaps": [
+  {
+   "gap": "Phase classification contradiction. design.md inventory tags pre_compact_hook.py as Phase 2 (design.md:132) and the Phase overview lists 'PreCompact checkpoints' under Phase 2 (design.md:15). But its build task (task 25) sits inside the Phase 1 \u2014 Verification Depth block (tasks 18\u201326), and tasks.md note line 725 explicitly bounds 'Phase 1 task (18\u201326)'. The same component is simultaneously Phase 1 (tasks.md) and Phase 2 (design.md).",
+   "severity": "inconsistency",
+   "fix": "Pick one phase. Since PreCompact depends only on file+git artifacts (no Postgres), it can live in Phase 1; if so, change design.md:132 'Phase 2'\u2192'Phase 1' and remove 'PreCompact checkpoints' from the Phase-2 overview row (design.md:15). Alternatively move task 25 into the Phase 2 \u2014 Durable State block (after task 26) so it aligns with design.md:132/15.",
+   "cit": "design.md:132, design.md:15 vs tasks.md:390 (under '### Phase 1 \u2014 Verification Depth') and tasks.md:725"
+  },
+  {
+   "gap": "REQ-STATE-002 has no Z3 check and no Correctness Property. Every other REQ-STATE criterion the spec treats as load-bearing got a check (REQ-STATE-005 \u2192 CHECK-11a/11b, Property 26). REQ-STATE-002 \u2014 the entire reason this component exists \u2014 is verified by nothing in formal_verification_merged.py and by no Property; its only enforcement is prose in task 25.1 plus the optional unit tests in 25.2.",
+   "severity": "underspecified",
+   "fix": "Defensible (a non-blocking checkpoint is hard to express as a Z3 SAT/UNSAT invariant) but should be stated explicitly. Add a one-line note near the PreCompact design row and in the Property list: 'REQ-STATE-002 is verified by unit/integration test (task 25.2), not Z3 \u2014 checkpoint writes have no gating invariant.' Optionally add an integration test asserting that after a simulated PreCompact, claude-progress.txt + snapshot exist, a checkpoint commit is present, and SessionStart can read them back\u2026",
+   "cit": "requirements.md:220; verification grep shows only CHECK-11 for REQ-STATE (formal_verification_merged.py:125,444,455); design.md:1084-1130 (no PreCompact property)"
+  },
+  {
+   "gap": "design.md vs tasks.md disagree on WHAT is checkpointed. requirements.md:220 says 'progress and evidence records'; design.md:220 says 'claude-progress.txt, current evidence state, and feature_list.json' (commits feature_list.json itself); tasks.md:392-394 says append to claude-progress.txt + write a separate claude-progress-evidence-snapshot.json + commit 'both files' \u2014 it does NOT commit feature_list.json and introduces a snapshot file design.md never names.",
+   "severity": "inconsistency",
+   "fix": "Reconcile the artifact set. Decide whether the checkpoint commits feature_list.json directly (design.md) or only a derived claude-progress-evidence-snapshot.json (tasks.md). Recommend committing both claude-progress.txt AND feature_list.json (SessionStart reads feature_list.json back, design.md:219), and either add claude-progress-evidence-snapshot.json to design.md:220 or drop it from tasks.md:393. Make the file list identical in design.md:220 and tasks.md:392-394.",
+   "cit": "requirements.md:220 vs design.md:220 vs tasks.md:392-394"
+  },
+  {
+   "gap": "Thin/underspecified \u2014 failure modes and idempotency unspecified. The Error Handling 'Hook Failure Modes' table (design.md:809-816) covers stop_hook.py, pre_tool_use_hook.py, post_tool_use_hook.py, spec_validator.py, Postgres, and plan-approved.json \u2014 but says NOTHING about pre_compact_hook.py. Unspecified: behavior if the git commit fails (detached HEAD, index lock, mid-rebase), if feature_list.json is unreadable, or if compaction fires inside a slice worktree (could the [skip ci] checkpoint commit collide with the implementer's one-atomic-commit-per-slice rule at requirements.md:158?).",
+   "severity": "underspecified",
+   "fix": "Add a pre_compact_hook.py row to the Hook Failure Modes table (design.md:809-816): on any exception, log to stderr and exit 0 (a failed checkpoint must never block the run). Specify which git ref/worktree the checkpoint commits to (the main worktree, not a slice worktree) to avoid colliding with the one-commit-per-slice invariant.",
+   "cit": "design.md:805-842 (no PreCompact entry); requirements.md:158; design.md:248"
+  },
+  {
+   "gap": "task-36.1 lists PreCompact among hooks that 'emit OTel gate-decision events', but PreCompact makes no gate decision (always exits 0; allow/block is meaningless). The attribute set (decision allow/block, requirement.id) does not fit a checkpoint event.",
+   "severity": "inconsistency",
+   "fix": "Either exclude PreCompact from gate-decision forwarding and instead emit a distinct non-gate span (e.g. hook.checkpoint with item counts), or note in task 36.1 that for PreCompact the 'decision' attribute is a fixed checkpoint marker (not allow/block). Update tasks.md:539-541 wording.",
+   "cit": "tasks.md:538-542 vs tasks.md:395 (exit 0 always)"
+  },
+  {
+   "gap": "settings.json binding not yet realized + internal task-reference/path drift. No settings.json exists on disk (find returned nothing); .claude/hooks/ holds only .gitkeep, so the hook and its binding are unbuilt. Separately, task 1 says the settings.json stub is 'populated in task 8' (tasks.md:16) but the actual hook-wiring task is task 9 (tasks.md:191), and task 1 names `.vscode/settings.json` while task 9 and design.md name `.claude/settings.json` (design.md:157). The PreCompact registration therefore has an ambiguous owning-file and a wrong cross-reference.",
+   "severity": "missing-wiring",
+   "fix": "Fix tasks.md:16 'populated in task 8' \u2192 'populated in task 9'; standardize the settings file path to `.claude/settings.json` (matching design.md:157) in tasks.md:16 and 192; then actually create `.claude/settings.json` with the PreCompact command binding from design.md:193-198 so the runtime can invoke the hook.",
+   "cit": "tasks.md:16 ('task 8', `.vscode/settings.json`) vs tasks.md:191-192 (task 9, `.claude/settings.json`) vs design.md:157-198; .claude/hooks/ has only .gitkeep and no settings.json exists (filesystem)"
+  },
+  {
+   "gap": "Defensive `git add -f` implies claude-progress.txt is gitignored, but it is NOT. Task 25 uses `git add -f` (force) for claude-progress.txt and the snapshot (tasks.md:394), only necessary if those paths are git-ignored. The actual .gitignore ignores only .playwright-mcp/, .env*, and OS files (.gitignore:41-47); claude-progress.txt is tracked normally. Either the -f is dead/misleading or there is a missing intended .gitignore entry (task 1 says 'Create ... .gitignore entries' at tasks.md:16, but none was added for it).",
+   "severity": "underspecified",
+   "fix": "Decide intent: if claude-progress.txt + claude-progress-evidence-snapshot.json are meant to be checkpoint-only/ignored, add them to .gitignore (justifying -f); otherwise drop the `-f` from tasks.md:394 to avoid implying a non-existent gitignore rule.",
+   "cit": "tasks.md:394 (`git add -f`); tasks.md:16; .gitignore:41-47 (no claude-progress entry)"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "WRITE-ONLY ORPHAN OUTPUT \u2014 the snapshot file PreCompact produces has zero readers, defeating the component's stated purpose. tasks.md:393 has pre_compact_hook.py write `claude-progress-evidence-snapshot.json`, but a full grep of all three specs shows this filename appears EXACTLY ONCE (the write at tasks.md:393) and is never read by anything. In particular the SessionStart hook (session_start_hook.py, task 7.1, tasks.md:165-166) \u2014 which the draft itself calls the 'read-side complement' \u2014 reads ONLY `claude-progress.txt` and `feature_list.json`, never the snapshot. So PreCompact's distinguishing output (the evidence snapshot, vs the progress-text append) is a dead artifact: nothing re-orients\u2026",
+   "cit": "tasks.md:393 (only occurrence \u2014 write); tasks.md:165-166 (SessionStart reads only claude-progress.txt + feature_list.json); grep across .kiro/specs/spec-to-evidence-control/ returns one hit for 'snapshot'"
+  },
+  {
+   "kind": "missing",
+   "detail": "GITIGNORE / WRONG-PATH BINDING is worse than the draft states: `.vscode/` is ACTIVELY git-ignored, so a settings.json placed there would be untracked and the PreCompact binding would never be committed. The draft's missing-wiring gap (open_gaps#6) flags the `.vscode/settings.json` (tasks.md:16) vs `.claude/settings.json` (design.md:157, tasks.md:192) path drift, but misses that `.gitignore:32` ignores `.vscode/` entirely. If task 1's stub really lives at `.vscode/settings.json`, the entire hooks block (including PreCompact's `python3 .claude/hooks/pre_compact_hook.py` binding) is silently excluded from version control and the runtime would never load it \u2014 a fail-open wiring hole, not merely \u2026",
+   "cit": ".gitignore:32 ('.vscode/'); tasks.md:16 ('.vscode/settings.json'); design.md:157, tasks.md:192 ('.claude/settings.json'); filesystem: no settings.json exists anywhere"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's own `.gitignore` citation in open_gaps#7 is INACCURATE and mislocates the line range. The draft writes 'The actual .gitignore ignores only .playwright-mcp/, .env*, and OS files (.gitignore:41-47)'. Verified: lines 41-47 cover ONLY the `.playwright-mcp/` (42) and `.env` (45-47) blocks; OS files (.DS_Store/Thumbs.db) are at 37-39, and the IDE block (incl. the gitignored `.vscode/`) is at 30-35. The cited range is wrong and the enumeration omits the IDE/`.vscode` entries \u2014 the very entries that matter for the settings.json binding. The substance (claude-progress.txt is NOT gitignored, so `git add -f` is misleading/dead) is CORRECT and confirmed. Fix the citation to '.gitignore (no c\u2026",
+   "cit": ".gitignore:30-47 (IDE block 30-35 incl. .vscode at 32; .playwright-mcp 41-42; .env 44-47); no claude-progress entry in .gitignore"
+  },
+  {
+   "kind": "missing",
+   "detail": "DEPENDENCY-GRAPH SCHEDULING corroborates Phase-1 placement (contradicting design.md Phase 2) and is unaddressed. The draft's phase-contradiction gap (open_gaps#1) cites design.md:132/15 (Phase 2) vs the Phase-1 task block + Notes line 725. A third independent signal: the task dependency graph schedules task 25.1 in wave 17 and 25.2 in wave 18 (tasks.md:811-815) \u2014 immediately after wave 16 (tasks 21.2-24.1, all Phase-1) and BEFORE wave 19 (task 27.1, the first Phase-2 Postgres task). So the machine-readable build order also places PreCompact in the Phase-1 cluster, not Phase 2. The draft cites only prose/Notes, not the wave graph \u2014 the most load-bearing evidence on build order. Add tasks.md:8\u2026",
+   "cit": "tasks.md:811-815 (wave 17 = '25.1', wave 18 = '25.2'); wave 16 = 21.2-24.1 (Phase 1); wave 19 = 27.1 (Phase 2)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The ears_stories entry for REQ-STATE-001 (Requirement 11.1) cites a criterion '11.4' that does not bear on PreCompact, implying a coverage link that does not exist. The draft's REQ-STATE-001 story says 'Task 1 (_Requirements: 11.1, 11.4_) creates the claude-progress.txt placeholder'. Requirement 11.4 (requirements.md:222) is 'THE System SHALL record an incremental commit per completed Slice as the durable execution trail' \u2014 about per-slice commits by the implementer, NOT about PreCompact or claude-progress.txt. PreCompact's genuine anchors are 11.1 (persist outside model context) and 11.2 (REQ-STATE-002, the checkpoint). Drop the 11.4 reference or relabel it as 'task 1's tag, unrelated to Pr\u2026",
+   "cit": "requirements.md:222 (criterion 11.4 = per-slice incremental commit); tasks.md:18 (task 1 _Requirements: 11.1, 11.4_)"
+  },
+  {
+   "kind": "missing",
+   "detail": "COLLISION with the one-atomic-commit-per-slice invariant and the commit-trailer requirement-ID gate is only half-covered. The draft's open_gaps#4 correctly notes the absent pre_compact_hook.py row in the Hook Failure Modes table (confirmed: design.md:811-816 lists stop/pre_tool_use/post_tool_use/spec_validator/Postgres/plan-approved \u2014 no PreCompact). But it underplays a concrete contradiction: the `chore: PreCompact checkpoint [skip ci]` commit (tasks.md:394) can fire AT ANY MOMENT, including mid-slice in a per-slice worktree. Requirement 7.3 (requirements.md:158) mandates 'one atomic commit per completed Slice' and the implementer (design.md:248) must 'produce exactly one atomic commit' \u2014 a\u2026",
+   "cit": "tasks.md:394 (checkpoint commit, no req-id trailer); requirements.md:158 (7.3 one atomic commit/slice); design.md:248 (implementer 'exactly one atomic commit'); design.md:954-958, requirements.md:142 (Property 10 / REQ-TRACE-002 commit-trailer req-id)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The task-36.1 over-inclusion the draft flags (open_gaps#5) is firmer than 'mild' because a SECOND spec location the draft does not cite directly contradicts it. design.md:218-220: every other decision-producing hook row (Stop:209, PreToolUse:210, SubagentStop:217-218) explicitly 'calls audit_log.append(...) on the decision', but the PreCompact row (design.md:220) lists 'Nothing (checkpoint write; non-blocking)' \u2014 no audit_log.append, no allow/block, no requirement.id. Yet task 36.1 (tasks.md:539-541) lumps PreCompact into 'all six hooks ... emit OTel gate-decision events' with attributes `decision (allow/block)` and `requirement.id`, neither of which PreCompact has. REQ-OBS-003 (requirements\u2026",
+   "cit": "design.md:220 (PreCompact: no audit_log.append, decision='Nothing'); design.md:209,210,217-218 (other hooks call audit_log.append); requirements.md:236 (REQ-OBS-003 'WHEN a hook makes a gate decision'); tasks.md:539-541"
+  },
+  {
+   "kind": "missing",
+   "detail": "GLOSSARY-vs-CRITERION scope mismatch for the PreCompact_Hook term is unaddressed. The glossary (requirements.md:26) defines PreCompact_Hook as one 'that checkpoints PROGRESS before context compaction' \u2014 progress only. But the actual EARS criterion (requirements.md:220) requires it to checkpoint 'progress AND EVIDENCE records', and design.md:220 expands the set to claude-progress.txt + current evidence state + feature_list.json. The draft marks the glossary-term ears_story as status=addressed without noting the glossary's narrower 'progress'-only wording is itself inconsistent with the criterion it summarizes \u2014 a documentation defect compounding the artifact-set disagreement in open_gaps#3. F\u2026",
+   "cit": "requirements.md:26 ('checkpoints progress before context compaction') vs requirements.md:220 ('progress and evidence records') vs design.md:220"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-STATE-001 (Requirement 11.1)",
+   "criterion": "THE System SHALL persist all mutable run state outside model context, in files, git history, and the durable Postgres store.",
+   "how": "PreCompact contributes by persisting progress + evidence to files (claude-progress.txt, snapshot JSON) and git \u2014 partially realizing the 'outside model context, in files, git history' obligation. Task 1 (_Requirements: 11.1, 11.4_) creates the claude-progress.txt placeholder; PreCompact is the write\u2026",
+   "status": "partial",
+   "cit": "requirements.md:219; tasks.md:11-17; tasks.md:392-394"
+  },
+  {
+   "req_id": "Requirement 12.3 / task 36.1 (hook decision event forwarding)",
+   "criterion": "WHEN a hook makes a gate decision, THE System SHALL emit that decision to the same trace endpoint as agent spans.",
+   "how": "task 36.1 extends 'all six hooks (Stop, PreToolUse, PostToolUse, SubagentStop, SessionStart, PreCompact)' to emit OTel hook.decision events (tasks.md:538-542). NOTE: PreCompact makes no allow/block gate decision (it always exits 0), so what it emits is a no-op/checkpoint event, not a gate decision \u2014\u2026",
+   "status": "partial",
+   "cit": "requirements.md:236; tasks.md:538-542"
+  }
+ ],
+ "citation_issues": []
+}

@@ -1,0 +1,209 @@
+{
+ "idx": 18,
+ "component": "audit_log.py",
+ "file_path": "tools/audit_log.py",
+ "phase": "2",
+ "what": "`tools/audit_log.py` is the audit-log PRODUCER for the tamper-evident, append-only, hash-chained gate-decision log (Requirement 27 / REQ-AUDIT-001..003). It exposes a single public function `append(event, tool, decision, reason, requirement_id, actor_agent)` that constructs one `gate_audit_log` row: it reads the prior entry's `entry_hash` to use as this row's `prev_hash` (genesis row uses `prev_hash = sha256(\"\")`, the empty-string digest, as a documented sentinel), builds the canonical form as deterministic JSON of `(seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at)`, computes `entry_hash = sha256(canonical_row || prev_hash)` (the hash INCLUDES `seq` and \u2026",
+ "open_gaps": [
+  {
+   "gap": "No machine check for the only `[DET]` addendum requirement left un-Z3-verified. The new-8 Z3 group (CHECK-10a..13b) covers amendment monotonicity, resumed-state integrity, checklist-approval, and the omission gate \u2014 but NOT the audit-log hash chain. requirements.md:510 lists the Z3 group for Property 28 as 'CHECK (audit chain)', a placeholder that does not correspond to any real CHECK id in formal_verification_merged.py.",
+   "severity": "underspecified",
+   "fix": "Either (a) keep it runtime-only but FIX the dangling citation by changing requirements.md:510 'CHECK (audit chain)' to '\u2014 (runtime/CI; audit_verify.py + Property 28 PBT)' to match design.md:1110's honest 'no Z3 check' statement; or (b) add a small Z3 family (e.g. CHECK-14a/14b) modeling 'tampered link \u21d2 verify fails' / 'intact chain \u21d2 verify passes' and bump the self-counted total. Cite requirements.md:510 vs design.md:1110.",
+   "cit": "requirements.md:510; design.md:1110; formal_verification_merged.py:16-18"
+  },
+  {
+   "gap": "audit_log.py has NO Error-Handling row. Every other hook and tool (stop_hook, pre_tool_use_hook, post_tool_use_hook, spec_validator, Postgres-unavailable, plan-approved.json) has an explicit failure-mode row in the Error Handling section, but audit_log.py / gate_audit_log appears nowhere in it. It is unspecified whether a failed `append()` (DB write error, hash-compute error) should fail-OPEN (let the gate decision proceed, lose the audit entry) or fail-CLOSED (block the gate). For a tamper-evidence control this is the central design question and it is unanswered.",
+   "severity": "underspecified",
+   "fix": "Add an Error-Handling row: on `audit_log.append` failure, write to the file-backed fallback log (per tasks.md:730) and DO NOT block the originating gate decision (audit must not become a new availability gate), but emit an OTel warning and mark the chain as needing reconciliation. Make the fail-open-for-availability vs file-fallback policy explicit. Cite design.md:806-816.",
+   "cit": "design.md:806-816; tasks.md:730"
+  },
+  {
+   "gap": "Caller-set inconsistency: REQ-AUDIT-001.4 names EXACTLY three callers (stop/pre/subagent), but design.md:218 adds a FOURTH producer call site \u2014 the SubagentStop omission-declaration guard \u2014 calling append on its block decision. The requirement text and the design wiring table disagree on the set of call sites.",
+   "severity": "inconsistency",
+   "fix": "Reconcile: either fold the omission-declaration guard into 'subagent_stop_hook.py' in the REQ-AUDIT-001.4 caller list (it lives inside that hook, so 3 hooks / 4 decision points), or explicitly enumerate all decision points. Add a clarifying clause to requirements.md:460 that 'subagent_stop_hook.py' includes both its evidence-schema and omission-declaration decisions. Cite requirements.md:460 vs design.md:218.",
+   "cit": "requirements.md:460; design.md:217-218"
+  },
+  {
+   "gap": "Incomplete producer coverage across PreToolUse sub-gates. REQ-AUDIT-001 says append fires on EVERY allow/block decision, but the design wiring table marks only the PreToolUse plan-gate row (design.md:210) as an audit producer. The scope gate (211), integrity guard (212), checklist-approval guard (213), artifact guard (214), and status guard (215) all make allow/block decisions yet none is annotated as calling audit_log.append. Likewise PostToolUse (216) makes a feedback decision and is excluded (defensible since it never blocks, but undocumented as a deliberate exclusion).",
+   "severity": "missing-wiring",
+   "fix": "Either annotate ALL PreToolUse sub-gate rows (211-215) with 'calls audit_log.append(...) on the decision', or add a one-line rule under the wiring table: 'every PreToolUse sub-gate that returns allow/block calls audit_log.append; PostToolUse is exempt because it never gates.' Cite design.md:210-216.",
+   "cit": "design.md:210-216; requirements.md:457"
+  },
+  {
+   "gap": "`acting_agent` vs `actor_agent` naming violation. design.md:473 explicitly declares 'Canonical name is actor_agent everywhere (no acting_agent).' Yet tasks.md:655 (Property 24 test, task 39.13) uses `acting_agent` twice. Since audit_log.append's signature uses `actor_agent`, a test or impl that keys on `acting_agent` would silently mismatch.",
+   "severity": "defect",
+   "fix": "Change both occurrences of `acting_agent` in tasks.md:655 to `actor_agent` to honor the design.md:473 canon.",
+   "cit": "tasks.md:655; design.md:473"
+  },
+  {
+   "gap": "Phase/temporal wiring gap. The producer audit_log.py is a Phase 2 component (design.md:144) and is wired into its three Phase 0 caller hooks only at task 52.3 (a Phase 4-adjacent added task). Consequently, during Phase 0/1 (and most of 2/3) the Stop/PreToolUse/SubagentStop hooks make gate decisions WITHOUT producing any audit entries \u2014 the 'append every gate decision' invariant (REQ-AUDIT-001) does not hold until task 52.3 lands. There is no requirement that the chain be complete-from-first-decision, so early decisions are permanently unlogged.",
+   "severity": "missing-wiring",
+   "fix": "State explicitly in tasks.md that REQ-AUDIT-001 completeness begins at task 52.3 and that pre-52.3 decisions are out of audit scope; OR move the audit_log.append wiring earlier (it only needs the file-backed fallback, which has no Phase-2 DB dependency) so the chain is complete from Phase 0. Cite design.md:144; tasks.md:970.",
+   "cit": "design.md:144; tasks.md:968, tasks.md:970"
+  },
+  {
+   "gap": "Concurrency / chain-linearization unspecified. The hash chain is strictly sequential (each entry_hash depends on the immediately prior row), and seq is a BIGSERIAL. Nothing specifies how concurrent append() calls from different hook processes (e.g., a Stop hook and a SubagentStop in overlapping subagent sessions) serialize their reads of 'the prior entry_hash'. A race could read the same prev_hash for two rows, producing a fork that audit_verify would (correctly) flag as tampering \u2014 a false positive that bricks the merge gate.",
+   "severity": "underspecified",
+   "fix": "Specify that append() acquires a row/advisory lock (e.g. SELECT ... FOR UPDATE on a chain-head sentinel, or pg_advisory_xact_lock keyed on the log) so prev_hash reads and entry inserts are serialized; OR derive prev_hash from seq-ordering inside a single transaction. Add this to the task 52.1 description and an Error-Handling row. Cite design.md:1156-1167.",
+   "cit": "design.md:1156-1167; tasks.md:968"
+  },
+  {
+   "gap": "design.md/tasks.md thinness on the producer's internals. Unlike stop_hook.py (full evaluate_stop pseudocode, no-progress watchdog, reentrancy guard) and pre_tool_use_hook.py (full check_plan_approval pseudocode), audit_log.py has NO pseudocode, NO function-body description beyond the one-line inventory row and the SQL comment block, and NO unit-test task of its own (only the Property 28 PBT in task 39.18 exercises it indirectly via audit_verify.py). The write-side hashing logic \u2014 arguably the security-critical half \u2014 is described only by the canonical-form bullet, never as code or a dedicated test.",
+   "severity": "underspecified",
+   "fix": "Add an audit_log.py pseudocode block to design.md (mirroring the evaluate_stop / check_plan_approval treatment) showing read-prev-hash \u2192 canonicalize \u2192 sha256 \u2192 insert, and add a unit-test subtask under task 52.1 asserting: genesis prev_hash == sha256(''), entry_hash determinism for fixed input, and that a round-trip append\u2192audit_verify passes. Cite design.md:617-637 (Phase-0 'Test to pass' column) for the established per-component test pattern that audit_log.py lacks.",
+   "cit": "design.md:144; tasks.md:968"
+  },
+  {
+   "gap": "No retention / pruning policy for REQ-AUDIT-003 'retain the log'. The requirement says retain, append-only, but nothing bounds growth or specifies retention duration. For a long-lived control plane the gate_audit_log grows unboundedly with every decision; an append-only hash chain cannot prune the middle without breaking verification.",
+   "severity": "underspecified",
+   "fix": "Specify a retention/archival approach compatible with the chain (e.g., periodic checkpoint-and-archive of a verified prefix, recording the archived prefix's tip hash as the new genesis-equivalent), or explicitly state unbounded retention is accepted for v1. Cite requirements.md:459.",
+   "cit": "requirements.md:459"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "OTel-6-hooks vs audit-3-hooks divergence \u2014 the single strongest disproof of REQ-AUDIT-001's 'append EVERY gate decision' that the draft never cites. Task 36.1 explicitly wires ALL SIX hooks (Stop, PreToolUse, PostToolUse, SubagentStop, SessionStart, PreCompact) to emit the gate-decision tuple {hook.event, tool.name, decision allow/block, reason, requirement.id} to OTel for REQ-OBS-003. Task 52.3 wires only THREE (stop/pre/subagent) to call audit_log.append. The draft's own REQ-OBS-003 ears_story calls OTel and the audit log 'the two distinct sinks for the SAME decision,' but they demonstrably cover different hook sets: the system itself treats PostToolUse/SessionStart/PreCompact decisions as\u2026",
+   "cit": "tasks.md:539-542 (six hooks \u2192 OTel) vs tasks.md:970 (three hooks \u2192 audit); requirements.md:457 ('every gate decision')"
+  },
+  {
+   "kind": "missing",
+   "detail": "Task-scope contamination: audit_log.py shares parent task 52 with reasoning-loop detection (REQ-OBS-006), and the draft never flags the resulting requirement-tag ambiguity. Parent task 52 is titled 'Tamper-evident gate-decision audit log + reasoning-loop detection' and is tagged '_Requirements: REQ-AUDIT-001..003, REQ-OBS-006_' (tasks.md:967). The audit-chain CI workflow task 40.3 is ALSO mis-tagged '_Requirements: 12.x (REQ-AUDIT-001..003, REQ-OBS-006)_' (tasks.md:703) \u2014 bundling an unrelated observability requirement onto the audit-chain gate. The draft correctly scopes audit_log.py as NOT owning reasoning-loop detection, but does not call out that the parent task and CI-gate tasks conflat\u2026",
+   "cit": "tasks.md:967, tasks.md:703; design.md:1183 (reasoning-loop lives in observability, not audit_log.py)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's 'incomplete PreToolUse producer coverage' gap undercounts the sub-gates and omits the newest one. The draft enumerates 5 un-wired PreToolUse sub-gates (scope/integrity/checklist/artifact/status). The design wiring table actually has SIX PreToolUse sub-gates: plan gate (210, the only audit producer), scope gate (211), integrity guard (212, REQ-STATE-005 \u2014 added by task 49.1), checklist-approval guard (213, REQ-SPEC-016/CHECK-12), artifact guard (214), and status guard (215). The integrity guard and checklist-approval guard are exit-2 BLOCKING gates that make allow/block decisions and are conspicuously un-audited \u2014 the integrity guard especially, since a blocked-resume is a securit\u2026",
+   "cit": "design.md:210-215 (six sub-gate rows); design.md:212 (integrity guard, REQ-STATE-005); design.md:213 (checklist-approval guard)"
+  },
+  {
+   "kind": "weak",
+   "detail": "PRD_MERGED line citations in the draft are off-by and point to adjacent lines, weakening traceability of two ears_stories/behaviors. Draft cites 'PRD_MERGED:63' for retention (REQ-AUDIT-003) and 'PRD_MERGED:104' for actor attribution. The file is PRD_MERGED_canonical_spec_to_evidence.md; line 63 is REQ-AUDIT-003 (retention \u2014 correct in substance) but line 61 is REQ-AUDIT-001; line 104 is the Coverage-&-Traceability pain-point row ('subagent identity in evidence + audit actor (REQ-AUDIT-001), Property 24 role separation') \u2014 substantively supports actor attribution but is a matrix row, not a normative statement. These citations resolve to real supporting text, so the claims hold, but the exact\u2026",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:61-63 (REQ-AUDIT-001/002/003), :104 (traceability matrix row)"
+  },
+  {
+   "kind": "missing",
+   "detail": "REQ-OBS-003 / Requirement 12.3 forwarding obligation bears on the SAME tuple the producer writes, but the audit producer's tuple and the OTel tuple are NOT field-aligned, and the draft does not flag the schema mismatch. audit_log.append records actor_agent (REQ-AUDIT-001) but task 36.1's OTel attribute set is {hook.event, tool.name, decision, reason, requirement.id} \u2014 it has NO actor_agent attribute. So the 'same decision' is recorded with different field sets in the two sinks: the durable audit log carries per-agent attribution (actor_agent, the thing closing pain-point category 4), the live OTel span does not. The draft asserts the two are 'the same decision tuple' forwarded to two sinks (\u2026",
+   "cit": "requirements.md:457 (audit tuple incl. actor agent) vs tasks.md:540 (OTel attrs omit actor_agent); requirements.md:236 (REQ-OBS-003)"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "Draft marks REQ-AUDIT-003 / Requirement 27.3 (retention) status='partial' but its citations and the actual spec make retention strictly weaker than 'partial' implies \u2014 there is NO retention mechanism anywhere, only the word 'retain.' The draft's open_gaps DOES include the no-retention-policy gap (good), but the ears_story for 27.3 says retention is 'implicit in the append-only table' and rates it 'partial,' implying some mechanism exists. In fact requirements.md:459 and PRD:63 only say 'retain\u2026 as the execution-proof complement'; neither names a store-duration, archival, or growth bound, and design.md's gate_audit_log DDL (1156-1167) has no retention column or policy. 'Partial' overstates; t\u2026",
+   "cit": "requirements.md:459; design.md:1156-1167 (no retention field/policy in DDL)"
+  },
+  {
+   "kind": "weak",
+   "detail": "Draft's Property-28 'no real Z3 CHECK id' gap is correct and well-evidenced, but it understates the count discrepancy this creates. requirements.md:510 lists Property 28's Z3 group as 'CHECK (audit chain)' \u2014 a placeholder. The harness self-counts to 34 = 14 core + 12 Kiro + 8 new (CHECK-10a..13b), and design.md:1110 honestly states 'no Z3 check \u2014 runtime/CI verified.' The 8-new group (CHECK-10a..13b) is fully allocated to amendment/resume/checklist/omission \u2014 leaving Property 28 with a dangling cross-reference row in the requirements.md:505-510 mapping table that has an em-dash Local-invariant and a non-existent Z3 group id. The draft flags the dangling citation but should also note this is \u2026",
+   "cit": "requirements.md:505-510; formal_verification_merged.py group CHECK-10a..13b (self-counted 34); design.md:1110"
+  },
+  {
+   "kind": "missing",
+   "detail": "No unit-test 'Test to pass' obligation for audit_log.py despite the Phase-0 component pattern, and the draft's pseudocode-thinness gap does not connect it to the missing dedicated test TASK. Every Phase-0 spine component has a 'Test to pass' column (design.md:621-637) and most tools have an explicit unit-test subtask (evidence_collector 3.3, spec_validator 4.5, each hook). audit_log.py (task 52.1) has NO unit-test subtask of its own \u2014 only the indirect Property-28 PBT (39.18) which exercises audit_VERIFY.py, not the producer's hashing. The draft's open_gap notes the thinness but does not state that this leaves the security-critical write-side hashing (genesis sentinel, canonical-JSON determi\u2026",
+   "cit": "tasks.md:968 (52.1 has no test subtask); tasks.md:679-682 (39.18 tests audit_verify); design.md:621-637 (per-component test pattern)"
+  },
+  {
+   "kind": "weak",
+   "detail": "Concurrency/linearization gap is real and well-argued by the draft, but the draft misses that the design ALREADY chose BIGSERIAL seq AND includes seq in the hashed canonical form \u2014 which converts a benign concurrency artifact into a guaranteed false-positive. Because entry_hash = sha256(canonical_row || prev_hash) INCLUDES seq (design.md:1166,1172), and two concurrent appends reading the same prev_hash would receive two distinct BIGSERIAL seq values, the chain forks at identical prev_hash with different seq \u2014 exactly the 'prev_hash != recomputed(prior)' condition audit_verify treats as tampering (Property 28). The draft says a race 'could read the same prev_hash for two rows' but does not co\u2026",
+   "cit": "design.md:1166, design.md:1172 (entry_hash INCLUDES seq); design.md:1108 (verify fails on prev_hash mismatch); tasks.md:700-701"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-AUDIT-001 / Requirement 27.4 (Producer)",
+   "criterion": "a new `tools/audit_log.py` SHALL expose `append(event, tool, decision, reason, requirement_id, actor_agent)`, and it SHALL be CALLED by `stop_hook.py`, `pre_tool_use_hook.py`, and `subagent_stop_hook.py` on every allow/block decision; `tools/audit_verify.py` SHALL recompute the chain.",
+   "how": "Component inventory + task 52.1/52.3 define the producer and its wiring into exactly these three hooks.",
+   "status": "partial",
+   "cit": "requirements.md:460; design.md:144; tasks.md:968, tasks.md:970"
+  },
+  {
+   "req_id": "REQ-AUDIT-003 / Requirement 27.3",
+   "criterion": "THE System SHALL retain the hash-chained gate-decision log as the execution-proof complement to SLSA build provenance.",
+   "how": "Retention is implicit in the append-only `gate_audit_log` table; audit_log.py is the writer. No explicit retention-period or purge policy is specified.",
+   "status": "partial",
+   "cit": "requirements.md:459; PRD_MERGED:63"
+  },
+  {
+   "req_id": "Property 28 (Audit-Log Tamper Detection / Hash Chain)",
+   "criterion": "For any gate_audit_log chain, recomputing each entry_hash as sha256(canonical_row || prev_hash) (genesis prev_hash=sha256(\"\")) shall reproduce every stored entry_hash; any row whose prev_hash != recomputed digest of the prior row shall fail verification.",
+   "how": "Pins the exact algorithm audit_log.append must implement so audit_verify can reproduce it. Explicitly NO Z3 check \u2014 runtime/CI verified via audit_verify.py and PBT test task 39.18 (tests/property/test_audit_log.py).",
+   "status": "partial",
+   "cit": "design.md:1104-1110; tasks.md:679-682"
+  },
+  {
+   "req_id": "Hook wiring \u2014 PreToolUse plan gate",
+   "criterion": "PreToolUse (plan gate, any Write/Edit) calls `audit_log.append(...)` on the decision (REQ-AUDIT-001).",
+   "how": "Listed as producer for the plan-gate row only; the other PreToolUse sub-gates (scope/integrity/checklist/artifact/status) are NOT listed as calling append despite making allow/block decisions.",
+   "status": "partial",
+   "cit": "design.md:210, design.md:211-215"
+  },
+  {
+   "req_id": "Property 24 / Requirement 9.2 (actor_agent semantics)",
+   "criterion": "The actor_agent identity recorded shall be the Verifier (verifier.md), never the Implementer (implementer.md).",
+   "how": "audit_log.append takes actor_agent as a parameter; design declares actor_agent canonical everywhere. Bears on audit_log because it shares the field-name canon. Property 24 itself is checked on evidence_records, not the audit log.",
+   "status": "partial",
+   "cit": "design.md:473, design.md:1068; tasks.md:655"
+  },
+  {
+   "req_id": "Postgres-unavailable fallback (N-25)",
+   "criterion": "The gate_audit_log producer appends to the file-backed log when the DB is unavailable and reconciles on reconnect.",
+   "how": "Stated as a Notes-section reconciliation rule; not reflected in audit_log.py's own component/task description or an Error-Handling row.",
+   "status": "partial",
+   "cit": "tasks.md:730"
+  }
+ ],
+ "citation_issues": [
+  "requirements.md:457 \u2014 CONFIRMED correct. Line 457 is Requirement 27.1 ('THE System SHALL append every gate decision\u2026') which matches the claim.",
+  "requirements.md:460 \u2014 CONFIRMED correct. Line 460 is Requirement 27.4 (Producer clause naming audit_log.py, stop_hook.py, pre_tool_use_hook.py, subagent_stop_hook.py).",
+  "requirements.md:461 \u2014 CONFIRMED correct. Line 461 is Requirement 27.5 (hash-chain canonical form, genesis sentinel, entry_hash formula).",
+  "requirements.md:458 \u2014 CONFIRMED correct. Line 458 is Requirement 27.2 (tamper detection / REQ-AUDIT-002).",
+  "requirements.md:459 \u2014 CONFIRMED correct. Line 459 is Requirement 27.3 (retain the log / SLSA complement / REQ-AUDIT-003).",
+  "requirements.md:462 \u2014 CONFIRMED correct. Line 462 is Requirement 27.6 (verification trigger / CI required check).",
+  "requirements.md:236 \u2014 CONFIRMED correct. Line 236 is Requirement 12 Acceptance Criteria #3 (WHEN a hook makes a gate decision\u2026emit to same trace endpoint).",
+  "requirements.md:510 \u2014 CONFIRMED correct. Line 510 is the table row: '| \u2014 (audit-log tamper-evidence) | Property 28 | CHECK (audit chain) | Requirement 27 |'.",
+  "design.md:144 \u2014 CONFIRMED correct. Line 144 is the component inventory row for audit_log.py (Phase 2, Producer description).",
+  "design.md:145 \u2014 CONFIRMED correct. Line 145 is the component inventory row for audit_verify.py (Phase 3, recomputes chain).",
+  "design.md:209 \u2014 CONFIRMED correct. Line 209 is the Stop hook wiring table row (calls audit_log.append on allow/block decision).",
+  "design.md:210 \u2014 CONFIRMED correct. Line 210 is the PreToolUse plan gate row (calls audit_log.append on the decision).",
+  "design.md:211-215 \u2014 CONFIRMED correct. Lines 211-215 are the scope gate, integrity guard, checklist-approval guard, artifact guard, and status guard rows \u2014 none lists audit_log.append, confirming the missing-wiring gap claim.",
+  "design.md:216 \u2014 CONFIRMED correct. Line 216 is the PostToolUse row (exit 1, non-blocking, no audit_log call).",
+  "design.md:217 \u2014 CONFIRMED correct. Line 217 is the SubagentStop evidence-schema row (calls audit_log.append).",
+  "design.md:218 \u2014 CONFIRMED correct. Line 218 is the SubagentStop omission-declaration guard row (calls audit_log.append on block decision).",
+  "design.md:473 \u2014 CONFIRMED correct. Line 473 in design.md is the evidence_records DDL comment 'Canonical name is actor_agent everywhere (no acting_agent).'",
+  "design.md:1068 \u2014 CONFIRMED correct. Line 1068 is Property 24 body ('the actor_agent identity shall be the Verifier subagent').",
+  "design.md:1104-1110 \u2014 CONFIRMED correct. Lines 1104-1110 are the Property 28 section (heading, body, validates clause including 'no Z3 check \u2014 runtime/CI verified').",
+  "design.md:1110 \u2014 CONFIRMED correct. Line 1110 is '**Validates: Requirements 28 (REQ-AUDIT-001/002). Runtime mechanism: audit_verify.py chain verifier (no Z3 check \u2014 runtime/CI verified).**'",
+  "design.md:1155-1167 \u2014 CONFIRMED correct. Lines 1155-1167 contain the gate_audit_log CREATE TABLE DDL.",
+  "design.md:1156-1167 \u2014 CONFIRMED correct. The gate_audit_log table body occupies lines 1156-1167 (BIGSERIAL seq through closing paren).",
+  "design.md:1163 \u2014 CONFIRMED correct. Line 1163 is 'actor_agent    TEXT NOT NULL,' in the gate_audit_log DDL.",
+  "design.md:1165 \u2014 CONFIRMED correct. Line 1165 is 'prev_hash      TEXT NOT NULL, -- sha256 of the prior row\u2026genesis row uses sha256(\"\")\u2026'",
+  "design.md:1166 \u2014 CONFIRMED correct. Line 1166 is 'entry_hash     TEXT NOT NULL -- sha256(canonical_row || prev_hash); INCLUDES seq and created_at'.",
+  "design.md:1168-1172 \u2014 CONFIRMED correct. Lines 1168-1172 are the hash-chain spec comment block (genesis sentinel, canonical form, entry_hash formula).",
+  "design.md:1169 \u2014 CONFIRMED correct. Line 1169 is the genesis entry sentinel comment.",
+  "design.md:1170-1171 \u2014 CONFIRMED correct. Lines 1170-1171 are the canonical form definition.",
+  "design.md:1172 \u2014 CONFIRMED correct. Line 1172 is 'entry_hash = sha256(canonical_row || prev_hash), INCLUDING seq and created_at'.",
+  "design.md:1173-1174 \u2014 CONFIRMED correct. Lines 1173-1174 describe the Producer (audit_log.append callers).",
+  "design.md:1175-1176 \u2014 CONFIRMED correct. Lines 1175-1176 are the verification trigger and audit_verify chain-recompute comment.",
+  "design.md:806-816 \u2014 CONFIRMED correct. Lines 806-816 are the Error Handling / Hook Failure Modes table. However, the table has NO row for audit_log.py failure \u2014 confirming the gap the draft identifies. The citation accurately points to the section that lacks the entry.",
+  "design.md:815 \u2014 CONFIRMED correct. Line 815 is 'Postgres unavailable | Fall back to feature_list.json as sole source of truth for gate decisions. Log warning to OTel.' This cite is used in the open_gap for error handling. The audit-log file-fallback is described only at tasks.md:730, not at design.md:815 \u2014 the cite is therefore slightly misleading (design.md:815 covers general Postgres fallback, not audit_log specifically).",
+  "design.md:1066-1068 \u2014 CONFIRMED correct. Lines 1066-1068 are the Property 24 section (header, blank, body).",
+  "tasks.md:453-456 \u2014 CONFIRMED correct. Lines 453-456 are task 28.8 (gate_audit_log migration description including genesis sentinel and canonical form).",
+  "tasks.md:454 \u2014 CONFIRMED correct. Line 454 is the gate_audit_log append-only table column list.",
+  "tasks.md:455 \u2014 CONFIRMED correct. Line 455 is the genesis/canonical-form/entry_hash specification in task 28.8.",
+  "tasks.md:539-542 \u2014 MINOR OFF-BY-ONE. Task 36.1 header is at line 539; the substantive sub-bullets are at lines 540-542. The range is correct as to content.",
+  "tasks.md:655 \u2014 CONFIRMED correct AND is a real defect. Line 655 uses 'acting_agent' twice in task 39.13, violating the design.md:473 canonical name 'actor_agent everywhere (no acting_agent)'.",
+  "tasks.md:679-681 \u2014 MINOR OFF-BY-ONE. Task 39.18 content spans lines 679-682; the draft cites 679-681, which omits the final `_Requirements: REQ-AUDIT-002_` line at 682. Content is accurate.",
+  "tasks.md:700-701 \u2014 MINOR OFF-BY-ONE. Task 40.3 header is at line 699; lines 700-701 are its first two sub-bullets. The range is accurate for the sub-bullet content.",
+  "tasks.md:700-701 \u2014 CONFIRMED correct (task 40.3 audit-chain-verify CI workflow).",
+  "tasks.md:270 \u2014 MINOR: Line 270 is `_Requirements: 10.3, 18.3_` \u2014 the last line of task 14.2. The substantive content is at lines 268-269. The citation points to the requirements tag, not the text content, but it is not a phantom.",
+  "tasks.md:730 \u2014 CONFIRMED correct. Line 730 is the N-25 Postgres-unavailable reconciliation note, explicitly mentioning 'The gate_audit_log producer (task 52.1) appends to the file-backed log when the DB is unavailable and reconciles on reconnect.'",
+  "tasks.md:968 \u2014 CONFIRMED correct. Line 968 is task 52.1 (Audit-log PRODUCER audit_log.py).",
+  "tasks.md:969 \u2014 CONFIRMED correct. Line 969 is task 52.2 (Audit-chain verifier audit_verify.py).",
+  "tasks.md:970 \u2014 CONFIRMED correct. Line 970 is task 52.3 (Wire audit-log producer into the three hooks).",
+  "PRD_MERGED:63 \u2014 CONFIRMED correct. Line 63 is REQ-AUDIT-003 ('retain the hash-chained gate-decision log as the execution-proof complement\u2026').",
+  "PRD_MERGED:104 \u2014 CONFIRMED correct. Line 104 is the Category 4 row in the coverage matrix (mentions 'audit actor (REQ-AUDIT-001), Property 24 role separation').",
+  "formal_verification_merged.py:16-18 \u2014 CONFIRMED correct. Lines 16-18 list the new-8 group (CHECK-10a..13b = amendment monotonicity, resumed-state integrity, checklist-approval-before-use, omission-declaration gate). Audit-log tamper evidence is absent from this group, confirming the gap.",
+  "DEFECT \u2014 tasks.md:655 uses 'acting_agent' twice, violating the canonical field name 'actor_agent' established in design.md:473. This is a real naming inconsistency that would cause a silent mismatch if a test keys on 'acting_agent' while audit_log.append uses 'actor_agent'.",
+  "MINOR IMPRECISION \u2014 design.md:815 is cited for the audit-log Postgres-unavailable fallback. The actual audit-log\u2013specific fallback text is at tasks.md:730. design.md:815 describes the general gate fallback to feature_list.json, not the audit-log file-backed fallback specifically. The citation is slightly off-target but not a phantom.",
+  "ALL OTHER CITATIONS VERIFIED: every file:line reference in the draft resolves to text consistent with what the draft claims it says. No phantom citations, no mis-numbered line references beyond the minor range-end discrepancies noted above."
+ ]
+}

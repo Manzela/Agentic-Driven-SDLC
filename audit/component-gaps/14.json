@@ -1,0 +1,178 @@
+{
+ "idx": 14,
+ "component": "db/migrations/ (all 8 tables 001-008)",
+ "file_path": "db/migrations/*.sql",
+ "phase": "2",
+ "what": "db/migrations/ is eight ordered Postgres DDL files (001_requirements.sql through 008_gate_audit_log.sql) creating the durable-state schema of the Spec-to-Evidence Control System on Neon (serverless Postgres, per-PR branching). It is a Phase-2 data/schema component; it does not run logic, its obligation is to define eight tables with exact columns, CHECK constraints, FKs, defaults, and uniqueness per the design Postgres-schema section. Tables: requirements (001; CHECK type, CHECK provenance), coverage_items (002; status CHECK DEFAULT unproven, in_scope BOOLEAN NOT NULL DEFAULT TRUE, FK), traceability_links (003; link_type CHECK, direction CHECK, FK), evidence_records (004; four fields plus ac\u2026",
+ "open_gaps": [
+  {
+   "gap": "COMPONENT DOES NOT EXIST ON DISK. No db/migrations/ directory and no .sql file anywhere in the repo; only spec text references them. Every task 28.x is unchecked. Expected for a spec-only repo, but it means all citations are spec-internal - zero implementation to verify against.",
+   "severity": "missing-wiring",
+   "fix": "State in design/tasks that db/migrations/ is unbuilt (Phase-2). When built, scaffold the directory (task 1) and author all eight files exactly per the design.md Postgres-schema and addendum blocks.",
+   "cit": "Filesystem find for .sql returns nothing; tasks.md:423-456 all unchecked"
+  },
+  {
+   "gap": "requirement_versions COLUMN-SET CONTRADICTION between design.md and tasks.md. design.md:1141-1151 specifies version, prior_text, new_text, author, rationale, created_at, UNIQUE requirement_id+version; tasks.md:450 specifies version, amended_at, amendment_reason, a re-proven flag. requirements.md:433 says prior text, new text, author, timestamp, rationale. Task column names mismatch the authoritative DDL and add a re-proven flag the design omits (design tracks re-proof via coverage_items.status reset).",
+   "severity": "inconsistency",
+   "fix": "Make tasks.md 28.7 mirror the design.md DDL verbatim: prior_text, new_text, author, rationale, created_at; drop the standalone re-proven flag OR add it to the design DDL if intended.",
+   "cit": "design.md:1141-1151 vs tasks.md:449-451 vs requirements.md:433"
+  },
+  {
+   "gap": "evidence_records.actor_agent is present in the design DDL (design.md:473, REQUIRED for Property 24) but MISSING from task 28.4's column description (tasks.md:437-438 lists only the evidence_complete CHECK and FK). A builder following the task would omit actor_agent and silently break Property 24 / Property 19.",
+   "severity": "missing-wiring",
+   "fix": "Add actor_agent TEXT NOT NULL to task 28.4's column list, pinned to Property 24 (verifier-only).",
+   "cit": "design.md:473 vs tasks.md:437-439"
+  },
+  {
+   "gap": "NO MIGRATION RUNNER / TOOLING is named anywhere. No Flyway/sqitch/alembic/golang-migrate/goose/dbmate, no schema_migrations tracking table, no apply order beyond the file-name prefix, no psql -f invocation, no CI step applying migrations to the real (non-test) Neon database. Only application path is inside the integration tests on a test Neon branch.",
+   "severity": "underspecified",
+   "fix": "Specify the runner and a schema_migrations bookkeeping table; add a task/CI step applying migrations to the target Neon branch on deploy.",
+   "cit": "tasks.md:423-460; grep for migrate tools returns nothing"
+  },
+  {
+   "gap": "NO IDEMPOTENCY / RE-RUN / ROLLBACK semantics. Migrations are not specified idempotent (no IF NOT EXISTS), there are no DOWN/rollback files, and no statement on partial-apply or re-run. For the append-only audit table this matters (re-running 008 would error or duplicate).",
+   "severity": "underspecified",
+   "fix": "State the idempotency contract (IF NOT EXISTS or tracked one-time apply via schema_migrations) and whether DOWN migrations exist; document gate_audit_log as create-once.",
+   "cit": "design.md:429-509,1139-1177; no idempotency text found"
+  },
+  {
+   "gap": "gate_audit_log append-only is asserted by convention only - the DDL has no DB-level enforcement (no REVOKE UPDATE/DELETE, no BEFORE UPDATE/DELETE trigger). The hash chain detects tampering after the fact but the DB does not prevent row mutation, weaker than REQ-AUDIT-001 intent.",
+   "severity": "underspecified",
+   "fix": "Add to migration 008 a REVOKE UPDATE,DELETE on gate_audit_log from the app role and/or a trigger raising on UPDATE/DELETE.",
+   "cit": "design.md:1156-1167; requirements.md:457"
+  },
+  {
+   "gap": "coverage_items.in_scope leaves scope ONLY via a human-authored transition is enforced by NO database mechanism - no trigger, no role separation, no audit. The DB accepts any UPDATE flipping in_scope. Since gates count only in_scope items, an unguarded flip drops a requirement from all completion gates.",
+   "severity": "underspecified",
+   "fix": "Document hook/audit-layer enforcement (capture in_scope flips in audit_log) or add a DB trigger requiring an actor/justification for in_scope=false.",
+   "cit": "design.md:448; requirements.md:128"
+  },
+  {
+   "gap": "evidence_complete CHECK does NOT enforce the output_hash sha256 format the JSON schema enforces (sha256 prefix + 64 hex). The DB CHECK only requires output_hash non-empty. A malformed hash passes the DB constraint but fails JSON-schema validation - a DB/JSON enforcement asymmetry.",
+   "severity": "inconsistency",
+   "fix": "Add a CHECK that output_hash matches the sha256 hex pattern, or explicitly note format enforcement is the JSON-schema/evidence_collector layer job.",
+   "cit": "design.md:474-478 vs design.md:400-403"
+  },
+  {
+   "gap": "DESIGN/TASKS THINNESS for the migrations component itself: the inventory row and Postgres-schema section give per-table DDL, but there is NO dedicated migrations design narrative - no apply-order spec, no naming convention beyond the 001-008 prefix, no owning Postgres role, no index/performance design. The OPA zero-evidence query (Property 22) does a per-requirement COUNT against evidence_records with no index; traceability_links is queried in both directions un-indexed.",
+   "severity": "underspecified",
+   "fix": "Add a Migrations design subsection: apply order/runner, owning role, required indexes (at minimum evidence_records.requirement_id, traceability_links.requirement_id, coverage_items.requirement_id). Add index DDL to the relevant 28.x tasks.",
+   "cit": "design.md:140,425-509; design.md:1050-1052"
+  },
+  {
+   "gap": "No migration creates an index or uniqueness to support Property 19 lookup by requirement_id AND commit_sha on evidence_records, nor a guard against duplicate evidence rows for the same requirement_id+commit_sha+test_name. Duplicate inserts are silently allowed, which could inflate the OPA COUNT in Property 22.",
+   "severity": "underspecified",
+   "fix": "Add a UNIQUE requirement_id+commit_sha+test_name or an index on requirement_id+commit_sha to evidence_records migration 004.",
+   "cit": "design.md:464-478; design.md:1026-1052"
+  },
+  {
+   "gap": "requirements table has no acceptance_criteria/dependencies storage, yet Property 1 requires at least one acceptance criterion per item and dependencies drive scheduling. These live only in feature_list.json's JSON schema, so the Postgres single source of truth (REQ-16.3) is NOT reconstructable to full coverage-item fidelity from the DB alone.",
+   "severity": "inconsistency",
+   "fix": "Either add acceptance_criteria/dependencies columns (TEXT array or a child table) to make the DB a faithful source of truth, or explicitly scope REQ-16.3 so feature_list.json is canonical and Postgres mirrors a subset.",
+   "cit": "design.md:430-440 vs design.md:359-363; requirements.md:298"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "run_state DDL has NO column backing the cost/token budget that the Stop hook reads. design.md:704 (evaluate_stop) branches on `run_state.budget_exceeded` (== token_cost_usd >= token_budget_usd), and design.md:822 / requirements.md:357 define a 1,000,000-token-per-slice budget (REQ-LOOP-001/002, Req 20.3). The migration 005 column list (token_cost_usd, iteration_count, no_progress_n, violation_count, retry_count, resume_integrity_ok, stop_hook_active) provides the ACTUAL cost but no budget threshold column and no budget_exceeded flag. The draft enumerates every run_state column as fully addressed and never flags that the budget the Stop hook compares against (Req 14.1 / REQ-LOOP-001) has no d\u2026",
+   "cit": "design.md:488,704; requirements.md:267,357; design.md:946-950 (Property 9)"
+  },
+  {
+   "kind": "missing",
+   "detail": "The Postgres-unavailable fallback obligation that governs these exact tables is entirely absent from the draft. tasks.md:730 (note N-25) and design.md:815 require that when db_connection.health_check() fails, every gate falls back to file-backed state and reaches the SAME allow/block decision (never fail-open), DB and file are kept as duplicates, the more conservative result wins on divergence, AND the gate_audit_log producer appends to a FILE-BACKED log when the DB is unavailable and reconciles on reconnect. This is a first-class, requirement-level behavioral contract on run_state, evidence_records, and gate_audit_log. The draft mentions the fallback only as a one-line 'when the DB is down'\u2026",
+   "cit": "tasks.md:730; design.md:815; design.md:1175"
+  },
+  {
+   "kind": "missing",
+   "detail": "design.md mis-cites the Validates: requirement for the three new properties that map directly to migrations 005/006/007 \u2014 a spec-internal defect bearing on this component that the draft does not catch. Property 25 (amendment monotonicity, requirement_versions / migration 007) says 'Validates: Requirements 26' but Req 26 is Reasoning-Loop Detection; amendment versioning is Requirement 22 (design.md:1080). Property 26 (resumed-state integrity, run_state.resume_integrity_ok / migration 005) says 'Validates: Requirements 27' but Req 27 is the Audit Log; resumed-state integrity is Requirement 23 (design.md:1090). Property 27 (checklist-approval, domain_baseline_checklists.approved_at / migration \u2026",
+   "cit": "design.md:1080,1090,1100 vs requirements.md:431,435,440,451,455"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft flags the missing evidence_records index for Property 22 but misses the deeper semantic contradiction: Property 22's EARS text counts evidence over 'approved requirements' (design.md:1052), while Req 5.7 mandates that ALL completion/Stop/merge gates count ONLY in_scope items (requirements.md:128). evidence_records has no in_scope linkage and the requirements/coverage_items split means the OPA query in design.md:1052 (COUNT against evidence_records WHERE requirement_id = ANY(approved_req_ids)) has no way to exclude out-of-scope requirements at the DB layer \u2014 an out-of-scope-but-approved requirement with zero evidence would wrongly fail the merge, or the query silently ignores the in\u2026",
+   "cit": "design.md:1050-1052; requirements.md:128; design.md:443-451"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's REQ-AUDIT-003 retention row is marked 'addressed' but the canonical Req 27.3 obligation is stronger than 'the migration creates the retention store.' requirements.md:459 and design.md (Property 28) frame the hash-chained log as the execution-proof complement to SLSA provenance \u2014 a RETENTION-plus-VERIFICATION-TRIGGER contract: design.md:1175 and tasks.md:969/40.3 require chain verification to run as a REQUIRED CI status check at merge (audit-chain-verify) PLUS on-demand. The migration alone does not satisfy 'retain ... as the execution-proof complement'; without the required-CI-check wiring the retention store is inert. Marking 27.3 'addressed' by table creation overstates what mi\u2026",
+   "cit": "requirements.md:459; design.md:1108,1175; tasks.md:700,969"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft asserts Property 22 'queries evidence_records' and that 'coverage_query.rego runs the count' as if the OPA policy reads the evidence_records TABLE. The canonical Phase-0/Phase-1 OPA policy (tasks.md:264-265, 21.1 at tasks.md:353-357) takes feature_list.json as Conftest INPUT and reads items[_].status / the embedded evidence object \u2014 it does NOT query Postgres. Only the Property 22 EARS prose (design.md:1052) is written as a SQL COUNT against evidence_records, and no task wires Conftest to Postgres. So evidence_records is NOT actually the store the merge gate queries in the built design; feature_list.json is. The draft's claim that migration 004 'provides' the Property 22 query stor\u2026",
+   "cit": "tasks.md:264-265,353-357; design.md:1050-1052; design.md:137"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft does not flag that coverage_items lacks any column linking to the slice/worktree scheduling that Property 7 / REQ-EXEC-005 depends on for prior-slice ordering. The DDL has slice_id TEXT (design.md:449) but no priority and no dependencies, while Property 7 (design.md:932) and the scope gate (design.md:211) block a new slice 'when any prior-slice item is unproven' \u2014 'prior' is defined by priority/dependencies which live ONLY in feature_list.json (design.md:336-358), not in coverage_items. Combined with the draft's own acceptance_criteria/dependencies note, this means coverage_items cannot reconstruct slice ordering from the DB (REQ-16.3 fidelity gap) \u2014 the draft caught acceptance_cri\u2026",
+   "cit": "design.md:443-451,932,211; design.md:336-358; requirements.md:160,298"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-16.3 / REQ-STORE-003",
+   "criterion": "THE System SHALL keep the Postgres store as the single source of truth for coverage queries, reconstructable independently of any model session.",
+   "how": "Self-contained DDL; test 33 reconstructs on a fresh branch. But no seed/reconstruction procedure and the requirements table omits acceptance_criteria/dependencies, so the DB is not a fully faithful twin of the coverage model.",
+   "status": "partial",
+   "cit": "requirements.md:298; tasks.md:499-507"
+  },
+  {
+   "req_id": "Req 5.6 / REQ-COV-006",
+   "criterion": "Evidence_Record has exactly four required fields; a transition to proven SHALL be rejected if any field is absent or empty.",
+   "how": "evidence_complete CHECK requires test_file/test_name/output_hash non-empty AND collected_at NOT NULL; migration 004 cites 5.3,5.6,16.1. CHECK does NOT enforce the sha256 pattern the JSON schema enforces.",
+   "status": "partial",
+   "cit": "design.md:474-478; tasks.md:437-439"
+  },
+  {
+   "req_id": "Req 5.7 (in_scope)",
+   "criterion": "THE System SHALL carry boolean in_scope DEFAULT true in the JSON schema AND coverage_items table; gates count ONLY in_scope items; leaves scope only via human-authored transition.",
+   "how": "coverage_items.in_scope BOOLEAN NOT NULL DEFAULT TRUE in migration 002; test asserts default true. Human-authored-only rule NOT enforced by any DB constraint/trigger.",
+   "status": "partial",
+   "cit": "requirements.md:128; design.md:448; tasks.md:430"
+  },
+  {
+   "req_id": "Req 5.1/5.4 (Property 1)",
+   "criterion": "Coverage item schema invariant: non-empty id, type in functional/NFR/WIRING, at least one acceptance criterion, status default unproven.",
+   "how": "requirements.type CHECK and coverage_items.status CHECK+DEFAULT enforce type/status; acceptance_criteria lives only in the JSON schema - no column in requirements.",
+   "status": "partial",
+   "cit": "design.md:434,446; design.md:882-886"
+  },
+  {
+   "req_id": "Req 5.2/5.8 (Property 3)",
+   "criterion": "Permitted transitions unproven to proven, unproven to failed, failed to unproven; identity-mutation blocked.",
+   "how": "coverage_items.status CHECK admits the three states only - not the edge logic (PreToolUse status guard). No DB trigger pins edges.",
+   "status": "partial",
+   "cit": "design.md:446; requirements.md:123,129"
+  },
+  {
+   "req_id": "Req 22 / REQ-COV-007 (Property 25, CHECK-10)",
+   "criterion": "IF a requirement is amended THEN record a requirement_versions row (prior text, new text, author, timestamp, rationale), re-enter unproven, block COMPLETE while un-reproven.",
+   "how": "Migration 007 creates requirement_versions; CHECK-10 verifies monotonicity. DEFECT: tasks.md 28.7 column set differs from design.md.",
+   "status": "partial",
+   "cit": "requirements.md:433; design.md:1141-1151; tasks.md:449-451"
+  },
+  {
+   "req_id": "Req 27 / REQ-AUDIT-001 (Property 28)",
+   "criterion": "Append every gate decision to an append-only hash-chained log storing prior-entry hash.",
+   "how": "gate_audit_log (008) with seq, decision CHECK, prev_hash, entry_hash; producer audit_log.append. Append-only by convention only - no DB-level enforcement.",
+   "status": "partial",
+   "cit": "requirements.md:457; design.md:1156-1177"
+  },
+  {
+   "req_id": "Property 22 / Req 10.3",
+   "criterion": "OPA denies merge if count of evidence_records for approved req_ids is less than the count of approved requirements.",
+   "how": "evidence_records is the queried store; coverage_query.rego runs the count. Migration 004 provides it but no supporting index and no dedup uniqueness.",
+   "status": "partial",
+   "cit": "design.md:1050-1052"
+  },
+  {
+   "req_id": "Property 24 / Req 9.2 (actor_agent)",
+   "criterion": "Evidence_Record actor_agent MUST be the Verifier, never the Implementer.",
+   "how": "evidence_records.actor_agent TEXT NOT NULL in design DDL. DEFECT: not in task 28.4; no DB CHECK constrains it to the verifier - hook-layer only.",
+   "status": "partial",
+   "cit": "design.md:473; design.md:1066-1070; tasks.md:437-439"
+  }
+ ],
+ "citation_issues": []
+}

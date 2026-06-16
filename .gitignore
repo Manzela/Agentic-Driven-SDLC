@@ -1,47 +1,47 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
 
-# Virtual environments
-.venv/
-venv/
-ENV/
-
+!.env.template
+# Claude Code / Playwright MCP — regenerable browser-session artifacts, never source
 # Distribution / packaging
-dist/
-build/
-*.egg-info/
-*.egg
-
+# IDE
+# Local Plane self-host (secrets + local infra)
+# OS
+# Python
+# Secrets — only the template is tracked
 # Testing
-.pytest_cache/
-htmlcov/
+# Type checking
+# Virtual environments
+*$py.class
+*.cover
+*.egg
+*.egg-info/
+*.py[cod]
+*.pyc
+*.so
+*.swo
+*.swp
+*~
+.DS_Store
 .coverage
 .coverage.*
-coverage.xml
-*.cover
-
-# Type checking
-.mypy_cache/
-.pyright/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Claude Code / Playwright MCP — regenerable browser-session artifacts, never source
-.playwright-mcp/
-
-# Secrets — only the template is tracked
 .env
 .env.*
-!.env.template
+.idea/
+.mypy_cache/
+.playwright-mcp/
+.pyright/
+.pytest_cache/
+.venv/
+.vscode/
+ENV/
+Thumbs.db
+__pycache__/
+build/
+coverage.xml
+dist/
+htmlcov/
+plane-integration/.agent_queue.jsonl
+plane-integration/.provision_state.json
+plane-integration/.webhook_deliveries.json
+plane-selfhost/credentials.env
+plane-selfhost/plane.env
+venv/

@@ -1,0 +1,200 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FeatureList",
+  "type": "object",
+  "required": ["schema_version", "product_class", "checklist_ref", "items"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema (e.g. '1.0.0')"
+    },
+    "product_class": {
+      "type": "string",
+      "description": "Detected product class (e.g. 'agentic-sdlc-control-plane')"
+    },
+    "checklist_ref": {
+      "type": "object",
+      "description": "Which domain-baseline checklist and version was used",
+      "required": ["path", "version", "sha"],
+      "properties": {
+        "path": { "type": "string" },
+        "version": { "type": "string" },
+        "sha": { "type": "string" }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/CoverageItem" },
+      "description": "Append-only ordered list of coverage items"
+    }
+  },
+  "definitions": {
+    "CoverageItem": {
+      "type": "object",
+      "required": ["id", "type", "priority", "dependencies", "acceptance_criteria", "status", "in_scope"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Z]+-[A-Z]+-[0-9]{3}$",
+          "description": "Unique, non-empty requirement ID (e.g. REQ-SPEC-001)"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["functional", "NFR", "WIRING"],
+          "description": "Coverage item type. WIRING items require integration-test evidence."
+        },
+        "nfr_subtype": {
+          "type": "string",
+          "enum": ["performance", "accessibility", "reliability", "security"],
+          "description": "Machine-readable NFR routing subtype; required when type=='NFR' (see allOf below). Lets perf_a11y_verifier select its evidence tool (k6/Lighthouse for performance, axe-core for accessibility) from the coverage model rather than guessing."
+        },
+        "subtype": {
+          "type": "string",
+          "enum": ["performance", "accessibility", "ui-screen"],
+          "description": "Verifier-dispatch discriminator on which the fifth verification layer routes (REQ-VERIFY-007/008). 'performance'/'accessibility' mirror nfr_subtype for an NFR item; 'ui-screen' marks a declared-screen/state render obligation (REQ-VERIFY-008)."
+        },
+        "declared_states": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "For a subtype=='ui-screen' item, the enumerable set of declared screen/states (at least 'empty', 'loading', 'error', 'ready') each of which SHALL have a behavioral test asserting it renders (REQ-VERIFY-008)."
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Implementation priority (1 = highest). Determines scheduling order."
+        },
+        "title": {
+          "type": "string",
+          "description": "Short human-readable title"
+        },
+        "ears_pattern": {
+          "type": "string",
+          "enum": ["ubiquitous", "event-driven", "state-driven", "unwanted", "optional"],
+          "description": "Assigned EARS pattern. Schema-OPTIONAL by design; the 'exactly one EARS pattern per item' guarantee (Req 1.4 / Property 16) is enforced by spec_validator.py at authoring time, NOT by the file schema."
+        },
+        "ears_statement": {
+          "type": "string",
+          "description": "Full EARS requirement statement"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Z]+-[A-Z]+-[0-9]{3}$" },
+          "description": "IDs of coverage items that must be proven before this one. Items carry the same ID pattern as 'id'. Referential integrity (that the referenced ID actually EXISTS and is proven) is intentionally NOT schema-enforceable and is delegated to the PreToolUse scope gate / Verifier."
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "description": "Machine-checkable acceptance criteria (>=1 required)"
+        },
+        "provenance": {
+          "type": "string",
+          "enum": ["stated", "inferred"],
+          "description": "Whether the requirement was explicitly stated or inferred by discovery. Schema-OPTIONAL by design; the 'every inferred requirement carries provenance' guarantee (Req 2.3) is enforced by spec_validator.py at authoring time, NOT by the file schema."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["unproven", "proven", "failed"],
+          "default": "unproven",
+          "description": "Coverage status. Permitted transitions: unproven -> proven (requires a complete Evidence_Record), unproven -> failed, failed -> unproven, and proven -> unproven (amendment re-entry only). Only *->proven requires a complete Evidence_Record. Because 'status' is in the required list, the JSON-Schema 'default' here is documentation-only and does NOT auto-populate an omitted value."
+        },
+        "in_scope": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this item counts toward completion/Stop gates. An item leaves scope only via a human-authored transition; gates count ONLY in_scope items. Because 'in_scope' is required, this 'default' is documentation-only and does NOT auto-populate."
+        },
+        "evidence": {
+          "$ref": "#/definitions/EvidenceRecord",
+          "description": "Required when status = proven. Must have all four fields."
+        }
+      },
+      "allOf": [
+        {
+          "comment": "A schema-valid item cannot be status=proven with no evidence object - the four-field gate (Req 5.3/5.6, Property 2) is jointly schema- AND hook-enforced.",
+          "if": {
+            "properties": { "status": { "const": "proven" } },
+            "required": ["status"]
+          },
+          "then": { "required": ["evidence"] }
+        },
+        {
+          "comment": "An NFR item must declare its routing subtype so perf_a11y_verifier can select its evidence tool deterministically (Req 25.1/25.2).",
+          "if": {
+            "properties": { "type": { "const": "NFR" } },
+            "required": ["type"]
+          },
+          "then": { "required": ["nfr_subtype"] }
+        },
+        {
+          "comment": "A proven WIRING item must carry integration-test evidence - its Evidence_Record.evidence_kind must be 'integration' (Req 8.3 / Property 2). A unit-test Evidence_Record cannot prove a WIRING item.",
+          "if": {
+            "properties": {
+              "type": { "const": "WIRING" },
+              "status": { "const": "proven" }
+            },
+            "required": ["type", "status"]
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "required": ["evidence_kind"],
+                "properties": { "evidence_kind": { "const": "integration" } }
+              }
+            },
+            "required": ["evidence"]
+          }
+        }
+      ]
+    },
+    "EvidenceRecord": {
+      "type": "object",
+      "comment": "The four-field proven-transition gate is the four required fields below (test_file, test_name, output_hash, collected_at); actor_agent is provenance, not part of the four-field gate. additionalProperties:false permits actor_agent + evidence_kind explicitly so the JSON schema, the Postgres evidence_records.actor_agent NOT NULL column, and Property 24 agree.",
+      "required": ["test_file", "test_name", "output_hash", "collected_at"],
+      "additionalProperties": false,
+      "properties": {
+        "test_file": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the test file that produced the proof (non-empty; minLength:1 enforces Property 2 / Req 5.6 'present AND non-empty')"
+        },
+        "test_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique test identifier within the test file (non-empty; minLength:1 per Property 2 / Req 5.6)"
+        },
+        "output_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "SHA-256 content-addressed hash of the test output artifact"
+        },
+        "collected_at": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1,
+          "description": "ISO-8601 timestamp when the evidence was collected (non-empty; minLength:1 per Property 2 / Req 5.6)"
+        },
+        "actor_agent": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The agent that captured this record. MUST be the Verifier ('verifier.md'), never the Implementer ('implementer.md') - Property 24 / Req 9.2. Provenance field, NOT part of the four-field proven-transition gate; mirrors the Postgres evidence_records.actor_agent NOT NULL column. Stamped from the runtime session identity by the SubagentStop hook, never accepted from agent-supplied payload (actor-independence fix #1)."
+        },
+        "verifier_session_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Harness-resolved session id of the verifier that produced this record. For a proven transition the SubagentStop gate requires this to be present AND distinct from implementer_session_id (actor-independence fix #2). Schema-permitted but hook-enforced (not in the four-field gate) so minimal four-field records still validate."
+        },
+        "implementer_session_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Harness-resolved session id of the implementer whose slice this record verifies. Must differ from verifier_session_id for a proven transition (actor-independence fix #2)."
+        },
+        "evidence_kind": {
+          "type": "string",
+          "enum": ["unit", "integration", "behavioral", "perf", "a11y"],
+          "description": "Kind of test that produced this evidence. Required to be 'integration' for a WIRING item transitioning to proven - see the CoverageItem allOf (Req 8.3 / Property 2). Optional for non-WIRING items."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,151 @@
+{
+ "idx": 0,
+ "component": "feature_list.json",
+ "file_path": "/feature_list.json",
+ "phase": "0",
+ "what": "feature_list.json (/feature_list.json, Phase 0): canonical version-controlled coverage-model file; append-only items[] each with id/type{functional,NFR,WIRING}/priority/dependencies/acceptance_criteria/status{unproven,proven,failed default unproven}/in_scope(default true)/optional provenance/ears_pattern/evidence{test_file,test_name,output_hash,collected_at} when proven. Gates compute COMPLETE from it. Append-only; only status edges mutate. Validated by schema/feature_list.schema.json; mirrored to Postgres; Postgres-down fallback. requirements.md:114-129; design.md:286-414.",
+ "open_gaps": [
+  {
+   "gap": "JSON Schema does NOT enforce evidence-required-when-status-proven. CoverageItem.required omits evidence; no if/then/allOf; the constraint is only a prose description (design.md:382-383). A schema-valid file can have status=proven with no evidence. Property 2 and REQ-COV-003/006 imply file-level schema enforcement, but it lives only in PreToolUse status-guard + SubagentStop + evidence_collector; the Phase-0 schema test (design.md:623) only rejects a missing output_hash inside an existing evidence object.",
+   "severity": "defect",
+   "fix": "Add allOf {if status const proven then required [evidence]} to CoverageItem in schema/feature_list.schema.json and design.md:322-385; note in Req 5.3/5.6 and Property 2 the gate is jointly schema+hook enforced.",
+   "cit": "design.md:324,381-383"
+  },
+  {
+   "gap": "status is in CoverageItem.required AND given default unproven (design.md:324,373); a required property's default never applies, so Property 1/Req 5.1 'status defaults to unproven' is not realizable via the schema. Same for in_scope.",
+   "severity": "inconsistency",
+   "fix": "Drop status/in_scope from required OR remove the defaults and have the Initializer write them; reword Property 1/Req 5.1 to 'written with status=unproven'.",
+   "cit": "design.md:324,373,378"
+  },
+  {
+   "gap": "Append-only 'never deleted or reordered' (design.md:126,288) is asserted but no schema rule or test verifies ordering/length preservation across writes; Property 3 blocks identity mutation only, so a reorder/drop keeping ids/types intact is not provably caught.",
+   "severity": "missing-wiring",
+   "fix": "Add a PreToolUse check + property test diffing the incoming items[] id-sequence vs the prior committed version, blocking on deletion/reorder; add to task 6.1.",
+   "cit": "design.md:126,288"
+  },
+  {
+   "gap": "The Z3 harness has ZERO references to feature_list.json/CoverageItem/status; coverage is modeled by standalone Booleans (unproven/passed/evidence*). The three-state {unproven,proven,failed} machine and the failed edges (Req 5.8/Property 3) are NOT in Z3, so the 'machine-checked' claim over the status-transition graph is overstated.",
+   "severity": "underspecified",
+   "fix": "Add a Z3 check group encoding the three-state enum and permitted edges with all other edges UNSAT; reference from requirements.md:123/129; until then soften 'machine-checked'.",
+   "cit": "formal_verification_merged.py:73-92"
+  },
+  {
+   "gap": "Amendment re-entry (REQ-COV-007/Property 25/CHECK-10) targets only Postgres coverage_items.status (design.md:1152), not the feature_list.json item, which is the Phase-0 source of truth and Postgres-down fallback; on a Postgres-down amendment the file could stay proven while the DB shows unproven.",
+   "severity": "missing-wiring",
+   "fix": "Extend REQ-COV-007/Req 22/task 48 to also flip the feature_list.json item to unproven and re-block its feature_list_sha; add a test in task 39.15.",
+   "cit": "design.md:1152; tasks.md:730"
+  },
+  {
+   "gap": "Structural-invariant test coverage is thin vs the file's 'canonical/never deleted' billing: no test for dependencies[] referential integrity, priority uniqueness, provenance on inferred items (Req 2.3 requires provenance but the schema makes it OPTIONAL, design.md:365-369), or checklist_ref.sha matching a real git blob (Property 18 asserts it; no CI computes it).",
+   "severity": "underspecified",
+   "fix": "Add tests for dependencies[] closure, provenance-required-when-discovery-ran, and a CI git-blob-SHA check for checklist_ref.",
+   "cit": "design.md:354-369,623"
+  },
+  {
+   "gap": "Glossary/schema mismatch: glossary (requirements.md:28) lists '...acceptance criteria, and evidence' as if evidence is always present, while the schema makes evidence optional/present only on proven items.",
+   "severity": "inconsistency",
+   "fix": "Reword requirements.md:28 to '...acceptance criteria, in_scope, and (when proven) an Evidence_Record'.",
+   "cit": "requirements.md:28"
+  },
+  {
+   "gap": "ears_pattern is in the schema enum but not in CoverageItem.required; provenance is optional \u2014 yet Req 1.4/Property 16 require exactly one EARS pattern and Req 2.3 requires provenance on inferred requirements, so both are unenforced at the file level.",
+   "severity": "underspecified",
+   "fix": "Add ears_pattern (and provenance conditionally) to CoverageItem.required, OR state in Req 1.4/2.3 that the guarantee is enforced by spec_validator.py at authoring time.",
+   "cit": "design.md:324,345-369"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "NFR SUBTYPE FIELD IS UNREPRESENTABLE IN THE COVERAGE ITEM. Req 25.1/25.2 (REQ-VERIFY-007/008) say 'WHEN an NFR item of subtype `performance` is verified...' and '...subtype `accessibility`...' \u2014 i.e. the Verifier routes to k6/Lighthouse vs axe-core based on an NFR subtype carried on the coverage item. But the CoverageItem schema (design.md:331-385) has only `type \u2208 {functional,NFR,WIRING}` and NO `subtype`/`nfr_subtype` field, and `additionalProperties` is not constrained to add one. There is no machine-readable way for feature_list.json to distinguish a performance NFR from an accessibility NFR, so the perf_a11y_verifier cannot deterministically select its evidence tool from the coverage mo\u2026",
+   "cit": "requirements.md:447-448 (Req 25.1/25.2); design.md:331-385 (CoverageItem schema, no subtype field)"
+  },
+  {
+   "kind": "missing",
+   "detail": "WIRING-TYPE EVIDENCE OBLIGATION (Req 8.3) IS UNENFORCED AT THE FILE LEVEL AND ABSENT FROM ears_stories. Req 8.3: 'WHEN a WIRING item is claimed `proven`, THE System SHALL require an integration test exercising the real execution path as the attached Evidence_Record.' The schema's `type` description even says 'WIRING items require integration-test evidence' (design.md:334), but the EvidenceRecord schema is a single uniform 4-field shape with no marker that the evidence is an *integration* test on the real path \u2014 nothing distinguishes a unit-test Evidence_Record from the integration-test the requirement demands. Task 47 tracks it generically but no schema/Property ties the WIRING type to an in\u2026",
+   "cit": "requirements.md:172-174 (Req 8.1/8.2/8.3); design.md:334,387-411"
+  },
+  {
+   "kind": "contradiction",
+   "detail": "PROPERTY 24 EVIDENCE-FIELD NAME COLLISION (`acting_agent` vs `actor_agent`) DIRECTLY ON THE COVERAGE-MODEL EVIDENCE CHAIN. design.md:473 declares 'Canonical name is actor_agent everywhere (no acting_agent)' and Property 24 (design.md:1068) uses `actor_agent`, but the Property 24 PBT (tasks.md:655, task 39.13) still asserts on `acting_agent` ('Generate evidence chains with arbitrary `acting_agent` identities; assert any Evidence_Record where `acting_agent == \"implementer.md\"`...'). The test that enforces Implementer-cannot-self-verify on feature_list.json's evidence checks a field name the design says does not exist, so the guarantee is mis-wired. The draft lists Property 24 among properties_\u2026",
+   "cit": "design.md:473,1068 vs tasks.md:655"
+  },
+  {
+   "kind": "weak",
+   "detail": "EARS_PATTERN ENUM OMITS 'complex' WHILE THE GLOSSARY LISTS SIX PATTERNS \u2014 the draft notes ears_pattern is not in CoverageItem.required but never flags that the enum itself only has FIVE values {ubiquitous,event-driven,state-driven,unwanted,optional} (design.md:347) whereas the EARS glossary names SIX including 'Complex' (requirements.md:31). design.md:1188 resolves this in prose ('Complex denotes a documented composition of the five base patterns; no schema change'), but that resolution is not referenced from the schema, the glossary, Property 16, or Req 1.4 \u2014 so a reader hitting Req 1.4 'assign exactly one of the five EARS patterns' vs the glossary's six has an unreconciled mismatch on a fi\u2026",
+   "cit": "requirements.md:31 vs design.md:347,1188; Req 1.4 requirements.md:65; Property 16 design.md:1002-1006"
+  },
+  {
+   "kind": "weak",
+   "detail": "POSTGRES coverage_items DOES NOT MIRROR `type` OR `acceptance_criteria`, undercutting the draft's 'mirrored to Postgres / Postgres-down fallback' framing and the conservative-divergence claim. The coverage_items table (design.md:443-451) carries only id, requirement_id, status, in_scope, slice_id, updated_at \u2014 `type`, `priority`, `dependencies`, `acceptance_criteria`, `ears_pattern`, `provenance`, and `evidence` live in feature_list.json and (partially) the `requirements`/`evidence_records` tables, NOT coverage_items. The draft's behavior 'Postgres-down fallback truth' and gap-5 ('Postgres-only amendment') both assume Postgres holds the same item shape; in fact the file is the richer record \u2026",
+   "cit": "design.md:443-451 (coverage_items columns) vs design.md:322-385 (CoverageItem)"
+  },
+  {
+   "kind": "missing",
+   "detail": "`dependencies[]` IS NEITHER SCHEMA-VALIDATED FOR REFERENTIAL INTEGRITY NOR WIRED TO THE SCOPE-SEQUENCING GATE \u2014 a coverage-model semantics gap the draft only half-raises. The schema says dependencies are 'IDs of coverage items that must be proven before this one' (design.md:357), and Req 7.5/Property 7 block a new slice while any 'prior-slice' item is unproven \u2014 but 'prior-slice' is implemented purely by priority ordering / scope sequencing (design.md:211, Property 7), with NO check that an item's declared `dependencies[]` are proven before it is scheduled or proven. So the dependency graph encoded in feature_list.json is inert: an item can be proven while its declared dependencies are still\u2026",
+   "cit": "design.md:357 (dependencies desc) vs Req 7.5 requirements.md:160 / Property 7 design.md:930-934"
+  },
+  {
+   "kind": "missing",
+   "detail": "EMPTY items[] IS SCHEMA-VALID AND THE INITIALIZER WRITES `items: []`, but UNMAPPED/discovery completeness (Req 2.2, Property 13) and Stop/OPA gates are never reconciled with the empty-file case. tools/feature_list_init.py (tasks.md:239) produces a minimal valid file with `items: []` and no `minItems` on the items array (design.md:315-319). A feature_list.json with zero items trivially satisfies the Stop gate (no unproven in-scope items) and OPA zero-evidence policy (zero approved requirements \u2192 zero rows expected), so an all-empty coverage model would read as COMPLETE. Nothing in the draft or specs states that the gates additionally require items to be non-empty / discovery to have run befor\u2026",
+   "cit": "design.md:315-319 (items array, no minItems); tasks.md:239 (items: []); Req 2.2 requirements.md:78"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "DRAFT CITES `design.md:766` FOR 'feature_list_sha re-blocks Writes' / 'SHA-bound at plan approval' but understates that the SHA-BINDING FORMAT IS UNDER-SPECIFIED AND ENFORCED ONLY OVER RAW FILE BYTES, not the canonical item set. The plan-approval gate compares `approval[\"feature_list_sha\"]` to `f\"sha256:{compute_sha256(feature_list.json bytes)}\"` (design.md:791-792) \u2014 a hash of the literal file bytes. That means any whitespace/key-reordering/formatting change to feature_list.json (even one that preserves the canonical item set) re-blocks all writes and forces a fresh human approval, while the append-only status-flip mutations the design EXPECTS (unproven\u2192proven) ALSO change the bytes and thu\u2026",
+   "cit": "design.md:766,789-801 vs design.md:288 (status flip is the expected mutation)"
+  },
+  {
+   "kind": "weak",
+   "detail": "DRAFT'S gap-2 (status/in_scope in `required` defeats the schema `default`) IS CORRECT but UNDERSTATES THE BLAST RADIUS: the SAME required-vs-default defect also makes the Postgres mirror authoritative-by-default divergent. coverage_items.status has `DEFAULT 'unproven'` and in_scope `DEFAULT TRUE` at the DB layer (design.md:446-448), so a row inserted without those columns DOES default \u2014 but the JSON schema's defaults never fire (because required). Thus 'defaults to unproven' is realized in Postgres but NOT in the file, so a hand/tool-written feature_list.json that omits status is schema-INVALID while the equivalent DB row is valid-and-defaulted. The draft frames this as a single schema incon\u2026",
+   "cit": "design.md:324,373,378 (required+default in JSON schema) vs design.md:446-448 (DB DEFAULTs)"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Req 5.1 REQ-COV-001",
+   "criterion": "item fields, status default unproven",
+   "how": "schema; Property 1",
+   "status": "partial",
+   "cit": "requirements.md:122"
+  },
+  {
+   "req_id": "Req 5.2 REQ-COV-002",
+   "criterion": "block delete/reorder/identity; status edges only",
+   "how": "PreToolUse guards; Property 3",
+   "status": "partial",
+   "cit": "requirements.md:123"
+  },
+  {
+   "req_id": "Req 5.3/5.6 REQ-COV-003/006",
+   "criterion": "proven needs four-field Evidence_Record",
+   "how": "schema+hooks; Property 2; CHECK-7a/7c",
+   "status": "partial",
+   "cit": "requirements.md:124"
+  },
+  {
+   "req_id": "Req 5.7",
+   "criterion": "in_scope default true; gates count only in_scope",
+   "how": "in_scope in schema+table",
+   "status": "partial",
+   "cit": "requirements.md:128"
+  },
+  {
+   "req_id": "Req 22 REQ-COV-007",
+   "criterion": "amended item re-enters unproven",
+   "how": "requirement_versions; CHECK-10; Postgres-only",
+   "status": "partial",
+   "cit": "requirements.md:433"
+  },
+  {
+   "req_id": "Z3 status graph",
+   "criterion": "three-state status edges machine-checked",
+   "how": "NOT modeled in harness",
+   "status": "gap",
+   "cit": "formal_verification_merged.py:73-92"
+  }
+ ],
+ "citation_issues": [
+  "requirements.md:124 is cited for both Req 5.3/REQ-COV-003 AND Req 5.6/REQ-COV-006 in the ears_stories entry. Line 124 is Req 5 criterion 3 (REQ-COV-003: four-field Evidence_Record required on proven transition). Req 5 criterion 6 (REQ-COV-006: same four-field evidence definition, rejection if any absent) is at line 127, not line 124. The citation should be requirements.md:124,127 to cover both sub-requirements."
+ ]
+}

@@ -1,0 +1,120 @@
+{
+ "idx": 21,
+ "component": "secrets-scan.yml",
+ "file_path": ".github/workflows/secrets-scan.yml",
+ "phase": "1",
+ "what": "`secrets-scan.yml` (`.github/workflows/secrets-scan.yml`) is a CI GitHub Actions workflow that runs a secrets-scanning tool (gitleaks, with trufflehog as a named alternative) over a pull-request diff. Its single obligation is to detect any committed secret/credential/token and FAIL the build (block the merge) when one is found. Per the design inventory it is \"CI secrets-scanning workflow using gitleaks [K17]; fails the build on a detected secret\" (design.md:147). tasks.md operationalizes it as \"Run gitleaks (or trufflehog) on the PR diff; fail (block merge) on any detected secret\" (tasks.md:696). It is registered as the REQUIRED merge-gate status check named `secrets-scan` in the GitHub repo\u2026",
+ "open_gaps": [
+  {
+   "gap": "REQ-ID mis-citation: design.md's component inventory cites secrets-scan.yml against REQ-17.5, but REQ-17.5 is the runtime PreToolUse prohibition on secrets in prompts/spans/URLs (requirements.md:314), enforced by the PreToolUse_Hook and tested by Property 20 \u2014 NOT a CI diff scanner. The CI diff-scan obligation is REQ-17.2 ('IF a secret ... is detected in a diff, THEN ... block the commit or merge', requirements.md:311), which is exactly what tasks.md task 45/40.2 cite (_Requirements: 17.2). The single canonical inventory row therefore points the workflow at the wrong criterion.",
+   "severity": "defect",
+   "fix": "Change design.md:147 from '(REQ-17.5)' to '(REQ-17.2 / REQ-SEC-002)' so the design inventory, tasks.md (17.2), and the PRD ('17.2 secrets-block', PRD:22/91) all agree. Optionally add a parenthetical noting REQ-17.5 is the distinct PreToolUse runtime gate covered by Property 20.",
+   "cit": "design.md:147 vs requirements.md:311 and tasks.md:698"
+  },
+  {
+   "gap": "Dangling citation [K17]: the design row tags gitleaks with '[K17]' but no K-citation legend/table exists anywhere in the canonical spec set. [K9] (design.md:213) and [K12] (design.md:265) are equally undefined. These bracketed K-tags have no resolver.",
+   "severity": "defect",
+   "fix": "Either add a 'K-citations' reference table (defining K9, K12, K17, ...) to design.md or the PRD, or strip the [K17]/[K9]/[K12] markers. If they reference Kiro source material, add the legend; otherwise remove them as noise.",
+   "cit": "design.md:147 (K17 undefined); design.md:213 (K9); design.md:265 (K12)"
+  },
+  {
+   "gap": "Phase inconsistency: the design inventory labels secrets-scan.yml as Phase 1 (design.md:147), but the task that actually creates the workflow (40.2) sits under 'Phase 4 \u2014 Property-Based Tests / Phase 4 hardening' (tasks.md:567, 689, 695), and the foundational task 45 sits in the un-phased 'Added tasks' block (tasks.md:957). A Phase-1 component whose only build task is in Phase 4 violates the hard phasing constraint that earlier-phase components precede later ones.",
+   "severity": "inconsistency",
+   "fix": "Pick one phase. Move task 40.2's workflow creation into a Phase 1 task (co-located with the other CI verification-depth work, e.g., near tasks 22-24), or relabel the design inventory row to the phase where it is actually built. Align task 45's phase too.",
+   "cit": "design.md:147 vs tasks.md:689-695, 957"
+  },
+  {
+   "gap": "Thin design coverage: secrets-scan.yml gets exactly ONE sentence in design.md (the inventory row, design.md:147) and NO dedicated subsection, unlike OPA (coverage_query.rego), the hooks, or the audit log which all have worked examples. There is no specified `on:` trigger set, no gitleaks config/allowlist handling, no false-positive/baseline policy, no SARIF/report output contract, no handling of secrets already in git history vs only-the-diff, and no statement of what 'block the commit' (vs merge) means in a PR-only CI context (the criterion says 'commit or merge' but a CI workflow can only block merge, not the local commit).",
+   "severity": "underspecified",
+   "fix": "Add a short design subsection for secrets-scan.yml: specify on: pull_request (and whether push to protected branches), the gitleaks action/version and config path, allowlist/baseline strategy for false positives, the report artifact, and clarify that REQ-17.2's 'block the commit' clause is satisfied at merge in CI (with the local-commit half, if intended, delegated to a pre-commit hook or the PreToolUse path).",
+   "cit": "design.md:147; requirements.md:311"
+  },
+  {
+   "gap": "No property and no Z3 check pin this component. Every other required-CI gate either has a property (OPA \u2192 Property 22; audit chain \u2192 Property 28) or an explicit 'runtime/CI verified, no Z3 check' note. secrets-scan.yml has neither a Property N nor a CHECK-x nor a documented 'no formal check' rationale. Property 20 covers REQ-17.5 (the PreToolUse path), leaving the REQ-17.2 CI diff-scan with zero verification-layer coverage.",
+   "severity": "missing-wiring",
+   "fix": "Add a correctness property (e.g., 'For any PR diff containing a secret pattern, the secrets-scan check fails and merge is blocked') tested in tests/integration/test_github_actions.py with a known-secret fixture, OR add an explicit note ('no Z3 check \u2014 runtime/CI verified by fixture test') mirroring Properties 28/29. Cite it from the design inventory row.",
+   "cit": "design.md:1034-1038 (Property 20 is REQ-17.5, not this); tasks.md:635-644"
+  },
+  {
+   "gap": "Tool-choice ambiguity with no decision: design.md fixes 'gitleaks' (design.md:147) while tasks.md says 'gitleaks (or trufflehog)' (tasks.md:696, 957) with no criterion for choosing. Two canonical files disagree on whether the scanner is fixed or a choice.",
+   "severity": "inconsistency",
+   "fix": "Decide on one default scanner (gitleaks, per design.md) and demote trufflehog to an explicit 'acceptable alternative' note in one place, or state the selection criterion. Make design.md and tasks.md say the same thing.",
+   "cit": "design.md:147 vs tasks.md:696"
+  },
+  {
+   "gap": "Scanner not in glossary: gitleaks/trufflehog are never defined in the requirements glossary, unlike Semgrep_CodeQL (requirements.md:47), Playwright, OPA_Conftest, SLSA, etc. The secrets-scanner is the only security-gate tool family with no glossary term.",
+   "severity": "underspecified",
+   "fix": "Add a glossary entry (e.g., 'Secrets_Scanner: gitleaks (default) / trufflehog \u2014 the CI tools used to detect committed secrets/credentials/tokens in a PR diff and fail the build, REQ-17.2') to requirements.md.",
+   "cit": "requirements.md:47"
+  },
+  {
+   "gap": "Component absent from the Phase 0 spine list and has no Phase 1 component table with a 'test to pass'. Every Phase 0 component has an explicit acceptance test (design.md:617-637); secrets-scan.yml (tagged Phase 1) has no equivalent acceptance-test definition anywhere, so 'done' for this workflow is undefined.",
+   "severity": "underspecified",
+   "fix": "Add a 'test to pass' for secrets-scan.yml (e.g., 'a fixture diff containing a fake AWS key \u2192 workflow fails; a clean diff \u2192 passes') in a Phase 1 component table or in tasks.md task 45, mirroring the Phase 0 spine table's test column.",
+   "cit": "design.md:617-637 (Phase 0 has tests; no equivalent for this Phase 1 component)"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "The component is ABSENT from the system architecture data-flow diagram, not just from a Phase-1 acceptance table. The `CI / Merge Gate` subgraph and its `GH_RULESET` node (design.md:50-55) explicitly enumerate OPA/Conftest, Semgrep+CodeQL (SAST), and SLSA attest-build-provenance as the CI gate boxes feeding the GitHub Repository Ruleset, but `secrets-scan` appears nowhere in the diagram. The draft's 'thin design coverage' gap flags only the one-sentence inventory row (design.md:147); it does not flag that the component is missing from the canonical architecture diagram that every other CI gate (OPA, SAST, SLSA) is drawn into. A REQUIRED merge gate that is invisible in the architecture diagra\u2026",
+   "cit": "design.md:50-55 (CI subgraph: OPA, SAST, SLSA, GH_RULESET \u2014 no secrets-scan); design.md:147"
+  },
+  {
+   "kind": "weak",
+   "detail": "The ears_stories survey of Requirement 17 is INCOMPLETE: it covers only criteria 17.1, 17.2, and 17.5, but Requirement 17 has five criteria. REQ-17.3 (signed SLSA build provenance, requirements.md:312, built by task 32 _Requirements: 17.3 at tasks.md:497) and REQ-17.4 (isolated sandbox for untrusted code, requirements.md:313, built by task 46 _Requirements: 17.4 at tasks.md:958) are sibling criteria under the SAME requirement and the SAME B16 baseline block as secrets-scan, yet neither appears in the draft's ears_stories. A completeness critic must enumerate them (as addressed-elsewhere siblings: SLSA\u2192task 32, sandbox\u2192task 46) to positively prove secrets-scan.yml is NOT silently expected to \u2026",
+   "cit": "requirements.md:312-313 (REQ-17.3, 17.4); tasks.md:497 (task 32\u219217.3), tasks.md:958 (task 46\u219217.4)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The 'block the commit' half of REQ-17.2 ('block the commit OR merge', requirements.md:311) is addressed more completely by the spec than the draft acknowledges, which weakens the draft's framing. Per the 2026-06-15 reconciliation, REQ-17.5 is now a LIVE PreToolUse prevention gate ('exit 2 blocks a tool call whose prompt, span attributes, or URL would carry a secret', requirements.md:314) \u2014 i.e. the commit-side/pre-emission prevention. So the 'commit' clause (prevention before emission) and the 'merge' clause (CI diff scan) are split across REQ-17.5 (PreToolUse) and REQ-17.2 (secrets-scan.yml). The draft treats REQ-17.5 purely as a mis-citation to delete from secrets-scan's row and frames the\u2026",
+   "cit": "requirements.md:311 ('commit or merge'); requirements.md:314 (REQ-17.5 = live PreToolUse prevention gate)"
+  },
+  {
+   "kind": "missing",
+   "detail": "The under-specified `on:` trigger is not just absent in isolation \u2014 it is anomalous relative to every sibling CI workflow, which the draft does not flag as a cross-component inconsistency. codeql.yml specifies 'Trigger on push and pull_request' (tasks.md:379), property-tests.yml 'Trigger on every pull_request' (tasks.md:707), zap-baseline and the OPA coverage gate likewise specify triggers (tasks.md:263, 251). secrets-scan.yml (task 40.2) specifies only 'on the PR diff' with no `on:` block. Every comparable required-check workflow in tasks.md states its trigger explicitly; secrets-scan.yml is the sole exception. This belongs as an 'inconsistency / underspecified-relative-to-siblings' finding\u2026",
+   "cit": "tasks.md:696 (secrets-scan: 'on the PR diff' only) vs tasks.md:379, 707, 263, 251 (siblings specify explicit on: triggers)"
+  },
+  {
+   "kind": "missing",
+   "detail": "No acceptance/integration TEST is specified for this component anywhere, and the draft's gap understates the scope: it is not only that the Phase-0 spine table (design.md:621-636) has a 'Test to pass' column with no secrets-scan row \u2014 there is also NO integration test in tasks.md. The Phase-0 integration test file `tests/integration/test_phase0_integration.py` (task 17.1, tasks.md:291) and the suite exist, but neither task 45 (tasks.md:957) nor task 40.2 (tasks.md:695-698) defines any fixture test (e.g. 'fake AWS key in diff \u2192 workflow fails; clean diff \u2192 passes'). The deepeval-gate, audit-chain-verify, OPA, and coverage-gate all have explicit pass/fail behaviors defined; secrets-scan.yml ha\u2026",
+   "cit": "design.md:621-636 (spine test column); tasks.md:291 (integration test file exists); tasks.md:695-698, 957 (task 40.2 & 45 define no test)"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's open_gaps assert secrets-scan.yml 'is one of the listed required checks in docs/github-ruleset.md (formal-verification, coverage-gate, secrets-scan, audit-chain-verify)' and lists docs/github-ruleset.md as a dependency, but does not flag that docs/github-ruleset.md is itself only a tasks.md artifact (tasks.md:270, 697) with NO design.md specification of its contents or schema, AND that the required-checks list is duplicated across three task locations (14.2 at tasks.md:270, 40.2 at tasks.md:697, and task 45 at tasks.md:957) with no single canonical enumeration. The draft cites the duplication's existence as evidence of correctness rather than flagging the un-designed, triplicated\u2026",
+   "cit": "tasks.md:270, 697, 957 (three separate required-check enumerations); no design.md spec for docs/github-ruleset.md"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-17.5 (Requirement 17, criterion 5 / REQ-SEC-005)",
+   "criterion": "THE System SHALL never place credentials or secrets in prompts, spans, or URLs ... enforced at the PreToolUse_Hook (exit 2 blocks a tool call whose prompt, span attributes, or URL would carry a secret), not only via an offline test.",
+   "how": "design.md's component inventory MIS-CITES secrets-scan.yml against REQ-17.5. But REQ-17.5 is explicitly a live PreToolUse PREVENTION gate over prompts/spans/URLs (a runtime hook), NOT a CI diff scanner. secrets-scan.yml does not enforce REQ-17.5 at all; the actual REQ-17.5 mechanism is the PreToolUs\u2026",
+   "status": "gap",
+   "cit": "design.md:147 vs requirements.md:314"
+  },
+  {
+   "req_id": "Property 20: Secret-Free Prompts, Spans, and URLs",
+   "criterion": "For any prompt text, OTel span attribute, or URL constructed by the system, the content shall not match known secret patterns ... Any construction containing a matching pattern shall be rejected before emission. Validates Requirements 17.5.",
+   "how": "This is the correctness property pinned to REQ-17.5 (the runtime prompt/span/URL prohibition), tested by tests/property/test_evidence.py::test_secret_free_output (task 39.10/39.11). It is NOT the CI-diff secrets scan. secrets-scan.yml has NO correctness property of its own \u2014 Property 20 governs the \u2026",
+   "status": "partial",
+   "cit": "design.md:1034-1038; tasks.md:635, 641-644"
+  },
+  {
+   "req_id": "Glossary: Semgrep_CodeQL",
+   "criterion": "The SAST tools used in CI to detect HIGH/CRITICAL security findings in changed code.",
+   "how": "Glossary defines the SAST tooling but defines NO term for the secrets-scanner (gitleaks/trufflehog) \u2014 gitleaks appears only in design.md:147 and tasks.md, never in the glossary. The secrets-scan tool family is un-glossaried.",
+   "status": "gap",
+   "cit": "requirements.md:47"
+  },
+  {
+   "req_id": "Requirement 17 baseline mapping (B16)",
+   "criterion": "B16 | Supply-chain & security gates | Requirement 17 (REQ-SEC-001..005) | MAPPED.",
+   "how": "secrets-scan.yml is one mechanism under B16/Requirement 17. The matrix marks B16 MAPPED but does not enumerate per-criterion mechanisms, so the 17.2-vs-17.5 mis-citation is not caught at the matrix level.",
+   "status": "partial",
+   "cit": "requirements.md:398; requirements.md:306"
+  }
+ ],
+ "citation_issues": []
+}

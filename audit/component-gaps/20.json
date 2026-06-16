@@ -1,0 +1,157 @@
+{
+ "idx": 20,
+ "component": "perf_a11y_verifier (capability in verifier.md)",
+ "file_path": ".claude/agents/verifier.md",
+ "phase": "1/3",
+ "what": "`perf_a11y_verifier` is NOT a standalone file \u2014 it is a declared *capability/behavior within the Verifier subagent* (`.claude/agents/verifier.md`), constituting the fifth verification layer. It is configured to do three things when the Verifier evaluates a slice: (1) run k6/Lighthouse against numeric performance budgets (p95 latency, Core Web Vitals) for NFR coverage items of subtype `performance`, attaching the result as an Evidence_Record; (2) run axe-core requiring zero WCAG-A/AA violations on covered screens for NFR items of subtype `accessibility`; (3) treat UI-screen completeness as a verification target \u2014 every declared screen/state (including empty, loading, error) must have a behavi\u2026",
+ "open_gaps": [
+  {
+   "gap": "Host file does not exist. `.claude/agents/verifier.md` \u2014 the sole declared home of perf_a11y_verifier \u2014 is absent; `.claude/agents/` contains only `.gitkeep`. The capability has no concrete artifact anywhere in the repo.",
+   "severity": "missing-wiring",
+   "fix": "Author `.claude/agents/verifier.md` (task 10.3) and ensure task 51 amends THAT file to add the fifth layer. Until verifier.md exists, every citation to 'capability within .claude/agents/verifier.md' (design.md:146) is dangling.",
+   "cit": "design.md:146; .claude/agents/ (only .gitkeep present)"
+  },
+  {
+   "gap": "Trigger predicate references a non-existent data field. REQ-VERIFY-007 gates 'WHEN an NFR item of subtype `performance`/`accessibility`', but no `subtype` field exists in the CoverageItem JSON schema (enum is only {functional,NFR,WIRING}) nor in the coverage_items Postgres table. There is no way to mark an NFR item as performance vs accessibility, so the WHEN condition can never be evaluated.",
+   "severity": "defect",
+   "fix": "Add an optional `subtype` enum field ({performance,accessibility,...}) to the CoverageItem schema (design.md:322-385) and the coverage_items table (design.md:443-451), and have the Verifier dispatch on it. Without this the event-driven trigger is unrealizable.",
+   "cit": "requirements.md:447-448; design.md:322-385; design.md:443-451"
+  },
+  {
+   "gap": "Phase tag is self-contradictory (1/3) and the build is unphased. The Component Inventory tags it 'Phase 1/3' (design.md:146,1182) while the host Verifier is a Phase-0 spine component (design.md:154,629); the only build task (51) carries no phase and sits in the late-wave cluster (waves 40-43). A reader cannot tell whether this is built in Phase 0, 1, or 3.",
+   "severity": "inconsistency",
+   "fix": "Pick one phase. Given the Verifier is Phase 0 and perf/a11y are not spine-critical, tag the capability Phase 1 cleanly and place task 51 in the Phase-1 section with an explicit dependency on task 10.3.",
+   "cit": "design.md:146,154,1182; tasks.md:966; tasks.md:902-916"
+  },
+  {
+   "gap": "Phase-0 Verifier authoring task omits the fifth layer. Task 10.3 (write verifier.md) lists only structural/semantic/behavioral/security and stops; it never mentions perf/a11y, so following the tasks in order yields a verifier.md without this capability, and task 51 must retro-edit a file that task 10.3 wrote \u2014 but task 51 is worded as 'implement a component in the Verifier' without referencing task 10.3.",
+   "severity": "missing-wiring",
+   "fix": "Add to task 10.3 a forward-reference '(fifth perf/a11y layer added in task 51)' and reword task 51 to 'amend .claude/agents/verifier.md authored in task 10.3'.",
+   "cit": "tasks.md:213-216; tasks.md:966"
+  },
+  {
+   "gap": "No Property and no Z3 CHECK pin REQ-VERIFY-007/008. Every other substantive requirement is pinned by a Property and/or CHECK; perf/a11y/UI-render has neither. There is no machine-checkable or property-based assertion that this layer runs or gates.",
+   "severity": "underspecified",
+   "fix": "Add a correctness Property (e.g. 'For any NFR item of subtype performance|accessibility, a proven flip requires a perf/a11y Evidence_Record') and a property test under tests/property/; optionally a Z3 CHECK modeling 'NFR-subtype-perf proven \u21d2 perf-evidence-present'.",
+   "cit": "design.md:882-1130; verification/formal_verification_merged.py:1-523"
+  },
+  {
+   "gap": "Task 51 mis-cites Property 23. It claims perf_a11y_verifier 'Validates Property 23 line-coverage figures via pytest-cov ... coverage.json' \u2014 but Property 23 validates Req 9.6 (line-coverage threshold), wholly distinct from REQ-VERIFY-007/008. This conflates two requirements and leaves perf/a11y with a borrowed, wrong test reference.",
+   "severity": "defect",
+   "fix": "Remove the Property 23 / coverage.json clause from task 51 and replace with a dedicated perf/a11y Property and test file (e.g. tests/property/test_perf_a11y.py).",
+   "cit": "tasks.md:966; design.md:1058-1062"
+  },
+  {
+   "gap": "Evidence_Record mapping is unspecified for tool outputs. k6/Lighthouse/axe-core emit reports, not pytest results, yet the Evidence_Record requires test_file/test_name/output_hash/collected_at with additionalProperties:false. How a Lighthouse JSON or axe violation list maps into these four fields (and what counts as test_name) is never defined, so the SubagentStop schema gate (design.md:217) may reject valid perf/a11y evidence.",
+   "severity": "underspecified",
+   "fix": "Define a canonical mapping in design.md: e.g. test_file=path to the k6/Lighthouse/axe runner script, test_name=budget id, output_hash=sha256 of the report artifact, collected_at=run timestamp.",
+   "cit": "design.md:387-411; requirements.md:447-448"
+  },
+  {
+   "gap": "No tool dependencies pinned and no CI wiring. The scaffold task 1 pins z3/hypothesis/jsonschema/psycopg2/semgrep/playwright but NOT k6, Lighthouse, or axe-core; no workflow (coverage-gate.yml or otherwise) runs perf/a11y as a status check. The capability has no path to actually execute in CI.",
+   "severity": "missing-wiring",
+   "fix": "Add k6/Lighthouse/@axe-core (or playwright-axe) to task 1 dependency pins and add a CI step (or extend coverage-gate.yml) that runs perf/a11y for NFR items, mirroring the Playwright step in task 15.",
+   "cit": "tasks.md:15; tasks.md:966"
+  },
+  {
+   "gap": "REQ-VERIFY-008 'declared screen/state' has no data source. UI-screen completeness requires knowing which screens/states are 'declared in the coverage model', but no schema field enumerates screens/states (no `screens`, `states`, or UI-declaration structure in feature_list.json schema). The Ubiquitous obligation cannot be checked against an undefined declaration set.",
+   "severity": "underspecified",
+   "fix": "Add a screen/state declaration structure to the coverage model (e.g. a WIRING/NFR item subtype 'ui-screen' carrying declared states) so 'every declared screen/state' is enumerable and the render assertion is enforceable.",
+   "cit": "requirements.md:449; design.md:322-385"
+  },
+  {
+   "gap": "design.md/tasks.md coverage of this component is thin. Across all three canonical files the capability appears in exactly 4 design.md lines (146, 255, 262, 1182), 1 tasks.md line (966), and 3 requirements.md criteria \u2014 with no interface signature, no permission delta, no dispatch logic, no CI step, no test, no threshold ownership. This thinness is itself a gap: a Phase-1/3 verification layer is specified almost entirely by a one-line inventory row plus a one-line task.",
+   "severity": "underspecified",
+   "fix": "Add a dedicated design.md subsection (like the Sandbox/Worktree subsection) covering: subtype dispatch, tool invocation, Evidence_Record mapping, thresholds + owner, CI wiring, and the Property/test; expand task 51 into subtasks (51.1 perf, 51.2 a11y, 51.3 UI-render, 51.4 property test).",
+   "cit": "design.md:146,255,262,1182; tasks.md:966; requirements.md:447-449"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "REQ-VERIFY-008's UI-screen render assertion is a BEHAVIORAL test, and the existing behavioral layer is Playwright (design.md:260 'Runs behavioral checks via Playwright CLI'; Req 9.3 requires a captured behavioral artifact as Evidence_Record). The draft routes UI-render only through k6/Lighthouse/axe-core and never identifies the Playwright behavioral layer (task 15 / design.md:260) as the actual mechanism a render assertion would use. This is a real dependency/wiring relationship present in the docs but absent from the draft's dependencies and behaviors \u2014 and it matters because render tests are NOT a perf/a11y-tool concern, so the draft mislocates them.",
+   "cit": "design.md:260; requirements.md:188; tasks.md:276-278 (task 15)"
+  },
+  {
+   "kind": "missing",
+   "detail": "The WIRING integration-test-evidence obligation (Req 8.3 / task 47) bears directly on REQ-VERIFY-008 and is entirely absent from the draft. The canonical PRD explicitly frames UI-screen completeness as a 'WIRING-adjacent verification target' (PRD line 59). Req 8.3 ('WHEN a WIRING item is claimed proven, THE System SHALL require an integration test exercising the real execution path as the attached Evidence_Record') and its build task 47 are the nearest EXISTING evidence mechanism that could host the screen-render assertion, yet the draft never links them. An obligation that exists in the docs and is relevant to the component is missing from both ears_stories and open_gaps.",
+   "cit": "requirements.md:174 (Req 8.3); tasks.md:959 (task 47); PRD_MERGED_canonical_spec_to_evidence.md:59"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's open-gap on 'declared screen/state has no data source' is correct but undersells the strongest evidence. PRD line 59 (the canonical REQ-VERIFY-008 source) states screens are 'declared IN THE COVERAGE MODEL (including empty, loading, and error states)' and calls it 'WIRING-adjacent'. The draft cites requirements.md:449 and design.md:322-385 but never quotes PRD:59's explicit 'declared in the coverage model' clause \u2014 which is the load-bearing proof that the Ubiquitous obligation references a coverage-model structure that does not exist (no screens/states field in CoverageItem or the WIRING type). The gap is real; the citation is weaker than the available evidence.",
+   "cit": "PRD_MERGED_canonical_spec_to_evidence.md:59; design.md:322-385"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft caught the missing `subtype` field but missed a second, independent dispatch defect: the CoverageItem schema's `ears_pattern` enum is {ubiquitous, event-driven, state-driven, unwanted, optional} and `type` is {functional, NFR, WIRING}. There is no field at all on which the Verifier can dispatch performance-vs-accessibility-vs-render \u2014 not just `subtype` is absent, but the schema offers no representable discriminator for the three distinct behaviors of this one capability. The draft treats subtype as the single blocker; in fact the schema has zero hooks for any of the three sub-behaviors, so even adding subtype only solves perf-vs-a11y and not the REQ-VERIFY-008 render branch (which\u2026",
+   "cit": "design.md:331-349; requirements.md:447-449"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft does not flag that REQ-VERIFY-008 is the ONLY one of the three sub-obligations with NO named tool, NO Evidence_Record-mapping path, and NO subtype value \u2014 perf maps to k6/Lighthouse and a11y to axe-core, but UI-render maps to nothing (it is neither a performance nor accessibility NFR subtype, and PRD:59 calls it a separate WIRING-adjacent target). The draft lumps all three under one capability and marks REQ-VERIFY-008 'partial' alongside the others, masking that REQ-VERIFY-008 is materially more unspecified than 007: it has no tool, no subtype, no data source, and no evidence mapping simultaneously.",
+   "cit": "requirements.md:449; PRD_MERGED_canonical_spec_to_evidence.md:59; design.md:262"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "REQ-VERIFY-007 (Req 25.1)",
+   "criterion": "WHEN an NFR item of subtype `performance` is verified, THE System SHALL run k6/Lighthouse against numeric budgets (p95 latency, Core Web Vitals) and attach the result as the Evidence_Record.",
+   "how": "Capability named in Verifier behaviors (design.md:262) and build task 51 (tasks.md:966). The runtime trigger is 'NFR item of subtype performance'.",
+   "status": "partial",
+   "cit": "requirements.md:447; PRD_MERGED_canonical_spec_to_evidence.md:58; design.md:262; tasks.md:966"
+  },
+  {
+   "req_id": "REQ-VERIFY-007 (Req 25.2)",
+   "criterion": "WHEN an NFR item of subtype `accessibility` is verified, THE System SHALL run axe-core and require zero WCAG-A/AA violations on covered screens.",
+   "how": "Named in Verifier behaviors and task 51; zero-WCAG-A/AA gate is stated.",
+   "status": "partial",
+   "cit": "requirements.md:448; PRD_MERGED_canonical_spec_to_evidence.md:58; tasks.md:966"
+  },
+  {
+   "req_id": "REQ-VERIFY-008 (Req 25.3)",
+   "criterion": "THE System SHALL treat UI-screen completeness as a verification target: every declared screen/state (incl. empty, loading, error) SHALL have a behavioral test asserting it renders.",
+   "how": "Named in REQ-VERIFY-008 (Ubiquitous), Verifier behavior, and task 51's render-test assertion. WIRING-adjacent but no mechanism specifies how screens are 'declared' in the coverage model or how the assertion is enforced.",
+   "status": "partial",
+   "cit": "requirements.md:449; PRD_MERGED_canonical_spec_to_evidence.md:59; tasks.md:966"
+  },
+  {
+   "req_id": "Req 9.3 (behavioral evidence artifact)",
+   "criterion": "WHEN a behavioral check runs, THE Verifier SHALL produce a captured artifact attached as an Evidence_Record.",
+   "how": "perf/a11y results are attached as Evidence_Records per REQ-VERIFY-007; reuses evidence_collector.py.",
+   "status": "partial",
+   "cit": "requirements.md:188; design.md:263"
+  },
+  {
+   "req_id": "Glossary: Evidence_Record",
+   "criterion": "structured record with exactly four required fields test_file/test_name/output_hash/collected_at.",
+   "how": "perf/a11y output must conform to the same four-field schema; k6/Lighthouse/axe outputs would need mapping into test_file/test_name/output_hash \u2014 this mapping is unspecified.",
+   "status": "partial",
+   "cit": "requirements.md:29; design.md:387-411"
+  },
+  {
+   "req_id": "Req 5.4 (NFR first-class)",
+   "criterion": "THE System SHALL represent WIRING obligations and NFR items as first-class coverage items in feature_list.json.",
+   "how": "NFR is a first-class type in the schema enum {functional,NFR,WIRING}; perf/a11y items are NFR-typed.",
+   "status": "partial",
+   "cit": "requirements.md:125; design.md:333"
+  },
+  {
+   "req_id": "Property 23 (Line Coverage Threshold)",
+   "criterion": "any touched file with line coverage <85% \u2192 Verifier marks slice failed, no proven status (via pytest-cov/coverage.json).",
+   "how": "task 51 INCORRECTLY claims perf_a11y_verifier 'Validates Property 23 line-coverage figures' \u2014 but Property 23 validates Req 9.6 (coverage threshold), an entirely different concern from REQ-VERIFY-007/008. This is a mis-citation conflating two distinct requirements.",
+   "status": "gap",
+   "cit": "design.md:1058-1062; tasks.md:966"
+  },
+  {
+   "req_id": "Property mapping for REQ-VERIFY-007/008",
+   "criterion": "every requirement should be pinned by a correctness Property and/or Z3 CHECK.",
+   "how": "NO Property and NO Z3 CHECK pins REQ-VERIFY-007 or REQ-VERIFY-008. Properties 1-30 contain none for perf/a11y/UI-render; formal_verification_merged.py has no CHECK referencing VERIFY-007/008.",
+   "status": "gap",
+   "cit": "design.md:882-1130; verification/formal_verification_merged.py:1-523"
+  }
+ ],
+ "citation_issues": [
+  "verification/formal_verification_merged.py:1-523 \u2014 off-by-one phantom: the file is exactly 522 lines (verified via `wc -l`). Line 523 does not exist. The correct citation range is 1-522. This appears in the 'properties_and_checks' field (\"formal_verification_merged.py (34 checks, CHECK-1..13b) has no assertion referencing REQ-VERIFY-007/008; perf/a11y is acknowledged as runtime-only, never formally modeled (verification/formal_verification_merged.py:1-523)\") and in the 'dependencies' field. The substantive claim is correct (no VERIFY-007/008 references confirmed by grep), but the end-line number is phantom."
+ ]
+}

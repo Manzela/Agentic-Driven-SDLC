@@ -1,0 +1,159 @@
+{
+ "idx": 1,
+ "component": "stop_hook.py",
+ "file_path": ".claude/hooks/stop_hook.py",
+ "phase": "0",
+ "what": "`stop_hook.py` is the Phase-0 Stop-hook coverage validator and anti-loopmaxxing watchdog of the Spec-to-Evidence Coverage Control System. Configured behavior (from design.md `evaluate_stop` pseudocode, lines 684-737): on every Stop event it (1) loads `feature_list.json` and `run_state`, filters to `in_scope` items; (2) evaluates THREE HANDOFF triggers FIRST and ALLOWS termination (exit 0, status=handoff, emits a HANDOFF summary) when the iteration cap (`MAX_TURNS_PER_SLICE`/25), the cost/token budget (`run_state.budget_exceeded`), or the no-progress predicate fires; (3) then the spec-completion gate BLOCKS (exit 2) when `run_state.violation_count > 0`, and fails closed (exit 2) when `violati\u2026",
+ "open_gaps": [
+  {
+   "gap": "COMPONENT NOT BUILT: `.claude/hooks/stop_hook.py` is a 0-byte `.gitkeep` placeholder \u2014 the entire Phase-0 spine gate is unimplemented. The spec describes it fully but no executable exists, so every 'addressed' status above is design-level only.",
+   "severity": "missing-wiring",
+   "fix": "Implement task 5.1 (tasks.md:96-102): evaluate_stop, check_no_progress, with_reentrancy_guard, try/except fail-closed wrapper. Until then the Completion_Gate has no agent-side enforcer despite being declared a Phase-0 spine component (requirements.md:9).",
+   "cit": ".claude/hooks/.gitkeep (0 bytes); tasks.md:95-102"
+  },
+  {
+   "gap": "UNDEFINED CONSTANTS / SCHEMA MISMATCH: evaluate_stop references `MAX_TURNS_PER_SLICE`, `run_state.budget_exceeded`, and `token_budget_usd` (design.md:699,704) but the `run_state` table (design.md:481-496) has only `token_cost_usd` \u2014 there is NO `budget_exceeded` column, NO `token_budget_usd` column, and `MAX_TURNS_PER_SLICE` is never defined as a registry constant (the registry names cap=25 but not this symbol).",
+   "severity": "defect",
+   "fix": "Either add a `token_budget_usd` column (or compute `budget_exceeded = token_cost_usd >= token_budget_usd` from the threshold registry) and bind `MAX_TURNS_PER_SLICE`/budget to the task-44 config module. Reconcile the design pseudocode symbol names with the run_state DDL and the Requirement-20 registry.",
+   "cit": "design.md:481-496 vs design.md:699,704; requirements.md:357"
+  },
+  {
+   "gap": "UNIT MISMATCH: the cost budget is specified as 1,000,000 TOKENS per slice in the registry (requirements.md:357) and as 'token/cost budget' in Req 14.1, but run_state stores `token_cost_usd NUMERIC(10,4)` in USD and the pseudocode comment says `token_cost_usd >= token_budget_usd` (USD). Tokens vs USD are conflated with no conversion defined.",
+   "severity": "inconsistency",
+   "fix": "Pick one unit for the budget (tokens or USD), store both the running total and the threshold in that unit, and define the comparison explicitly. Cite requirements.md:357 and design.md:488,704.",
+   "cit": "requirements.md:357; design.md:488,704"
+  },
+  {
+   "gap": "REENTRANCY GUARD NOT WIRED: `with_reentrancy_guard(fn)` is defined (design.md:741-753) but no code shows `evaluate_stop` being invoked THROUGH it (no `with_reentrancy_guard(lambda: evaluate_stop(event))` entrypoint). The guard is dead unless explicitly composed, so Req 10.4 is only half-specified.",
+   "severity": "missing-wiring",
+   "fix": "Show/implement the hook `main()` entrypoint calling `with_reentrancy_guard(lambda: evaluate_stop(event))` and persisting run_state; add a unit test (tasks.md:126 names it but no wiring shown). Cite design.md:741-753.",
+   "cit": "design.md:741-753; tasks.md:126"
+  },
+  {
+   "gap": "PROPERTY-5 TEXT CONTRADICTS REQ-LOOP-005: Property 5 (design.md:914-916), the Hook-Wiring 'What it blocks' cell (design.md:209: 'Termination while any in-scope item is unproven or violation_count>0'), and the Phase-0 test row (design.md:624: 'one unproven item -> blocks') all state the pure 'unproven blocks' rule WITHOUT the HANDOFF-allow override. At HANDOFF the in-scope items are EXPECTED to remain unproven yet the hook must ALLOW (exit 0). A naive implementer following Property 5 / row-2 alone reproduces the infinite-block defect REQ-LOOP-005 was created to fix.",
+   "severity": "inconsistency",
+   "fix": "Amend Property 5 and the design.md:209/624 cells to read 'blocks termination while any in-scope item is unproven AND no HANDOFF trigger (cap/budget/no-progress) is active.' tasks.md:948 already flags Properties 8/9 should assert exit-0; extend the same caveat to Property 5.",
+   "cit": "design.md:914-916,209,624; tasks.md:948"
+  },
+  {
+   "gap": "Req 4.3 (strict-decrease no-progress -> HANDOFF) has NO concrete mechanism inside stop_hook.py: the spec-loop pass-over-pass decrease is described in prose (design.md:837-840) and listed in the stop_hook task requirements (tasks.md:102), but evaluate_stop only reads `violation_count` (a scalar) and has no access to the PRIOR pass's count to compute the strict-decrease predicate.",
+   "severity": "underspecified",
+   "fix": "Either move the strict-decrease check entirely to the spec-completion loop (and remove 4.3 from stop_hook's _Requirements_ list at tasks.md:102), or add a `prev_violation_count` field to run_state and implement the comparison in evaluate_stop. Cite design.md:837-840.",
+   "cit": "design.md:837-840; tasks.md:102"
+  },
+  {
+   "gap": "PHASE STAGING UNSTATED FOR AUDIT WIRING: design.md:144/209 and Req 27.4 say `audit_log.append(...)` IS CALLED by stop_hook.py on every decision, but stop_hook.py is Phase 0 while audit_log.py and its wiring (task 52.3) are Phase 2. A Phase-0 hook cannot call a Phase-2 producer; the dependency is presented as if always-on.",
+   "severity": "inconsistency",
+   "fix": "Mark the audit_log.append call in the Stop hook-wiring row as a Phase-2 addition (guarded/no-op until task 52.3), or pull the producer forward. Cite design.md:209 and tasks.md:970.",
+   "cit": "design.md:144,209; requirements.md:460; tasks.md:970"
+  },
+  {
+   "gap": "BUDGET HANDOFF UNVERIFIED IN Z3: CHECK-5b/5c and 8c prove the cap and no-progress HANDOFF exit-0 invariants, but there is NO CHECK proving `budgetExceeded \u2227 hookExitsBlocking` is UNSAT \u2014 only the core_axiom implication (formal_verification_merged.py:151-154) covers budget, with no standalone check. The third HANDOFF trigger is the least-verified.",
+   "severity": "underspecified",
+   "fix": "Add a CHECK-5d (or 8e): `core_axioms + [budgetExceeded, hookExitsBlocking]` expected UNSAT, mirroring CHECK-5b. Cite formal_verification_merged.py:263-275.",
+   "cit": "formal_verification_merged.py:151-154,263-275"
+  },
+  {
+   "gap": "EVALUATION-ORDER DISAGREEMENT design vs tasks: tasks.md:99 labels the unproven-items block as 'Check 1' (FIRST) and the cap/no-progress HANDOFF as Checks 2/3 (AFTER), but design.md:692-734 evaluates the three HANDOFF triggers BEFORE the unproven gate. Order is load-bearing for REQ-LOOP-005: if unproven is checked first per the task text, the hook blocks (exit 2) at the cap and reproduces the infinite-block defect.",
+   "severity": "inconsistency",
+   "fix": "Reorder task 5.1's checklist so HANDOFF triggers (cap/budget/no-progress) are evaluated BEFORE the unproven-items block, matching design.md:692-698, and renumber the checks accordingly. Also drop the 'force continuation' gloss on the unproven case. Cite tasks.md:99 vs design.md:692-734.",
+   "cit": "tasks.md:99; design.md:692-734"
+  },
+  {
+   "gap": "DUAL-DUTY PHASE ROUTING UNSPECIFIED: stop_hook.py serves both the spec-completion loop (Req 4: violation_count, Initializer, cap=7 passes) and the implementation loop (Req 10/14: slice completion + watchdog, cap=25 turns/slice). The design never states how a single Stop hook discriminates 'spec phase' from 'implementation phase' from run_state, yet the two have different caps and different no-progress semantics (pass-level vs slice-level, design.md:840).",
+   "severity": "underspecified",
+   "fix": "Add a `run_state.phase` discriminator and specify which cap/no-progress predicate evaluate_stop applies per phase; today both are conflated in one evaluate_stop with no phase field on run_state (design.md:481-496). Cite design.md:832-842.",
+   "cit": "design.md:832-842; design.md:481-496"
+  },
+  {
+   "gap": "DESIGN/TASKS THINNESS ON THE BUDGET BRANCH AND emit_handoff_summary: the budget HANDOFF branch (design.md:704) and the helper functions emit_handoff_summary, write_run_state, count_items_proven_since, count_commits_since are referenced but never defined or tasked anywhere; task 5.1 only enumerates load_feature_list/load_run_state/check_no_progress/evaluate_stop/with_reentrancy_guard (tasks.md:97-100). The summary-content obligation (remaining unproven, last N slice outputs, reason) in design.md:828 has no corresponding subtask.",
+   "severity": "underspecified",
+   "fix": "Add subtasks under task 5 for emit_handoff_summary (with the design.md:828 content contract), write_run_state, and the slice-history counters (count_items_proven_since / count_commits_since), or cite the component that owns them. Cite design.md:704,828; tasks.md:96-102.",
+   "cit": "design.md:704,828; tasks.md:96-102"
+  }
+ ],
+ "critic_findings": [
+  {
+   "kind": "missing",
+   "detail": "Requirement 13.5 / Property 21 (Hook Exit-Code Contract) is entirely absent from the draft's ears_stories AND properties_and_checks. Req 13.5 (requirements.md:254) is a first-class EARS criterion \u2014 'exit 0 = proceed, exit 2 = blocking error fed to the model via stderr, any non-zero exit other than 2 = non-blocking (exit 1 does NOT block)' \u2014 and stop_hook.py is the canonical emitter of exactly the exit-0 (allow/COMPLETE/HANDOFF) vs exit-2 (block) contract the whole component is built around. Property 21 (design.md:1042-1046) validates Req 13.5, is wired as a stop-hook-touching property test (tasks.md:590 lists 'Property 21: Hook Exit-Code Contract' inside test_hooks.py alongside Property 5/8/\u2026",
+   "cit": "requirements.md:254; design.md:1042-1046,860; tasks.md:590,593-597"
+  },
+  {
+   "kind": "missing",
+   "detail": "The N-25 Postgres-unavailable fallback gate-consistency invariant (tasks.md:730) is a named, load-bearing obligation on this component that the draft omits. It states: when `db_connection.health_check()` fails, EVERY gate including the 'Stop coverage gate' MUST fall back to file-backed state (`feature_list.json` + `claude-progress.txt`) and reach the SAME allow/block decision it would on Postgres \u2014 'never fail-open' \u2014 and 'on divergence the gate takes the more conservative (blocking) result.' The draft's dependencies[] only says stop_hook 'READS claude-progress.txt / in-memory fallback before Postgres (load_run_state)' \u2014 it captures the read order but drops the three correctness constraints \u2026",
+   "cit": "tasks.md:730; tasks.md:97"
+  },
+  {
+   "kind": "missing",
+   "detail": "The draft identifies only ONE Phase-2 modification to stop_hook.py (the audit-log producer wiring, task 52.3) but misses a SECOND: task 31.1 (tasks.md:489) explicitly says 'Wire `load_run_state` / `save_run_state` into `stop_hook.py` replacing current file-only reads.' This is a Phase-2 change to the Phase-0 component \u2014 the run_state_manager.py integration that swaps the file-only `load_run_state()` of task 5.1 for the Postgres-backed loader. The draft's dependencies[] and open_gaps[] (which carefully flag the Phase-0-vs-Phase-2 staging problem for audit_log) never mention task 31.1 or run_state_manager.py, so the run-state persistence rewiring of this hook is uncovered.",
+   "cit": "tasks.md:489; tasks.md:485-490"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft does not draw out the interaction between the now-first-class `failed` status (Req 5.8, requirements.md:129; Property 3, design.md:900) and the Stop completion gate. The design's evaluate_stop completion gate is `not_proven = [i for i in in_scope_items if i.status != \"proven\"]` (design.md:731) \u2014 which means an item in status `failed` ALSO blocks termination (it is 'not proven'), exactly like `unproven`. Every draft ears_story and behavior describes the gate as 'any in-scope item status != proven blocks' but the draft only ever cites the `unproven`-blocks consequence (Req 5.5) and never states that a `failed` in-scope item likewise blocks Stop. Given Req 5.8 / Property 3 made `faile\u2026",
+   "cit": "requirements.md:129; design.md:731,900"
+  },
+  {
+   "kind": "overstatement",
+   "detail": "The draft's Z3 CHECK-1 ears_story claims it 'asserts the allow()/COMPLETE path is reachable; pins evaluate_stop's exit-0 terminal case' (status: addressed). CHECK-1 (formal_verification_merged.py:171-183) is a GENERIC whole-system reachable-COMPLETE satisfiability check constrained by all core_axioms \u2014 it conjoins Not(unproven), complete, planApproved, evidence, testsPass, passed, Not(maint), Not(capReached/budgetExceeded/noProgress) and only one Stop-relevant literal Not(hookExitsBlocking). It is not a Stop-hook-internal assertion of evaluate_stop's exit-code logic; it proves the overall completion state is satisfiable. Framing it as pinning 'evaluate_stop's exit-0 terminal case' overstates\u2026",
+   "cit": "formal_verification_merged.py:171-183"
+  },
+  {
+   "kind": "weak",
+   "detail": "The draft's open_gap 'BUDGET HANDOFF UNVERIFIED IN Z3' is CORRECT and well-cited \u2014 I confirmed against the harness that `budgetExceeded` appears only inside the core_axioms disjunction (line 152) and as negated literals in CHECK-1/4c/10b, with no standalone `budgetExceeded \u2227 hookExitsBlocking \u2192 UNSAT` check mirroring CHECK-5b/5c/8c. However the gap understates the scope: there is ALSO no standalone reachability/routing check for the budget branch analogous to CHECK-3b (capReached \u21d2 handoff\u2227\u00accomplete\u2227exit-0 SAT) or CHECK-8a (no-progress reachable SAT). So budget is the only one of the three HANDOFF triggers with neither a blocking-UNSAT check NOR a routing-SAT check of its own \u2014 weaker than t\u2026",
+   "cit": "formal_verification_merged.py:151-154,206-212,345-351"
+  }
+ ],
+ "ears_needing_work": [
+  {
+   "req_id": "Req 10.4 (REQ-GATE-004)",
+   "criterion": "WHILE a Stop_Hook block is active, THE System SHALL set `stop_hook_active` to prevent the hook re-triggering itself and release the flag only when the blocking condition clears.",
+   "how": "`with_reentrancy_guard(fn)` sets `stop_hook_active=True` before eval, releases only when result.decision=='allow' (design.md:741-753); run_state column `stop_hook_active BOOLEAN DEFAULT FALSE` (design.md:493).",
+   "status": "partial",
+   "cit": "requirements.md:206; design.md:741-753"
+  },
+  {
+   "req_id": "Req 4.3",
+   "criterion": "IF a spec-completion pass does not strictly reduce `violation_count` vs prior pass, THEN halt and hand off to a human rather than retrying infinitely.",
+   "how": "Design 'Spec-Completion Loop Error Handling' (design.md:832-840): pass-over-pass no-decrease -> immediate HANDOFF; cited as a stop_hook requirement (tasks.md:102 _Requirements: 4.3_). Strict-decrease comparison lives in the spec loop, not shown inside evaluate_stop.",
+   "status": "partial",
+   "cit": "requirements.md:107; design.md:837-840; tasks.md:102"
+  },
+  {
+   "req_id": "Req 4.4",
+   "criterion": "IF the spec-completion loop reaches its hard pass cap (DEFAULT=7), THEN halt to human handoff and surface remaining violations.",
+   "how": "lex-specialis resolution: at SPEC_COMPLETION_HARD_CAP=7 the REQ-LOOP-005 HANDOFF (exit 0) wins over the 4.2 exit-2 block (design.md:842; requirements.md:110). Listed in stop_hook task requirements (tasks.md:102).",
+   "status": "partial",
+   "cit": "requirements.md:108-110; design.md:842"
+  },
+  {
+   "req_id": "Req 4.6 (tiebreak)",
+   "criterion": "AT the hard pass cap (7) WITH violation_count>0, the REQ-LOOP-005 HANDOFF (exit 0) SHALL take precedence over the criterion-4.2 Stop-block (exit 2).",
+   "how": "evaluate_stop evaluates cap-HANDOFF (exit 0) BEFORE the violation_count block; the lex-specialis prose pins the precedence (design.md:842).",
+   "status": "partial",
+   "cit": "requirements.md:110; design.md:716-726,842"
+  },
+  {
+   "req_id": "Req 14.1 (REQ-LOOP-001)",
+   "criterion": "WHILE a control loop runs, THE System SHALL enforce a hard iteration cap (DEFAULT=25 turns/Slice) and a token/cost budget per Slice.",
+   "how": "evaluate_stop: `if run_state.iteration_count >= MAX_TURNS_PER_SLICE` and `if run_state.budget_exceeded` route to HANDOFF (design.md:699-707); cap=25 default (requirements.md:267,354).",
+   "status": "partial",
+   "cit": "requirements.md:267; design.md:699-707"
+  },
+  {
+   "req_id": "Property 5",
+   "criterion": "For any stop attempt with >=1 in-scope item `unproven`, the Stop hook shall block and return the enumerated unproven IDs; termination permitted only when zero unproven.",
+   "how": "design.md:914-916 Property statement; tasks.md:104-108 PBT test; design.md:731-734 implementation returns the not-proven ID list. NOTE: property text says 'unproven blocks' without the HANDOFF-allow carve-out.",
+   "status": "partial",
+   "cit": "design.md:914-916; tasks.md:104-108"
+  },
+  {
+   "req_id": "Req 27.4 (REQ-AUDIT-001)",
+   "criterion": "`tools/audit_log.append(...)` SHALL be CALLED by `stop_hook.py` (and pre_tool_use/subagent_stop) on every allow/block decision.",
+   "how": "Hook-wiring row says Stop 'calls audit_log.append(...) on the allow/block decision' (design.md:209); producer-wiring task 52.3 modifies stop_hook.py (tasks.md:970). Phase-2 work on a Phase-0 hook.",
+   "status": "partial",
+   "cit": "requirements.md:460; design.md:209; tasks.md:970"
+  }
+ ],
+ "citation_issues": []
+}
