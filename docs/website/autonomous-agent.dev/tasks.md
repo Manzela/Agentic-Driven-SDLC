@@ -121,10 +121,14 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-IA-03** — Build the persistent primary header (desktop inline + responsive disclosure)  (→ IA-03, IA-04, IA-05, IA-13)
   - Render allowed destinations inline at desktop and a focus-trapped disclosure below the breakpoint with aria-current.
   - Test asserts inline links at >=1024px, focus trap and aria-expanded at <1024px, and exactly one aria-current="page".
+  - Render the category descriptor lockup beneath the wordmark (so a deep-link arrival reads the category immediately), pin or drop the condense behavior so it is deterministic, and keep /writing out of nav while it is stubbed.
+  - Test asserts the descriptor lockup renders under the wordmark on every route, the condense behavior is deterministic (no jitter), and no nav item targets /writing while stubbed.
 
 - [ ] **T-IA-04** — Build the global footer with soft Get notified and qualitative trust note  (→ IA-03, IA-12)
   - Render secondary nav to all destinations, one Get notified capture, and CONTENT-13-sourced trust copy.
   - Test asserts all destination links resolve and footer text matches no \b\d+\s*/\s*\d+\s+(formally\s+)?(verified|checked)\b.
+  - Make the footer's single trust line the verbatim governing invariant (sourced from the shared CONTENT-11 constant) and ensure the footer owns the single Get-notified instance.
+  - Test asserts the footer trust line is a byte-for-byte match of the governing invariant constant and that exactly one Get-notified control exists across the rendered page (footer-owned).
 
 - [ ] **T-IA-05** — Add the no-funnel + claims-integrity content lint to CI  (→ IA-03, IA-12, IA-16)
   - Lint chrome markup and metadata against the funnel-affordance denylist and the claims regex.
@@ -141,10 +145,14 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-IA-08** — Build the branded 404 (not-found) route  (→ IA-08, IA-13)
   - Implement not-found boundary preserving global nav and recovery links.
   - Test asserts GET /no-such-page returns 404 with nav and links to all canonical primary destinations.
+  - Carry the verbatim governing invariant as the 404's trust line, in manifesto voice tied to the evidence thesis, and keep the page legible-as-an-error without alarm-red.
+  - Test asserts the 404 body contains the byte-for-byte governing invariant and uses no alarm-red (--error) styling while still reading as an error state.
 
 - [ ] **T-IA-09** — Build the branded 500 (global-error) route  (→ IA-09, IA-13)
   - Implement global-error boundary with no stack trace/env/internal id and a home link.
   - Test asserts forced error returns 500, body matches no stack/env/id pattern, and a link resolves to /.
+  - Render the 500 in manifesto voice that reads as an error state within seconds without alarm-red styling.
+  - Test asserts the 500 body uses no alarm-red (--error) styling while still reading as an error state.
 
 - [ ] **T-IA-10** — Generate sitemap.xml and robots.txt programmatically  (→ IA-11, IA-16)
   - Build sitemap from indexable manifest routes; serve robots referencing it; register utility endpoints separately.
@@ -153,6 +161,8 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-IA-11** — Implement /docs and empty-/writing content-driven stub/empty states  (→ IA-15, IA-01)
   - Drive stub vs populated rendering from content-presence flags with intent copy + Get notified.
   - Test asserts empty section returns 200 with stub container, global nav, no article nodes, no availability claim.
+  - Default the content-presence flag OFF at launch so /writing is fully absent (no route, no nav entry, no orphan link), and give the /docs stub live onward links to existing manifest routes alongside its single Get-notified affordance.
+  - Test asserts that with the default flag /writing yields no route and no nav entry and is unreferenced by any link, while the /docs stub exposes live onward links resolving to existing manifest routes.
 
 - [ ] **T-IA-12** — Implement skip link, landmarks, route-change focus, and loading states  (→ IA-13, IA-14)
   - Add landmarks, first-focus skip link, route-change focus move, and route-level skeleton loading.
@@ -193,22 +203,32 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-HOME-04** — Build Hero beat with headline-as-LCP, soft action, and reserved loop box  (→ HOME-01, HOME-12, HOME-13)
   - Render wordmark, one `h1` display headline (weight 300–600 per DS-07), subhead, "See how it works" anchor to `/how-it-works` (IA-03), and a reserved-dimension centerpiece mount-point
   - Assert all hero nodes exist in SSR HTML and that accent coverage in the first viewport measures ≤3–5% of pixels
+  - Render the antagonist kicker present-at-first-paint above the dominant thesis `h1`, with the powering-stack moved out of the hero body to supporting weight, and mount the centerpiece loop cinematic (not pre-mounted to its gate state)
+  - Assert the kicker node precedes the thesis `h1` in document order at first paint and reads at subordinate weight to it; assert the powering-stack does not appear in the hero body; assert the hero contains no `--proven` token and the loop's initial state is not the gate state
 
 - [ ] **T-HOME-05** — Implement ProblemGrid consolidation as a deterministic scroll-bound state machine (desktop)  (→ HOME-03, HOME-14, HOME-15)
   - Map progress to discrete consolidation steps via a pure progress->state function; tag each step with `data-motion-state` from the DS-08 registry; pin on desktop and release cleanly
   - Assert replaying a progress value reproduces identical state, reverse-scroll replays steps in reverse, and pin-release produces CLS ≤ 0.1 with no trapped scroll
+  - Build the betrayal sub-beat inside this section (the green-suite-lies micro-sequence: a suite reads green, merges, then surfaces as never wired into a live execution path) as a single quiet artifact-reveal with no alarm-red, and render at least a dozen named real tool tiles whose human-legible lead label is the primary label with the engineering spine string subordinated to it as a static-DOM caption
+  - Assert the betrayal micro-sequence renders with no `--error`/alarm-red styling in any of its states; assert at least twelve named tool tiles are present; assert the human-legible lead label is the primary (higher-weight) label and the spine string is a subordinated caption in static DOM; assert Temporal renders outside the consolidated engine at progress=1.0
 
 - [ ] **T-HOME-06** — Build ReplaceTable with the six role->substitute pairs and scroll-revealed rows  (→ HOME-04, HOME-14)
   - Author a real two-column table with the six pairs sourced from CONTENT-06; layer scroll reveal as presentation only (human->machine framing transition)
   - Assert all six pairs are readable in static DOM with JS disabled and that reduced-motion shows all rows resolved
+  - Author the substitution grammar so the machine artifact text visibly replaces the human-labor text in each row, and name the per-edit enforcement on both the verifier cell and the auditor cell
+  - Assert the resolved framing reads as substitution (machine text occupying where the human text was); assert no `--proven` token styles any row; assert both the verifier cell and the auditor cell carry per-edit naming
 
-- [ ] **T-HOME-07** — Wire Closed-loop-explained beat: scroll-stepped stages with synchronized captions and the gate-holds beat  (→ HOME-05, HOME-14)
+- [ ] **T-HOME-07** — Wire Closed-loop-explained beat (climax: "The line is held"): scroll-stepped stages with synchronized captions and the gate-holds beat  (→ HOME-05, HOME-14)
   - Advance the shared ClosedLoop through six stages in lockstep with progress; render per-stage captions and import gate-verdict copy from CONTENT-13
   - Assert the gate glow uses --proven/--accent (DS-01), the unproven item uses --text-faint, and no --error styling appears in any gate state
+  - Compress stages 1–5 at roughly 3:1 so the gate reads as the arrival, make the held-item fade to `--text-faint` the primary signal, scope `--proven` to the verdict chip only, route the held item to a HANDOFF affordance distinct from COMPLETE, and drive the LOOP-07 four-beat gate choreography (approach → evaluate → hold/close → settle) with a success oracle
+  - Assert stages 1–5 occupy roughly a third of the scroll allotted to the gate (gate as arrival); assert the held-item fade is the dominant signal and `--proven` appears only on the verdict chip; assert HANDOFF is a distinct node from COMPLETE; assert (mandatory) the reduced-motion static fallback renders the gate cell at 2× emphasis; assert the four named beats fire in order and the success oracle passes
 
 - [ ] **T-HOME-08** — Build EvidenceTrace proof beat with four-field schema and pending->proven illumination  (→ HOME-06, HOME-13)
   - Render the four fields (test_file, test_name, output_hash, collected_at) inside `[data-artifact]` mono nodes, labeled illustrative sample data; illuminate to accent only when all four fields present
   - Assert mono appears only on `[data-artifact]` nodes and reduced-motion renders the record in its resolved proven state
+  - Lead the beat with the self-administered auditor question co-framed for self-interest (could an auditor — and could you, later — prove this code did what it claimed and was independently verified), drive illumination by evidence completeness rather than scroll position, and show a single record plus its framing anchor
+  - Assert the auditor question appears before the comparison framing; assert illumination is bound to all-four-fields-present, not to scroll progress; assert exactly one evidence record renders, labeled illustrative, alongside one framing anchor
 
 - [ ] **T-HOME-09** — Enforce claims-integrity firewall on all homepage copy and metadata  (→ HOME-06, HOME-13, HOME-08)
   - Add a CI check running the denylist regex `\b\d+\s*/\s*\d+\s+(formally\s+)?(verified|checked)\b` over rendered HTML and metadata; gate customer/logo claims behind content/claims-registry.json (CONTENT-06)
@@ -217,14 +237,20 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-HOME-10** — Build The-leap beat with recede/resolve state transitions  (→ HOME-07)
   - Render four "removes" and three "guarantees" items from CONTENT-06; recede removes to muted/--text-faint, resolve guarantees to --proven/--accent
   - Assert both lists are readable as a static two-part list with JS disabled and resolve by default under reduced-motion
+  - Render the beat as a static resolved two-column ledger with explicit group headers (structural contrast, not color alone) and completed guarantee noun phrases, dropping any "zero" prefix from the guarantee labels
+  - Assert the two columns carry distinct text group headers (legible without color); assert each guarantee reads as a completed noun phrase and no guarantee label begins with "zero"
 
 - [ ] **T-HOME-11** — Build Who-its-for beat with editorial audience framing and no funnel  (→ HOME-08)
   - Render editorial audience copy (aerospace, medical, finance, defense) from CONTENT-06; reserve logo-wall as a future evidence-gated slot
   - Assert no pricing/demo/contact-sales CTA, no `<form>`, no logo grid, and no sibling-subdomain link exist in the section
+  - Open with a pain-hook (the standard "looks done is unacceptable") before any domain name, and include a no-lock-in micro-line
+  - Assert the pain-hook text precedes the first domain name in document order; assert the no-lock-in micro-line is present in the section
 
 - [ ] **T-HOME-12** — Build Soft-close with manifesto link and full notify state coverage  (→ HOME-09)
   - Render "Read the manifesto" (`/manifesto`) and "See how it works" (`/how-it-works`) links (IA-03) plus the PRIV-owned Get-notified control with submitting/success/error/already-subscribed states
   - Assert each notify state is independently renderable and that no site content is gated behind notify submission
+  - Anchor the closing line back to the Beat-1 antagonist (resolving the betrayal arc) and make "See how it works" the primary affordance
+  - Assert the close copy references the Beat-1 antagonist framing; assert "See how it works" is rendered as the primary action over the manifesto and notify affordances
 
 - [ ] **T-HOME-13** — Implement reduced-motion + resolved-state-by-default across all beats  (→ HOME-10, HOME-14)
   - Drive reduced-motion from the DS-08 registry switch: disable pin/scrub and emit final resolved states for consolidation, gate-holds, proven illumination, and all rows
@@ -265,10 +291,14 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-LOOP-01** — Author the Rive ClosedLoop artboard and state-machine contract  (→ LOOP-02, LOOP-01)
   - Model the six named states + transitions and named inputs/triggers as the only host write surface, with the canonical traversal and 8–14s cadence input.
   - Contract test asserts each named state maps one-to-one to a declared stage and an unmapped state fails.
+  - Author one state machine carrying both playback modes (hero autonomous traversal and Beat-5 scroll-driven), keep the moving layer to geometry and accent only, and place all tool names on the stationary artifact panel outside the motion layer.
+  - Assert a single state-machine source drives both playback modes; assert the motion layer's artboard contains no tool-name text nodes (tool names live only on the stationary panel).
 
 - [ ] **T-LOOP-02** — Build ClosedLoop host wrapper with typed Rive bindings  (→ LOOP-02, LOOP-01, LOOP-09)
   - Wrap the runtime with typed input/trigger bindings; route all display changes through them, no CSS/Framer motion for progression.
   - Runtime motion-integrity assertion confirms every observed animation corresponds to a named state.
+  - Render the host as a separated moving layer (geometry + accent) over a stationary copy/artifact panel that owns the tool/stage labels, and expose the hero-autonomous and scroll-driven cadences as two playback modes of the same single state machine.
+  - Assert the moving layer and the stationary artifact panel are distinct DOM/render layers with no tool names inside the moving layer; assert both playback modes resolve to one state-machine instance (single source of truth).
 
 - [ ] **T-LOOP-03** — Create the illustrative loop fixture and requirement-token rendering  (→ LOOP-04, LOOP-13)
   - Commit a fixture modeled on the real evidence schema and render tokens only on [data-artifact] mono nodes.
@@ -374,6 +404,8 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
   - Write /manifesto as numbered MDX sections; store the governing invariant as a shared constant.
   - Verify: section-presence test for the five spine elements; byte-for-byte invariant match.
   - Verify: a presence check that the enforcement layer is described — the six official Claude Code hooks are named (PreToolUse, PostToolUse, UserPromptSubmit, SubagentStop, Stop, SessionStart), command hooks are characterized as fail-closed with the honest limit stated (a hook can block a tool call but cannot by itself prove the work is correct) — and that the proof-of-execution versus proof-of-correctness distinction is drawn explicitly.
+  - Lead §1 with the antagonist (self-report is not evidence) before any solution framing, and present the HANDOFF self-correction as a trust beat (not an error footnote).
+  - Verify: the §1 antagonist framing precedes the first solution/mechanism statement; verify the HANDOFF passage is framed as a trust signal in body voice rather than as an error footnote.
 
 - [ ] **T-CONTENT-12** — Generate per-page metadata from on-page claims  (→ CONTENT-12)
   - Build the metadata generation step deriving title/description/OG/JSON-LD from ledger claims.
@@ -383,6 +415,8 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
   - Author terminology.json (brand/casing/token format + canonical gate-verdict copy) and the consistency linter.
   - Verify: linter fails on a disallowed synonym; all verdict strings resolve from the single style sheet.
   - Verify: the linter asserts the canonical six-stage order intent→decompose→implement→verify→prove→gate (gate last) and the single canonical gate caption ("Stop hook holds locally; OPA/Conftest zero-evidence policy at merge; GitHub ruleset makes both required") across HOME, LOOP, and PAGE surfaces, so a regression that places gate before verify — or that drifts the gate caption (as LOOP-17 could) — fails the build.
+  - Author the green-rationing rule (the `--proven` token is permitted only at the gate verdict chip and the completed evidence record) and the canonical held-item/HANDOFF verdict-chip copy in the style sheet, and lint both.
+  - Verify: the linter fails on a `--proven` token used outside the gate verdict chip or completed evidence record, and fails when the HANDOFF verdict-chip copy drifts from the single canonical string in the style sheet.
 
 - [ ] **T-CONTENT-14** — Implement Who-it's-for module with anti-fabrication assertion  (→ CONTENT-14)
   - Render audience/role/industry framing from data; gate any numeric social proof through the ledger.
@@ -403,10 +437,14 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-CONTENT-18** — Implement the <PoweredBy> machine-artifact module  (→ CONTENT-18)
   - Build <PoweredBy> reading the committed PRD stack manifest, rendering each entry as a mono [data-artifact] node that shows the tool name, the B-block ID it serves, and a one-line pain-point tie.
   - Verify: every manifest entry exposes tool name + B-block ID + one-line pain-point tie as labeled [data-artifact] text; membership-by-name assertion passes for the six official Claude Code hooks (PreToolUse, PostToolUse, UserPromptSubmit, SubagentStop, Stop, SessionStart), the four subagents (initializer, implementer, verifier, and the gate/orchestrator subagent), OWASP ZAP, DeepEval, OpenFeature/flagd, gitleaks, and Hypothesis; DOM/numeric scan confirms zero logo <img> and zero numeric stat strings.
+  - Place the module as the immediate sequel to the fragmented-stack collapse (the "what's in the box?" reveal) and gloss each B-block ID in human-legible terms alongside its retained code.
+  - Verify: the module renders in document order immediately after the collapse section; verify each B-block ID carries a human-legible gloss string adjacent to the retained ID.
 
 - [ ] **T-CONTENT-19** — Author the vendor-neutral / no-lock-in content block  (→ CONTENT-19)
   - Author the shared no-lock-in block (feature_list.json, EvidenceRecord, requirement-ID Baggage, "opinionated defaults, not a cage") on /how-it-works and the manifesto; register the claim in the ledger.
   - Verify: copy-presence check passes on both pages and the claim resolves to a claims-ledger entry with a corpus citation.
+  - Include a concrete EvidenceRecord JSON glimpse with a human gloss (including a gloss of "W3C Baggage"), and render the full no-lock-in triple (feature_list.json, EvidenceRecord, requirement-ID Baggage) on both /how-it-works AND the manifesto.
+  - Verify: a literal EvidenceRecord JSON snippet plus its adjacent human gloss is present (and "W3C Baggage" is glossed); verify all three triple elements appear on /how-it-works and on the manifesto.
 
 ---
 
@@ -415,6 +453,8 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-PAGE-01** — Scaffold (site) route group and shared supporting-page shell  (→ PAGE-01, PAGE-11, PAGE-13)
   - Create the `(site)` route-group layout with header, soft-action footer, and a single Get-notified slot; resolve footer links against the IA route manifest.
   - Assert the shell renders identically across all supporting routes and exposes exactly one Get-notified control (DOM control inventory).
+  - Keep print stylesheets out of the shell scope (declared per-route only) and let the footer own the single Get-notified instance for the whole shell.
+  - Assert no print stylesheet is attached at the shell layer (any print styles are route-scoped) and that the shell exposes exactly one footer-owned Get-notified control.
 
 - [ ] **T-PAGE-02** — Build typed claims registry with corpus references  (→ PAGE-03, PAGE-06, PAGE-08)
   - Define `content/claims-registry.json` as the single source of truth with typed claim keys and corpus references.
@@ -432,15 +472,21 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-PAGE-05** — Implement B01-B19 capability taxonomy  (→ PAGE-02)
   - Render 19 blocks grouped into named clusters with label, one-line description, and `[data-artifact]` mono block ID.
   - Assert IDs B01-B19 are complete and unique and mono styling appears only on `[data-artifact]` nodes.
+  - Align the named clusters one-to-one onto the six canonical loop stages (intent→decompose→implement→verify→prove→gate), framed as the same loop at higher resolution rather than a flat catalog.
+  - Assert the cluster set maps onto the six loop stages (each cluster labels its owning stage; gate stage owns its cluster last) with no cluster left unmapped.
 
 - [ ] **T-PAGE-06** — Build /proof information spine  (→ PAGE-03, PAGE-08)
   - Render the four ordered titled sections and the exact four-field evidence schema on `[data-artifact]` nodes.
   - Assert section order by ordinal and that the denylist regex matches zero times.
   - Assert a presence check that the enforcement layer is named — the six official Claude Code hooks (PreToolUse, PostToolUse, UserPromptSubmit, SubagentStop, Stop, SessionStart), with command hooks framed as fail-closed and the honest limit stated (a hook can block a step but cannot by itself establish correctness) — and that the proof-of-execution versus proof-of-correctness distinction is present on the page.
+  - Open the spine with the auditor test as the challenge, then answer it with invariant → schema → independent-verifier in that order.
+  - Assert the auditor-test challenge node precedes the invariant/schema/verifier answer in document order.
 
 - [ ] **T-PAGE-07** — Implement EvidenceTrace state machine and sample dataset  (→ PAGE-04, PAGE-12)
   - Build the hash-chained, requirement-ID-tagged trace with per-row unproven → evidence-attached → proven and a terminal gate evaluation bound to `data-state`.
   - Assert gate-held color equals the `--proven` token (#34E1A0) and no `COMPLETE` node exists while any item is unproven.
+  - Render a bridge sentence above the trace (reframing gate-green as held-correct at first contact), style evidence-pending rows with the `--pending` token, and route the held item to a HANDOFF state distinct from COMPLETE.
+  - Assert a bridge sentence node precedes the trace; assert evidence-pending rows carry `--pending`; assert HANDOFF is a distinct `data-state` from COMPLETE.
 
 - [ ] **T-PAGE-08** — Make EvidenceTrace accessible, no-JS safe, and state-complete  (→ PAGE-05, PAGE-15)
   - Add keyboard operability, server-rendered static fallback, and explicit loading/ready/error/static states with a legible malformed-data fallback.
@@ -457,14 +503,20 @@ non-gating alert. Lock the 8 Phase-0 decisions (PART F) before build.
 - [ ] **T-PAGE-11** — Author and render /manifesto essay with reading aids  (→ PAGE-06, PAGE-07)
   - Author the numbered-section MDX essay with copyable anchors and a scroll-derived non-decorative progress indicator; constrain display weights to 300–600.
   - Assert sequential heading numbers, monotonic progress at 0/50/100% scroll, and anchors resolving to existing IDs.
+  - Implement the reading aid as a named-section side-rail (IntersectionObserver-driven, listing the section names with the active section marked), not a percentage progress bar.
+  - Assert the side-rail lists each numbered section by name and marks exactly one active section on scroll, with no percentage-progress element present.
 
 - [ ] **T-PAGE-12** — Implement optional /writing index and articles behind a flag  (→ PAGE-09, PAGE-16)
   - Gate /writing behind a build-time flag; render date-sorted index when populated, deliberate empty state when empty, full absence when disabled.
   - Assert descending date order when populated and full route+nav absence when the flag is off.
+  - Default the flag OFF at launch (route and nav entry both absent, no orphan link) and drop any reading-time label from the index, rendering a human-readable date (ISO in the `datetime` attribute).
+  - Assert that with the default flag the /writing route and its nav entry are both absent and no link targets it; assert no reading-time string renders and each entry date is human-readable with ISO in `datetime`.
 
 - [ ] **T-PAGE-13** — Build /docs honest placeholder stub  (→ PAGE-10, PAGE-16)
   - Render a forthcoming-docs placeholder with `noindex`, zero dead links, and only the soft Get-notified affordance.
   - Assert no anchors point to non-existent doc routes and no pricing/demo/sales controls exist.
+  - Add live onward links (to /how-it-works, /proof, /manifesto, resolved against the IA route manifest) alongside the single Get-notified affordance so the stub is not a dead end.
+  - Assert the stub renders live onward links each resolving to an existing manifest route, alongside exactly one Get-notified control.
 
 - [ ] **T-PAGE-14** — Add branded 404, error boundary, and internal link checker  (→ PAGE-16)
   - Implement the branded not-found/error boundary with IA-resolved soft nav and a build-time internal-link validator.
