@@ -44,6 +44,32 @@ fi
 # source the port for the health probe (default 80)
 LISTEN_HTTP_PORT="$(grep -E '^LISTEN_HTTP_PORT=' "$ENV_FILE" | tail -1 | cut -d= -f2)"
 LISTEN_HTTP_PORT="${LISTEN_HTTP_PORT:-80}"
+APP_RELEASE="$(grep -E '^APP_RELEASE=' "$ENV_FILE" | tail -1 | cut -d= -f2)"
+APP_RELEASE="${APP_RELEASE:-stable}"
+
+# ── 1b. architecture preflight (ARM / Ampere A1) ──────────────────────────────
+# Plane's official images are published for linux/amd64; arm64 manifests are not
+# guaranteed for every release. On aarch64 (e.g. Oracle Ampere A1), probe one of
+# the images for a native arm64 manifest. If present → run native. If absent →
+# enable QEMU binfmt emulation and pin DOCKER_DEFAULT_PLATFORM=linux/amd64 so the
+# stack still runs (slower, more RAM — fine for a single-tenant control plane).
+ARCH="$(uname -m)"
+if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
+  log "ARM host detected ($ARCH). Checking Plane images for a native arm64 manifest…"
+  probe="makeplane/plane-backend:${APP_RELEASE}"
+  if docker manifest inspect "$probe" 2>/dev/null | grep -q 'arm64'; then
+    log "Native arm64 images available for $APP_RELEASE — running natively."
+  else
+    warn "No arm64 manifest for $probe — falling back to amd64 emulation (QEMU)."
+    warn "This is slower and uses more RAM; ensure the VM has >= 8 GB (Ampere A1"
+    warn "free tier can allocate up to 24 GB / 4 OCPU — use a generous shape)."
+    log "Installing QEMU binfmt handlers…"
+    docker run --privileged --rm tonistiigi/binfmt --install all >/dev/null 2>&1 || \
+      warn "binfmt install returned non-zero — emulation may already be registered."
+    export DOCKER_DEFAULT_PLATFORM=linux/amd64
+    log "Set DOCKER_DEFAULT_PLATFORM=linux/amd64 for this run."
+  fi
+fi
 
 # ── 2. validate + pull + up ───────────────────────────────────────────────────
 log "Validating compose config…"
