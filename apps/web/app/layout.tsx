@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import "./tokens.css";
+import { SiteNav, SiteFooter } from "./components/site-chrome";
 
 export const metadata: Metadata = {
   title: "Autonomous Agent — Software delivery that proves itself",
@@ -16,13 +18,18 @@ export default function RootLayout({
       <body
         style={{
           margin: 0,
-          background: "#0A0B0D",
-          color: "#F5F7FA",
-          fontFamily:
-            "ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif",
+          background: "var(--canvas)",
+          color: "var(--text)",
+          fontFamily: "var(--font-sans)",
+          fontWeight: 400,
         }}
       >
-        {children}
+        <a href="#main" style={{ position: "absolute", left: -9999, top: 0 }}>
+          Skip to content
+        </a>
+        <SiteNav />
+        <main id="main">{children}</main>
+        <SiteFooter />
       </body>
     </html>
   );

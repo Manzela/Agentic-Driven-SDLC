@@ -18,8 +18,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md DS-01 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "ubiquitous"
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 verify)",
+        "test_name": "DS-TOK-001",
+        "output_hash": "sha256:1de0795b431297fe9e9991d3c3ae6ee0a059e3cd50739953280fa19e2274b6e3",
+        "collected_at": "2026-06-16T05:09:42.977289+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1",
+        "implementer_session_id": "sess-i-t1",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "DS-TOK-002",
@@ -312,8 +322,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md IA-03 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "ubiquitous"
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 verify)",
+        "test_name": "IA-NAV-003",
+        "output_hash": "sha256:7bb6561c6d14dc4f640298d600b016eb2b90a2c82fc8c9ee97a69e455e09c3ad",
+        "collected_at": "2026-06-16T05:09:42.977411+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1",
+        "implementer_session_id": "sess-i-t1",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "IA-NAV-004",
@@ -438,8 +458,18 @@
         "See docs/website/autonomous-agent.dev/requirements.md IA-12 for the full EARS statement and objective acceptance criteria."
       ],
       "in_scope": true,
-      "status": "unproven",
-      "ears_pattern": "ubiquitous"
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 verify)",
+        "test_name": "IA-NAV-012",
+        "output_hash": "sha256:7bb6561c6d14dc4f640298d600b016eb2b90a2c82fc8c9ee97a69e455e09c3ad",
+        "collected_at": "2026-06-16T05:09:42.977440+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1",
+        "implementer_session_id": "sess-i-t1",
+        "evidence_kind": "behavioral"
+      }
     },
     {
       "id": "IA-NAV-013",

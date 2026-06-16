@@ -1,8 +1,8 @@
 export default function Home() {
   return (
-    <main style={{ maxWidth: 1180, margin: "0 auto", padding: "120px 32px" }}>
+    <div style={{ maxWidth: "var(--container-max)", margin: "0 auto", padding: "var(--space-16) var(--space-8)" }}>
       <p
-        style={{ color: "#8A8F98", fontSize: 18, margin: "0 0 18px" }}
+        style={{ color: "var(--text-muted)", fontSize: 18, margin: "0 0 18px" }}
         data-testid="antagonist-kicker"
       >
         An agent&rsquo;s self-report is not evidence.
@@ -20,13 +20,10 @@ export default function Home() {
         <br />
         that proves itself.
       </h1>
-      <p style={{ color: "#8A8F98", fontSize: 19, marginTop: 22, maxWidth: 620 }}>
+      <p style={{ color: "var(--text-muted)", fontSize: 19, marginTop: "var(--space-6)", maxWidth: 620 }}>
         Independent, evidence-backed verification &mdash; not the agent&rsquo;s
         word for it.
       </p>
-      <p style={{ marginTop: 8, fontSize: 12, color: "#5A606B" }}>
-        Autonomous Agent &middot; Autonomous SDLC Platform
-      </p>
-    </main>
+    </div>
   );
 }

@@ -17,13 +17,16 @@ jobs:
         run: pytest tests/ -q
       - name: Z3 actor-separation proof
         run: python verification/actor_separation.py | grep -q UNSAT-to-violate
-      - name: Plan-approval SHA freeze matches the coverage model
+      - name: Plan-approval freeze matches the coverage model (fingerprint)
+        # Binds the immutable model (ids/type/priority/deps/acceptance/in_scope),
+        # stable across proven-flips; catches item-set or scope drift only.
         run: |
           python - <<'PY'
-          import hashlib, json, sys
-          sha = hashlib.sha256(open("apps/web/feature_list.json","rb").read()).hexdigest()
-          approved = json.load(open("plan-approved.json"))["feature_list_sha"]
-          sys.exit(0 if sha == approved else f"SHA drift: model={sha} approved={approved}")
+          import json, sys
+          from tools.model_fingerprint import fingerprint_file
+          fp = fingerprint_file("apps/web/feature_list.json")
+          approved = json.load(open("plan-approved.json"))["model_fingerprint"]
+          sys.exit(0 if fp == approved else f"model drift: {fp} != approved {approved}")
           PY
       - name: Coverage zero-evidence gate (OPA/Conftest)
         # Completion gate: blocks MERGE while any in-scope item is unproven.

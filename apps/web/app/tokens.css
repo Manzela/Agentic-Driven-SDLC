@@ -1,0 +1,31 @@
+/* tokens.css — the single source of truth for design tokens (DS-TOK-001/007/010).
+ * Generated contract: every rendered surface, text, and border resolves its
+ * value from a named token here — no hard-coded literals in components.
+ * Mirrors docs/website/autonomous-agent.dev/requirements.md DS-01/DS-07 and the
+ * DESIGN.md contract. (Phase-1 wires Style Dictionary to emit this file from
+ * design/tokens/*.json; for now this hand-authored file IS the single source.) */
+:root {
+  /* color — dark, restrained, semantic */
+  --canvas: #0A0B0D;
+  --surface: #121417;
+  --surface-2: #181B1F;
+  --border: #1E2227;
+  --text: #F5F7FA;
+  --text-muted: #8A8F98;
+  --text-faint: #5A606B;
+  --proven: #34E1A0;   /* accent — verification/system-correct ONLY */
+  --pending: #E2B340;
+  --error: #E5484D;    /* genuine runtime errors ONLY (AA >= 3:1 on canvas) */
+  --signal: var(--proven);
+
+  /* type */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+  /* layout — spacing scale, radius, elevation, container */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-16: 64px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+  --border-hairline: 1px solid var(--border);
+  --container-max: 1180px;
+}
