@@ -68,19 +68,17 @@ jobs:
           cat /tmp/app.log >&2 || true
           exit 1
 
-      # REQ-SEC-008.1 / .3: OWASP ZAP BASELINE (passive) scan only. fail_action: true
-      # makes any unmuted alert fail this REQUIRED check and block the merge.
-      - name: OWASP ZAP baseline passive scan
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          # Unauthenticated v1 localhost target stood up above.
-          target: "http://localhost:${{ env.ZAP_TARGET_PORT }}"
-          # Block merge on findings (REQ-SEC-008.1).
-          fail_action: true
-          # Ruleset / false-positive allowlist (alert thresholds). Optional file —
-          # the action tolerates its absence and runs the default passive ruleset.
-          rules_file_name: ".zap/rules.tsv"
-          # Deterministic run: don't create or update a tracking GitHub issue from CI.
-          # The check pass/fail — not an issue — is the gate.
-          allow_issue_writing: false
-          cmd_options: "-a"
+      # REQ-SEC-008.1/.3: OWASP ZAP BASELINE (passive) scan. Run zap-baseline.py via
+      # Docker directly so the REQUIRED gate is purely the scanner exit code (non-zero
+      # on any un-muted WARN/FAIL => merge blocked). The zaproxy/action-baseline@v0.12.0
+      # wrapper is avoided here ONLY because its internal artifact upload is incompatible
+      # with the current Actions artifact backend ("artifact name zap_scan is not valid")
+      # and fails the job even on a clean scan; this runs the identical scanner image.
+      # --user root avoids the mounted-workspace write-permission warning; .zap/rules.tsv
+      # IGNOREs the placeholder-target header noise (0 real findings on v1).
+      - name: OWASP ZAP baseline passive scan (REQ-SEC-008)
+        run: |
+          docker run --user root --network=host \
+            -v "${{ github.workspace }}:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t "http://localhost:${ZAP_TARGET_PORT}" -c .zap/rules.tsv -a
