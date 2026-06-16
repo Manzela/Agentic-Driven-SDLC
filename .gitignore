@@ -15,6 +15,7 @@
 *.egg
 *.egg-info/
 *.py[cod]
+*.pyc
 *.so
 *.swo
 *.swp
