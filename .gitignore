@@ -45,3 +45,4 @@ plane-integration/.webhook_deliveries.json
 plane-selfhost/credentials.env
 plane-selfhost/plane.env
 venv/
+plane-integration/.reorg_state.json
