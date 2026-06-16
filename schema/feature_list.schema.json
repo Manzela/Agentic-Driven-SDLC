@@ -177,7 +177,17 @@
         "actor_agent": {
           "type": "string",
           "minLength": 1,
-          "description": "The agent that captured this record. MUST be the Verifier ('verifier.md'), never the Implementer ('implementer.md') - Property 24 / Req 9.2. Provenance field, NOT part of the four-field proven-transition gate; mirrors the Postgres evidence_records.actor_agent NOT NULL column."
+          "description": "The agent that captured this record. MUST be the Verifier ('verifier.md'), never the Implementer ('implementer.md') - Property 24 / Req 9.2. Provenance field, NOT part of the four-field proven-transition gate; mirrors the Postgres evidence_records.actor_agent NOT NULL column. Stamped from the runtime session identity by the SubagentStop hook, never accepted from agent-supplied payload (actor-independence fix #1)."
+        },
+        "verifier_session_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Harness-resolved session id of the verifier that produced this record. For a proven transition the SubagentStop gate requires this to be present AND distinct from implementer_session_id (actor-independence fix #2). Schema-permitted but hook-enforced (not in the four-field gate) so minimal four-field records still validate."
+        },
+        "implementer_session_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Harness-resolved session id of the implementer whose slice this record verifies. Must differ from verifier_session_id for a proven transition (actor-independence fix #2)."
         },
         "evidence_kind": {
           "type": "string",
