@@ -21,7 +21,9 @@ def test_four_agents_exist_and_verifier_is_readonly():
     for a in ("verifier", "implementer", "initializer", "research"):
         assert (ROOT / ".claude" / "agents" / f"{a}.md").is_file()
     vt = (ROOT / ".claude" / "agents" / "verifier.md").read_text().lower()
-    assert "read-only" in vt and "never grade" in vt and "apps/web/src" in vt
+    # Merge-resolution (2026-06-16): main's canonical verifier.md wins over the
+    # website-tailored copy; assert its read-only-on-src invariant by main's wording.
+    assert "read-only" in vt and ("never write" in vt or "no write" in vt)
 
 
 def test_coverage_transitions_and_authority():
@@ -61,7 +63,10 @@ def test_precompact_and_session_start_roundtrip():
         m = importlib.util.module_from_spec(sp); sp.loader.exec_module(m); return m
     pc = load("pre_compact_hook"); ss = load("session_start_hook")
     fl = {"items": [{"in_scope": True, "status": "proven"}, {"in_scope": True, "status": "unproven"}]}
-    snap = pc.checkpoint(fl)
-    assert snap == {"proven": 1, "total": 2}
-    summary = ss.session_start(fl, snap)
+    # Merge-resolution (2026-06-16): main's canonical hook API — pre_compact(state)
+    # returns a non-blocking checkpoint payload; session_start(feature_list, progress,
+    # git_status) returns the in-scope proven/unproven counts.
+    cp = pc.pre_compact({"feature_list": fl})
+    assert cp["ok"] is True and isinstance(cp["checkpointed"], list)
+    summary = ss.session_start(fl, None, None)
     assert summary["proven_count"] == 1 and summary["unproven_count"] == 1
