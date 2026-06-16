@@ -72,3 +72,52 @@ body, button, input, textarea {
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
+
+/* =============================================================================
+   Tablet / mobile bottom navigation — sticky, opaque, non-overlapping.
+   Fixes the forensic bug: on tablet widths Plane's lower nav bar (the
+   Epics / Cycles / Pipeline / Stories tab strip it renders below the `lg`
+   breakpoint) is semi-transparent and rides over the work-item list, so the
+   rows behind it bleed through and the last rows are hidden under the bar.
+   Plane shows this bar below `lg` (1024px), so the fix is breakpoint-scoped.
+   Selectors target the mobile-nav signature only (fixed + bottom-0 + a
+   desktop-hidden utility, or a real <nav>), never toasts/modals/dropdowns
+   which are also `fixed` but are not desktop-hidden bottom bars. ----------- */
+:root { --ascp-bottomnav-h: 56px; }
+
+@media (max-width: 1024px) {
+  /* 1) Pin the lower menu panel to the viewport floor and make it solid so
+        list rows can no longer show through or sit on top of it. */
+  nav[class*="fixed"][class*="bottom-0"],
+  [class*="fixed"][class*="bottom-0"][class*="lg:hidden"],
+  [class*="fixed"][class*="bottom-0"][class*="md:hidden"] {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    z-index: 50 !important;
+    min-height: var(--ascp-bottomnav-h) !important;
+    background-color: var(--background-color-layer-1, oklch(1 0 0)) !important;
+    border-top: 1px solid var(--border-color-strong, oklch(0.880 0.006 95)) !important;
+    box-shadow: 0 -2px 10px oklch(0 0 0 / 0.06) !important;
+    /* iOS/Android home-indicator safe area so the row sits above the gesture bar */
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    /* the four tabs spread the full width and never crowd/overlap each other */
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    justify-content: space-around !important;
+    gap: 4px !important;
+  }
+
+  /* 2) Reserve scroll space so the work-item list (and every primary scroll
+        region) can scroll its last row clear of the fixed bar instead of
+        hiding it. `vertical-scrollbar` is Plane's own scroll-container class;
+        `main` covers the page shell. Targeted to avoid padding inner menus. */
+  main,
+  [class*="vertical-scrollbar"] {
+    padding-bottom: calc(var(--ascp-bottomnav-h) + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-padding-bottom: calc(var(--ascp-bottomnav-h) + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
