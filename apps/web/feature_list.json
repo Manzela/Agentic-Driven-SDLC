@@ -1,0 +1,3065 @@
+{
+  "schema_version": "1.0.0",
+  "product_class": "public-marketing-website",
+  "checklist_ref": {
+    "path": "baselines/public-marketing-website.json",
+    "version": "0.1.0",
+    "sha": ""
+  },
+  "items": [
+    {
+      "id": "DS-TOK-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Dark-theme color token set as single source of truth",
+      "source_ears_id": "DS-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 verify)",
+        "test_name": "DS-TOK-001",
+        "output_hash": "sha256:1de0795b431297fe9e9991d3c3ae6ee0a059e3cd50739953280fa19e2274b6e3",
+        "collected_at": "2026-06-16T05:09:42.977289+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1",
+        "implementer_session_id": "sess-i-t1",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "DS-TOK-002",
+      "type": "functional",
+      "priority": 1,
+      "title": "WCAG 2.2 AA contrast guarantee for token pairings",
+      "source_ears_id": "DS-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "DS-TOK-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "Typographic system, scale, and weights",
+      "source_ears_id": "DS-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "DS-TOK-004",
+      "type": "functional",
+      "priority": 1,
+      "title": "Self-hosted, swap-safe brand fonts",
+      "source_ears_id": "DS-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "DS-TOK-005",
+      "type": "functional",
+      "priority": 1,
+      "title": "Machine artifacts rendered in monospace only",
+      "source_ears_id": "DS-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "DS-TOK-006",
+      "type": "functional",
+      "priority": 1,
+      "title": "Accent reserved for verification states only",
+      "source_ears_id": "DS-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "DS-TOK-007",
+      "type": "functional",
+      "priority": 1,
+      "title": "Layout tokens (spacing, radius, elevation, container)",
+      "source_ears_id": "DS-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "DS-TOK-008",
+      "type": "functional",
+      "priority": 1,
+      "title": "Motion registry: every animation maps to a real state",
+      "source_ears_id": "DS-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "DS-TOK-009",
+      "type": "functional",
+      "priority": 1,
+      "title": "Reduced-motion state-preserving fallbacks",
+      "source_ears_id": "DS-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "DS-TOK-010",
+      "type": "functional",
+      "priority": 1,
+      "title": "Single token source builds deterministically",
+      "source_ears_id": "DS-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "DS-TOK-011",
+      "type": "functional",
+      "priority": 1,
+      "title": "Token-driven component primitive library",
+      "source_ears_id": "DS-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "DS-TOK-012",
+      "type": "functional",
+      "priority": 1,
+      "title": "Code/trace/evidence block primitive",
+      "source_ears_id": "DS-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "DS-TOK-013",
+      "type": "functional",
+      "priority": 1,
+      "title": "Accessibility: keyboard, focus, non-color state, semantics",
+      "source_ears_id": "DS-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "DS-TOK-014",
+      "type": "functional",
+      "priority": 2,
+      "title": "Wordmark, logo usage, and line-icon set",
+      "source_ears_id": "DS-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "DS-TOK-015",
+      "type": "functional",
+      "priority": 2,
+      "title": "Performance budgets and CWV protection",
+      "source_ears_id": "DS-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "DS-TOK-016",
+      "type": "functional",
+      "priority": 1,
+      "title": "No quantified verification claims until verifiable",
+      "source_ears_id": "DS-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "DS-TOK-017",
+      "type": "functional",
+      "priority": 2,
+      "title": "Calm loading, empty, and asset-fallback states",
+      "source_ears_id": "DS-17",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-17 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "DS-TOK-018",
+      "type": "functional",
+      "priority": 2,
+      "title": "Responsive system with no horizontal overflow",
+      "source_ears_id": "DS-18",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-18 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "DS-TOK-019",
+      "type": "functional",
+      "priority": 1,
+      "title": "Complete icon/manifest bundle with no white-flash",
+      "source_ears_id": "DS-19",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md DS-19 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "IA-NAV-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Canonical content routes resolve",
+      "source_ears_id": "IA-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "IA-NAV-001",
+        "output_hash": "sha256:19ce3ec9312d29b2c207176e1a9201c4224e3a8c12ac9aff3cfd687c72793393",
+        "collected_at": "2026-06-16T05:28:10.386831+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "IA-NAV-002",
+      "type": "functional",
+      "priority": 1,
+      "title": "Single canonical URL form",
+      "source_ears_id": "IA-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "IA-NAV-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "No-funnel primary navigation",
+      "source_ears_id": "IA-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 verify)",
+        "test_name": "IA-NAV-003",
+        "output_hash": "sha256:7bb6561c6d14dc4f640298d600b016eb2b90a2c82fc8c9ee97a69e455e09c3ad",
+        "collected_at": "2026-06-16T05:09:42.977411+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1",
+        "implementer_session_id": "sess-i-t1",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "IA-NAV-004",
+      "type": "functional",
+      "priority": 1,
+      "title": "Responsive navigation disclosure",
+      "source_ears_id": "IA-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "IA-NAV-005",
+      "type": "functional",
+      "priority": 2,
+      "title": "Current-route and scroll state feedback",
+      "source_ears_id": "IA-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "IA-NAV-006",
+      "type": "functional",
+      "priority": 2,
+      "title": "In-page anchor navigation",
+      "source_ears_id": "IA-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "IA-NAV-007",
+      "type": "functional",
+      "priority": 2,
+      "title": "Breadcrumbs for nested routes",
+      "source_ears_id": "IA-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "IA-NAV-008",
+      "type": "functional",
+      "priority": 1,
+      "title": "Branded 404",
+      "source_ears_id": "IA-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "unwanted",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "IA-NAV-008",
+        "output_hash": "sha256:4c7553d6be251f444e9c93799d12d0de8ef67f19ee5924f787d34f630882e266",
+        "collected_at": "2026-06-16T05:28:10.387038+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "IA-NAV-009",
+      "type": "functional",
+      "priority": 2,
+      "title": "Branded 500",
+      "source_ears_id": "IA-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "IA-NAV-010",
+      "type": "functional",
+      "priority": 1,
+      "title": "Single canonical origin redirect map",
+      "source_ears_id": "IA-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "IA-NAV-011",
+      "type": "functional",
+      "priority": 2,
+      "title": "Sitemap and robots from manifest",
+      "source_ears_id": "IA-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "IA-NAV-012",
+      "type": "functional",
+      "priority": 1,
+      "title": "Global footer secondary nav and claims guard",
+      "source_ears_id": "IA-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 verify)",
+        "test_name": "IA-NAV-012",
+        "output_hash": "sha256:7bb6561c6d14dc4f640298d600b016eb2b90a2c82fc8c9ee97a69e455e09c3ad",
+        "collected_at": "2026-06-16T05:09:42.977440+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1",
+        "implementer_session_id": "sess-i-t1",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "IA-NAV-013",
+      "type": "functional",
+      "priority": 1,
+      "title": "Landmarks, skip link, route-change focus",
+      "source_ears_id": "IA-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "event-driven",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "IA-NAV-013",
+        "output_hash": "sha256:f4b668ce6d771000e3d63862a6211c49b4aa20e85d69bdf2f91a7eeb76e1d2ec",
+        "collected_at": "2026-06-16T05:28:10.387072+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "IA-NAV-014",
+      "type": "functional",
+      "priority": 2,
+      "title": "SSG/ISR transitions with loading state",
+      "source_ears_id": "IA-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "IA-NAV-015",
+      "type": "functional",
+      "priority": 3,
+      "title": "Content-driven stub/empty states",
+      "source_ears_id": "IA-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "IA-NAV-016",
+      "type": "functional",
+      "priority": 2,
+      "title": "Per-route metadata and social cards",
+      "source_ears_id": "IA-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "IA-NAV-017",
+      "type": "functional",
+      "priority": 3,
+      "title": "Unpublished writing-slug lifecycle",
+      "source_ears_id": "IA-17",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-17 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "IA-NAV-018",
+      "type": "functional",
+      "priority": 1,
+      "title": "Legal routes in manifest",
+      "source_ears_id": "IA-18",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md IA-18 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "HOME-HOM-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Hero: antagonist kicker, thesis H1, and cinematic closed-loop centerpiece",
+      "source_ears_id": "HOME-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "HOME-HOM-002",
+      "type": "functional",
+      "priority": 1,
+      "title": "Ordered named beat sequence with stable ids and ordinals",
+      "source_ears_id": "HOME-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "HOME-HOM-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "Fragmented-stack consolidation as a deterministic scroll-bound state machine",
+      "source_ears_id": "HOME-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "HOME-HOM-004",
+      "type": "functional",
+      "priority": 1,
+      "title": "Human-as-infrastructure replace-table with static two-column baseline",
+      "source_ears_id": "HOME-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "HOME-HOM-005",
+      "type": "functional",
+      "priority": 1,
+      "title": "\"The line is held\": closed-loop climax where the gate is the arrival",
+      "source_ears_id": "HOME-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "HOME-HOM-006",
+      "type": "functional",
+      "priority": 1,
+      "title": "Proof-model beat: the auditor question, one evidence record, the second and final green",
+      "source_ears_id": "HOME-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "HOME-HOM-007",
+      "type": "functional",
+      "priority": 2,
+      "title": "The-leap beat: a static two-column ledger resolved on arrival",
+      "source_ears_id": "HOME-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "HOME-HOM-008",
+      "type": "functional",
+      "priority": 2,
+      "title": "Who-its-for editorial audience framing with no funnel",
+      "source_ears_id": "HOME-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "HOME-HOM-009",
+      "type": "functional",
+      "priority": 2,
+      "title": "Soft-close that resolves the betrayal arc and points onward",
+      "source_ears_id": "HOME-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "optional"
+    },
+    {
+      "id": "HOME-HOM-010",
+      "type": "functional",
+      "priority": 1,
+      "title": "Reduced-motion resolved-state-by-default",
+      "source_ears_id": "HOME-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "HOME-HOM-011",
+      "type": "functional",
+      "priority": 1,
+      "title": "Responsive/touch variant without scroll trapping",
+      "source_ears_id": "HOME-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "HOME-HOM-012",
+      "type": "functional",
+      "priority": 1,
+      "title": "Progressive asset loading with reserved layout and static-first copy",
+      "source_ears_id": "HOME-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "HOME-HOM-013",
+      "type": "functional",
+      "priority": 2,
+      "title": "Static/ISR HTML with SEO metadata and evidence-backed claims",
+      "source_ears_id": "HOME-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "HOME-HOM-014",
+      "type": "functional",
+      "priority": 1,
+      "title": "Every animation maps to a named state; no decoration",
+      "source_ears_id": "HOME-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "HOME-HOM-015",
+      "type": "functional",
+      "priority": 2,
+      "title": "Scroll-state robustness: deterministic settling and fragment resolution",
+      "source_ears_id": "HOME-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md HOME-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "LOOP-LUP-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Closed loop of six ordered, named stages with a motion layer separate from a stationary artifact panel",
+      "source_ears_id": "LOOP-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "LOOP-LUP-002",
+      "type": "functional",
+      "priority": 1,
+      "title": "Single Rive state machine as source of truth",
+      "source_ears_id": "LOOP-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "LOOP-LUP-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "Three concurrent acceptance goals per playthrough",
+      "source_ears_id": "LOOP-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "LOOP-LUP-004",
+      "type": "functional",
+      "priority": 1,
+      "title": "Requirement tokens traverse and turn proven",
+      "source_ears_id": "LOOP-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "LOOP-LUP-005",
+      "type": "functional",
+      "priority": 1,
+      "title": "EvidenceTrace: hash-chained four-field records",
+      "source_ears_id": "LOOP-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "LOOP-LUP-006",
+      "type": "functional",
+      "priority": 1,
+      "title": "Fail-closed gate holds unproven items, accent-as-correct",
+      "source_ears_id": "LOOP-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "LOOP-LUP-007",
+      "type": "functional",
+      "priority": 1,
+      "title": "Multi-beat gate choreography with surfaced reason",
+      "source_ears_id": "LOOP-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "LOOP-LUP-008",
+      "type": "functional",
+      "priority": 1,
+      "title": "Static fully-labeled SSR fallback",
+      "source_ears_id": "LOOP-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "LOOP-LUP-009",
+      "type": "functional",
+      "priority": 1,
+      "title": "One-accent semantic color layer",
+      "source_ears_id": "LOOP-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "LOOP-LUP-010",
+      "type": "functional",
+      "priority": 2,
+      "title": "Optional synchronized interaction with auto-resume",
+      "source_ears_id": "LOOP-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "optional"
+    },
+    {
+      "id": "LOOP-LUP-011",
+      "type": "functional",
+      "priority": 1,
+      "title": "Responsive layout with labeled small-screen reflow",
+      "source_ears_id": "LOOP-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "LOOP-LUP-012",
+      "type": "functional",
+      "priority": 1,
+      "title": "Accessible text equivalent and ARIA semantics",
+      "source_ears_id": "LOOP-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "LOOP-LUP-013",
+      "type": "functional",
+      "priority": 1,
+      "title": "Fixture-backed artifacts, no unbacked aggregate count",
+      "source_ears_id": "LOOP-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "LOOP-LUP-014",
+      "type": "functional",
+      "priority": 1,
+      "title": "Lazy-load Rive, reserved box, off-critical-path",
+      "source_ears_id": "LOOP-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "LOOP-LUP-015",
+      "type": "functional",
+      "priority": 2,
+      "title": "Playback gated on visibility",
+      "source_ears_id": "LOOP-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "LOOP-LUP-016",
+      "type": "functional",
+      "priority": 2,
+      "title": "Calm labeled skeleton and evidence awaiting state",
+      "source_ears_id": "LOOP-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "LOOP-LUP-017",
+      "type": "functional",
+      "priority": 1,
+      "title": "Stage reveals its named Tier-1 tool, motion-bound-to-state",
+      "source_ears_id": "LOOP-17",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md LOOP-17 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "CONTENT-CNT-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Voice-and-tone spec with allow/deny lexicon",
+      "source_ears_id": "CONTENT-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "CONTENT-CNT-002",
+      "type": "functional",
+      "priority": 1,
+      "title": "Hero headline/subhead from ranked candidate set",
+      "source_ears_id": "CONTENT-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "CONTENT-CNT-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "'What it replaces' six canonical rows",
+      "source_ears_id": "CONTENT-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "CONTENT-CNT-004",
+      "type": "functional",
+      "priority": 1,
+      "title": "'The leap' two-group bullet module",
+      "source_ears_id": "CONTENT-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "CONTENT-CNT-005",
+      "type": "functional",
+      "priority": 1,
+      "title": "Corpus-to-module mapping registry",
+      "source_ears_id": "CONTENT-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "CONTENT-CNT-006",
+      "type": "functional",
+      "priority": 1,
+      "title": "Claims-integrity guardrail and claims ledger",
+      "source_ears_id": "CONTENT-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "CONTENT-CNT-007",
+      "type": "functional",
+      "priority": 1,
+      "title": "Machine-artifact rendering schema",
+      "source_ears_id": "CONTENT-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "CONTENT-CNT-008",
+      "type": "functional",
+      "priority": 2,
+      "title": "Readability budget and inline glossary",
+      "source_ears_id": "CONTENT-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "CONTENT-CNT-009",
+      "type": "functional",
+      "priority": 1,
+      "title": "Soft-CTA allowlist",
+      "source_ears_id": "CONTENT-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "CONTENT-CNT-010",
+      "type": "functional",
+      "priority": 2,
+      "title": "Microcopy and non-happy-path state catalog",
+      "source_ears_id": "CONTENT-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "CONTENT-CNT-011",
+      "type": "functional",
+      "priority": 2,
+      "title": "Manifesto MDX with verbatim invariant",
+      "source_ears_id": "CONTENT-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "CONTENT-CNT-011",
+        "output_hash": "sha256:ef0253946305249279613ffba31becc49b8807e91aae3fbacebc1b73ca4a2f4e",
+        "collected_at": "2026-06-16T05:28:10.387265+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "CONTENT-CNT-012",
+      "type": "functional",
+      "priority": 2,
+      "title": "Per-page metadata derived from on-page claims",
+      "source_ears_id": "CONTENT-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "CONTENT-CNT-013",
+      "type": "functional",
+      "priority": 2,
+      "title": "Canonical terminology, style sheet, and gate-verdict copy",
+      "source_ears_id": "CONTENT-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "CONTENT-CNT-014",
+      "type": "functional",
+      "priority": 2,
+      "title": "'Who it's for' module with anti-fabrication rule",
+      "source_ears_id": "CONTENT-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "CONTENT-CNT-015",
+      "type": "functional",
+      "priority": 1,
+      "title": "Text equivalents for motion and machine content",
+      "source_ears_id": "CONTENT-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "CONTENT-CNT-016",
+      "type": "functional",
+      "priority": 1,
+      "title": "Fail-closed pre-publish content gate",
+      "source_ears_id": "CONTENT-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "CONTENT-CNT-017",
+      "type": "functional",
+      "priority": 1,
+      "title": "Integrator thesis present, displacement language absent",
+      "source_ears_id": "CONTENT-17",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-17 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "CONTENT-CNT-018",
+      "type": "functional",
+      "priority": 2,
+      "title": "'Powered by' module as machine artifacts",
+      "source_ears_id": "CONTENT-18",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-18 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "CONTENT-CNT-019",
+      "type": "functional",
+      "priority": 2,
+      "title": "Vendor-neutral schema and no-lock-in promise",
+      "source_ears_id": "CONTENT-19",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md CONTENT-19 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PAGE-PAG-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Closed delivery loop on /how-it-works",
+      "source_ears_id": "PAGE-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "event-driven",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "PAGE-PAG-001",
+        "output_hash": "sha256:5a6acd5ff8b1b63465f7917f6eabc9cd4d99aa367334caeeed5eae68e328d73b",
+        "collected_at": "2026-06-16T05:28:10.387164+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "PAGE-PAG-002",
+      "type": "functional",
+      "priority": 2,
+      "title": "Capability taxonomy B01-B19",
+      "source_ears_id": "PAGE-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PAGE-PAG-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "/proof information spine",
+      "source_ears_id": "PAGE-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "PAGE-PAG-003",
+        "output_hash": "sha256:b8c91221c5572b5464fe3109714bf8254c4787d64551c8b93aad7f64a2b2a0cc",
+        "collected_at": "2026-06-16T05:28:10.387200+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "PAGE-PAG-004",
+      "type": "functional",
+      "priority": 1,
+      "title": "Interactive sample audit-trace",
+      "source_ears_id": "PAGE-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "PAGE-PAG-005",
+      "type": "functional",
+      "priority": 1,
+      "title": "Audit-trace accessibility and no-JS fallback",
+      "source_ears_id": "PAGE-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PAGE-PAG-006",
+      "type": "functional",
+      "priority": 1,
+      "title": "/manifesto MDX essay",
+      "source_ears_id": "PAGE-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "ears_pattern": "ubiquitous",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "PAGE-PAG-006",
+        "output_hash": "sha256:ef0253946305249279613ffba31becc49b8807e91aae3fbacebc1b73ca4a2f4e",
+        "collected_at": "2026-06-16T05:28:10.387233+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "PAGE-PAG-007",
+      "type": "functional",
+      "priority": 2,
+      "title": "Manifesto reading aids",
+      "source_ears_id": "PAGE-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PAGE-PAG-008",
+      "type": "functional",
+      "priority": 1,
+      "title": "No unverifiable quantitative claims",
+      "source_ears_id": "PAGE-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "PAGE-PAG-009",
+      "type": "functional",
+      "priority": 3,
+      "title": "/writing index",
+      "source_ears_id": "PAGE-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "optional"
+    },
+    {
+      "id": "PAGE-PAG-010",
+      "type": "functional",
+      "priority": 2,
+      "title": "/docs honest placeholder",
+      "source_ears_id": "PAGE-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PAGE-PAG-011",
+      "type": "functional",
+      "priority": 2,
+      "title": "Soft onward navigation, no funnel",
+      "source_ears_id": "PAGE-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PAGE-PAG-012",
+      "type": "functional",
+      "priority": 1,
+      "title": "Motion as bound state, reduced-motion parity",
+      "source_ears_id": "PAGE-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PAGE-PAG-013",
+      "type": "functional",
+      "priority": 1,
+      "title": "Tier-1 non-functional baseline",
+      "source_ears_id": "PAGE-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PAGE-PAG-014",
+      "type": "functional",
+      "priority": 2,
+      "title": "MDX brand-component allowlist",
+      "source_ears_id": "PAGE-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "PAGE-PAG-015",
+      "type": "functional",
+      "priority": 2,
+      "title": "Audit-trace explicit state set",
+      "source_ears_id": "PAGE-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "PAGE-PAG-016",
+      "type": "functional",
+      "priority": 2,
+      "title": "Branded not-found and feature-flag absence",
+      "source_ears_id": "PAGE-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "PAGE-PAG-017",
+      "type": "functional",
+      "priority": 2,
+      "title": "Print-friendly /manifesto and /proof",
+      "source_ears_id": "PAGE-17",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PAGE-17 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "TECH-TEC-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "App Router shape with route group and colocated segment files",
+      "source_ears_id": "TECH-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "TECH-TEC-001",
+        "output_hash": "sha256:5a6acd5ff8b1b63465f7917f6eabc9cd4d99aa367334caeeed5eae68e328d73b",
+        "collected_at": "2026-06-16T05:28:10.387123+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "TECH-TEC-002",
+      "type": "functional",
+      "priority": 1,
+      "title": "Strict TypeScript with first-class machine-artifact contracts",
+      "source_ears_id": "TECH-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "TECH-TEC-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "Tailwind v4 themed solely from Style-Dictionary tokens",
+      "source_ears_id": "TECH-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "TECH-TEC-004",
+      "type": "functional",
+      "priority": 2,
+      "title": "Build-time MDX pipeline with allow-listed components and typed frontmatter",
+      "source_ears_id": "TECH-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "TECH-TEC-005",
+      "type": "functional",
+      "priority": 1,
+      "title": "Rive integration boundary: lazy, SSR-disabled, CLS-safe wrapper",
+      "source_ears_id": "TECH-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "TECH-TEC-006",
+      "type": "functional",
+      "priority": 1,
+      "title": "Motion-as-information contract: Rive vs Framer Motion split",
+      "source_ears_id": "TECH-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "TECH-TEC-007",
+      "type": "functional",
+      "priority": 1,
+      "title": "Reduced-motion and accessibility fallback strategy",
+      "source_ears_id": "TECH-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TECH-TEC-008",
+      "type": "functional",
+      "priority": 1,
+      "title": "Rendering strategy: SSG by default, ISR for MDX, dynamic forbidden",
+      "source_ears_id": "TECH-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "TECH-TEC-009",
+      "type": "functional",
+      "priority": 1,
+      "title": "Error/loading/empty-state system with segment boundaries",
+      "source_ears_id": "TECH-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "TECH-TEC-010",
+      "type": "functional",
+      "priority": 2,
+      "title": "Route-level loading skeletons and intentional empty states",
+      "source_ears_id": "TECH-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "TECH-TEC-011",
+      "type": "functional",
+      "priority": 1,
+      "title": "Responsive layout and centerpiece degradation 320px \u2192 ultra-wide",
+      "source_ears_id": "TECH-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "TECH-TEC-012",
+      "type": "functional",
+      "priority": 2,
+      "title": "Minimal, intentional state management with audited client boundaries",
+      "source_ears_id": "TECH-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "optional"
+    },
+    {
+      "id": "TECH-TEC-013",
+      "type": "functional",
+      "priority": 1,
+      "title": "Claims-integrity architecture: registry-backed, build-validated",
+      "source_ears_id": "TECH-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "TECH-TEC-014",
+      "type": "functional",
+      "priority": 2,
+      "title": "Self-hosted variable fonts with zero-CLS swap and guaranteed mono",
+      "source_ears_id": "TECH-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "TECH-TEC-015",
+      "type": "functional",
+      "priority": 1,
+      "title": "Hardened delivery: CSP scoped for Rive WASM + self-hosted fonts",
+      "source_ears_id": "TECH-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "TECH-TEC-016",
+      "type": "functional",
+      "priority": 1,
+      "title": "Fail-closed CI verification harness for perf, a11y, and motion",
+      "source_ears_id": "TECH-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TECH-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "TOOL-TUL-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Single-source token pipeline (DS \u2192 CSS/Tailwind/TS)",
+      "source_ears_id": "TOOL-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-002",
+      "type": "functional",
+      "priority": 1,
+      "title": "Contrast + accent-discipline gate",
+      "source_ears_id": "TOOL-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "Motion/Rive asset governance",
+      "source_ears_id": "TOOL-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-004",
+      "type": "functional",
+      "priority": 2,
+      "title": "MDX frontmatter + claims-integrity linter",
+      "source_ears_id": "TOOL-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-005",
+      "type": "functional",
+      "priority": 1,
+      "title": "Deterministic lint/format/typecheck gates",
+      "source_ears_id": "TOOL-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "TOOL-TUL-006",
+      "type": "functional",
+      "priority": 1,
+      "title": "Visual-regression suite",
+      "source_ears_id": "TOOL-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-007",
+      "type": "functional",
+      "priority": 1,
+      "title": "Accessibility (axe) suite",
+      "source_ears_id": "TOOL-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-008",
+      "type": "functional",
+      "priority": 2,
+      "title": "Unit/component test layer with motion-binding assertion",
+      "source_ears_id": "TOOL-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "TOOL-TUL-009",
+      "type": "functional",
+      "priority": 1,
+      "title": "Fail-closed CI aggregation gate",
+      "source_ears_id": "TOOL-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "TOOL-TUL-010",
+      "type": "functional",
+      "priority": 2,
+      "title": "DESIGN.md \u2194 token-source governance",
+      "source_ears_id": "TOOL-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-011",
+      "type": "functional",
+      "priority": 2,
+      "title": "Lighthouse/CWV + asset budgets",
+      "source_ears_id": "TOOL-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-012",
+      "type": "functional",
+      "priority": 1,
+      "title": "Security headers, CSP & vulnerability/secret scanning",
+      "source_ears_id": "TOOL-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "TOOL-TUL-013",
+      "type": "functional",
+      "priority": 1,
+      "title": "Apex deploy: SSG/ISR, immutable, atomic rollback",
+      "source_ears_id": "TOOL-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-014",
+      "type": "functional",
+      "priority": 2,
+      "title": "Per-PR ephemeral preview environments",
+      "source_ears_id": "TOOL-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-015",
+      "type": "functional",
+      "priority": 2,
+      "title": "Link-check + SEO/structured-data validation",
+      "source_ears_id": "TOOL-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-016",
+      "type": "functional",
+      "priority": 2,
+      "title": "Self-hosted Geist font pipeline",
+      "source_ears_id": "TOOL-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "TOOL-TUL-017",
+      "type": "functional",
+      "priority": 2,
+      "title": "Synthetic uptime + scheduled re-verify, runbook & supply chain",
+      "source_ears_id": "TOOL-17",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md TOOL-17 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PERF-PRF-001",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Core Web Vitals on mobile field profile",
+      "source_ears_id": "PERF-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "PERF-PRF-002",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Self-hosted subsetted fonts with zero-CLS fallback",
+      "source_ears_id": "PERF-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PERF-PRF-003",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Lazy, off-main-thread, layout-reserved Rive centerpiece",
+      "source_ears_id": "PERF-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "PERF-PRF-004",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Modern image formats with intrinsic dimensions",
+      "source_ears_id": "PERF-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PERF-PRF-005",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Per-route first-load JS budget and code-splitting",
+      "source_ears_id": "PERF-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PERF-PRF-006",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Token-driven critical CSS with Tailwind v4 purge",
+      "source_ears_id": "PERF-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PERF-PRF-007",
+      "type": "NFR",
+      "priority": 2,
+      "title": "SSG/ISR delivery with immutable asset caching",
+      "source_ears_id": "PERF-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PERF-PRF-008",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Fail-closed performance CI gate",
+      "source_ears_id": "PERF-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "PERF-PRF-009",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Reduced-motion fast path",
+      "source_ears_id": "PERF-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PERF-PRF-010",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Third-party script discipline and origin allowlist",
+      "source_ears_id": "PERF-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PERF-PRF-011",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Compositor-only scroll motion",
+      "source_ears_id": "PERF-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PERF-PRF-012",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Resource-priority waterfall",
+      "source_ears_id": "PERF-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "PERF-PRF-013",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Evidence-backed self-referential performance claims",
+      "source_ears_id": "PERF-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "PERF-PRF-014",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Graceful states for failed/slow non-critical assets",
+      "source_ears_id": "PERF-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "PERF-PRF-015",
+      "type": "NFR",
+      "priority": 3,
+      "title": "Privacy-respecting field RUM",
+      "source_ears_id": "PERF-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "optional"
+    },
+    {
+      "id": "PERF-PRF-016",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Responsive assets and cross-breakpoint stability",
+      "source_ears_id": "PERF-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PERF-PRF-017",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Save-Data / reduced-data degradation and support matrix",
+      "source_ears_id": "PERF-17",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PERF-17 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "performance",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "AYY-WCAG-001",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Landmark & heading structure",
+      "source_ears_id": "A11Y-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "AYY-WCAG-002",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Keyboard focus order & skip link",
+      "source_ears_id": "A11Y-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "AYY-WCAG-003",
+      "type": "NFR",
+      "priority": 1,
+      "title": "WCAG 2.2 AA contrast (references token gate)",
+      "source_ears_id": "A11Y-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility"
+    },
+    {
+      "id": "AYY-WCAG-004",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Reduced-motion static closed-loop",
+      "source_ears_id": "A11Y-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "AYY-WCAG-005",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Reduced-motion resolved-state for all motion",
+      "source_ears_id": "A11Y-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "AYY-WCAG-006",
+      "type": "NFR",
+      "priority": 1,
+      "title": "State not conveyed by color alone",
+      "source_ears_id": "A11Y-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "AYY-WCAG-007",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Text equivalents for animated/visual proof",
+      "source_ears_id": "A11Y-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "AYY-WCAG-008",
+      "type": "NFR",
+      "priority": 1,
+      "title": "Dual-pass axe-core CI gate",
+      "source_ears_id": "A11Y-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "AYY-WCAG-009",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Reflow & zoom to 400% (1.4.10)",
+      "source_ears_id": "A11Y-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "AYY-WCAG-010",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Accessible controls & form errors",
+      "source_ears_id": "A11Y-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "AYY-WCAG-011",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Pause/stop/hide motion (2.2.2)",
+      "source_ears_id": "A11Y-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "optional"
+    },
+    {
+      "id": "AYY-WCAG-012",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Accessible loading/error placeholders",
+      "source_ears_id": "A11Y-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "AYY-WCAG-013",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Claims integrity for a11y/coverage numbers",
+      "source_ears_id": "A11Y-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "AYY-WCAG-014",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Responsive a11y: target size (2.5.8) & orientation",
+      "source_ears_id": "A11Y-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "AYY-WCAG-015",
+      "type": "NFR",
+      "priority": 3,
+      "title": "Route-change focus & announcement",
+      "source_ears_id": "A11Y-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "AYY-WCAG-016",
+      "type": "NFR",
+      "priority": 2,
+      "title": "Persisted in-page \"Reduce motion\" control",
+      "source_ears_id": "A11Y-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md A11Y-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "nfr_subtype": "accessibility",
+      "ears_pattern": "optional"
+    },
+    {
+      "id": "SEO-MTA-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Route-specific title & description",
+      "source_ears_id": "SEO-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-002",
+      "type": "functional",
+      "priority": 1,
+      "title": "Single canonical per page",
+      "source_ears_id": "SEO-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "Complete OpenGraph & Twitter card sets",
+      "source_ears_id": "SEO-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "SEO-MTA-004",
+      "type": "functional",
+      "priority": 1,
+      "title": "Token-driven OG image system",
+      "source_ears_id": "SEO-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-005",
+      "type": "functional",
+      "priority": 1,
+      "title": "Site-wide Organization + WebSite JSON-LD",
+      "source_ears_id": "SEO-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-006",
+      "type": "functional",
+      "priority": 2,
+      "title": "Article + BreadcrumbList JSON-LD",
+      "source_ears_id": "SEO-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-007",
+      "type": "functional",
+      "priority": 1,
+      "title": "Build-time sitemap.xml",
+      "source_ears_id": "SEO-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-008",
+      "type": "functional",
+      "priority": 1,
+      "title": "Build-time robots.txt",
+      "source_ears_id": "SEO-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-009",
+      "type": "functional",
+      "priority": 2,
+      "title": "RSS/Atom feed",
+      "source_ears_id": "SEO-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-010",
+      "type": "functional",
+      "priority": 1,
+      "title": "Semantic structure & heading outline",
+      "source_ears_id": "SEO-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-011",
+      "type": "functional",
+      "priority": 1,
+      "title": "No-JS server-rendered metadata parity",
+      "source_ears_id": "SEO-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "SEO-MTA-012",
+      "type": "functional",
+      "priority": 2,
+      "title": "Typed MDX front-matter schema (single source)",
+      "source_ears_id": "SEO-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "SEO-MTA-013",
+      "type": "functional",
+      "priority": 1,
+      "title": "Claims-integrity guardrail",
+      "source_ears_id": "SEO-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "SEO-MTA-014",
+      "type": "functional",
+      "priority": 2,
+      "title": "Stub / empty / error-state SEO policy",
+      "source_ears_id": "SEO-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "SEO-MTA-015",
+      "type": "functional",
+      "priority": 1,
+      "title": "CI SEO verification harness",
+      "source_ears_id": "SEO-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "SEO-MTA-016",
+      "type": "functional",
+      "priority": 3,
+      "title": "English-only lang & i18n non-goal",
+      "source_ears_id": "SEO-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "SEO-MTA-017",
+      "type": "functional",
+      "priority": 4,
+      "title": "security.txt, AI-crawler policy & llms.txt",
+      "source_ears_id": "SEO-17",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-17 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "SEO-MTA-018",
+      "type": "functional",
+      "priority": 4,
+      "title": "Distinct per-route OG images & explicit social identity",
+      "source_ears_id": "SEO-18",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md SEO-18 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PRIV-SEC-001",
+      "type": "functional",
+      "priority": 1,
+      "title": "Cookieless, PII-free analytics",
+      "source_ears_id": "PRIV-01",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-01 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PRIV-SEC-002",
+      "type": "functional",
+      "priority": 1,
+      "title": "No cookie wall; opt-in for future non-essential",
+      "source_ears_id": "PRIV-02",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-02 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PRIV-SEC-003",
+      "type": "functional",
+      "priority": 1,
+      "title": "Persistent opt-out + first-party preference store",
+      "source_ears_id": "PRIV-03",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-03 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "PRIV-SEC-004",
+      "type": "functional",
+      "priority": 2,
+      "title": "Minimal, unbundled email capture",
+      "source_ears_id": "PRIV-04",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-04 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PRIV-SEC-005",
+      "type": "functional",
+      "priority": 1,
+      "title": "Transport hardening + security headers",
+      "source_ears_id": "PRIV-05",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-05 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "PRIV-SEC-006",
+      "type": "functional",
+      "priority": 1,
+      "title": "Strict CSP defaults",
+      "source_ears_id": "PRIV-06",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-06 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "PRIV-SEC-007",
+      "type": "functional",
+      "priority": 2,
+      "title": "SRI + near-zero third-party surface",
+      "source_ears_id": "PRIV-07",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-07 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PRIV-SEC-008",
+      "type": "functional",
+      "priority": 2,
+      "title": "Honor GPC/DNT signals",
+      "source_ears_id": "PRIV-08",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-08 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "PRIV-SEC-009",
+      "type": "functional",
+      "priority": 1,
+      "title": "Accurate Privacy page",
+      "source_ears_id": "PRIV-09",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-09 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PRIV-SEC-010",
+      "type": "functional",
+      "priority": 2,
+      "title": "Claims-clean footer trust note",
+      "source_ears_id": "PRIV-10",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-10 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PRIV-SEC-011",
+      "type": "functional",
+      "priority": 2,
+      "title": "Resilient, non-blocking failure",
+      "source_ears_id": "PRIV-11",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-11 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "unwanted"
+    },
+    {
+      "id": "PRIV-SEC-012",
+      "type": "functional",
+      "priority": 2,
+      "title": "Accessible privacy UI (WCAG 2.2 AA)",
+      "source_ears_id": "PRIV-12",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-12 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "PRIV-SEC-013",
+      "type": "functional",
+      "priority": 2,
+      "title": "Hardened, privacy-respecting email API",
+      "source_ears_id": "PRIV-13",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-13 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "event-driven"
+    },
+    {
+      "id": "PRIV-SEC-014",
+      "type": "functional",
+      "priority": 1,
+      "title": "Automated privacy/security verification gate",
+      "source_ears_id": "PRIV-14",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-14 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "PRIV-SEC-015",
+      "type": "functional",
+      "priority": 1,
+      "title": "Strict CSP from a single allowlist source",
+      "source_ears_id": "PRIV-15",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-15 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "ubiquitous"
+    },
+    {
+      "id": "PRIV-SEC-016",
+      "type": "functional",
+      "priority": 2,
+      "title": "PII-free notify event + sub-processor register",
+      "source_ears_id": "PRIV-16",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "See docs/website/autonomous-agent.dev/requirements.md PRIV-16 for the full EARS statement and objective acceptance criteria."
+      ],
+      "in_scope": true,
+      "status": "unproven",
+      "ears_pattern": "state-driven"
+    },
+    {
+      "id": "REQ-SEC-001",
+      "type": "NFR",
+      "nfr_subtype": "security",
+      "priority": 1,
+      "title": "Full security-header matrix (HSTS preload, Referrer-Policy, Permissions-Policy, frame-ancestors/COOP/CORP) as a tested header set",
+      "source_ears_id": "Bucket-A",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Full security-header matrix (HSTS preload, Referrer-Policy, Permissions-Policy, frame-ancestors/COOP/CORP) as a tested header set"
+      ],
+      "in_scope": true,
+      "status": "proven",
+      "evidence": {
+        "test_file": "apps/web (tier-1 batch)",
+        "test_name": "REQ-SEC-001",
+        "output_hash": "sha256:b87b447ad0a92a114263901ee61358b6e62b2a77f9611b50fbe90a47298cc9d3",
+        "collected_at": "2026-06-16T05:28:10.387098+00:00",
+        "actor_agent": "verifier.md",
+        "verifier_session_id": "sess-v-t1b",
+        "implementer_session_id": "sess-i-t1b",
+        "evidence_kind": "behavioral"
+      }
+    },
+    {
+      "id": "REQ-RUM-001",
+      "type": "NFR",
+      "nfr_subtype": "performance",
+      "priority": 2,
+      "title": "Privacy-safe Real-User Monitoring (web-vitals RUM, PII-free) for real-world CWV + client errors",
+      "source_ears_id": "Bucket-A",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Privacy-safe Real-User Monitoring (web-vitals RUM, PII-free) for real-world CWV + client errors"
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "REQ-VIS-001",
+      "type": "NFR",
+      "nfr_subtype": "reliability",
+      "priority": 2,
+      "title": "Whole-site visual-regression gate across routes x breakpoints x reduced-motion",
+      "source_ears_id": "Bucket-A",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "Whole-site visual-regression gate across routes x breakpoints x reduced-motion"
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    },
+    {
+      "id": "REQ-SCA-001",
+      "type": "NFR",
+      "nfr_subtype": "security",
+      "priority": 1,
+      "title": "SBOM (CycloneDX) + dependency-CVE software-composition-analysis required check",
+      "source_ears_id": "Bucket-A",
+      "dependencies": [],
+      "acceptance_criteria": [
+        "SBOM (CycloneDX) + dependency-CVE software-composition-analysis required check"
+      ],
+      "in_scope": true,
+      "status": "unproven"
+    }
+  ]
+}
