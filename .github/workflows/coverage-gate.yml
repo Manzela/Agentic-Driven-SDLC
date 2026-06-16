@@ -1,0 +1,48 @@
+name: coverage-gate
+on:
+  pull_request:
+    branches: [main, spec-reconciliation]
+  push:
+    branches: [website-build]
+
+jobs:
+  control-plane:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install pytest jsonschema z3-solver
+      - name: Spine tests (hooks, evidence, actor-independence, materialize)
+        run: pytest tests/ -q
+      - name: Z3 actor-separation proof
+        run: python verification/actor_separation.py | grep -q UNSAT-to-violate
+      - name: Plan-approval SHA freeze matches the coverage model
+        run: |
+          python - <<'PY'
+          import hashlib, json, sys
+          sha = hashlib.sha256(open("apps/web/feature_list.json","rb").read()).hexdigest()
+          approved = json.load(open("plan-approved.json"))["feature_list_sha"]
+          sys.exit(0 if sha == approved else f"SHA drift: model={sha} approved={approved}")
+          PY
+      - name: Coverage zero-evidence gate (OPA/Conftest)
+        # Completion gate: blocks MERGE while any in-scope item is unproven.
+        # Runs on PRs only — intermediate build-branch pushes are expected to
+        # have unproven items and must not be marked red for being mid-build.
+        if: github.event_name == 'pull_request'
+        run: |
+          python -c "import json; from tools.opa_input import build_opa_input; json.dump(build_opa_input('apps/web/feature_list.json'), open('opa-input.json','w'))"
+          curl -sSL -o conftest.tar.gz https://github.com/open-policy-agent/conftest/releases/download/v0.56.0/conftest_0.56.0_Linux_x86_64.tar.gz
+          tar xzf conftest.tar.gz conftest
+          ./conftest test --policy .github/policies opa-input.json
+
+  web-build:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm ci || npm install --no-audit --no-fund
+      - name: Type-check + production build (strict)
+        run: npm run build

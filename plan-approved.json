@@ -1,0 +1,7 @@
+{
+  "feature_list_sha": "89d4247bc4cd7ac26d9e1c356ac56fa99cea61ccf193e4a5294ad6140a0120ba",
+  "item_count": 209,
+  "approved_by": "autonomous (pending human ratification)",
+  "approved_at": "2026-06-16T04:50:00+00:00",
+  "note": "SHA-bound freeze of the 209-item coverage model (gate #1). Re-sign on human review; any later change to feature_list.json must re-freeze."
+}
