@@ -1,0 +1,46 @@
+# gitleaks ruleset + allowlist for the secrets-scan CI gate.
+#
+# Feature: spec-to-evidence-control — REQ-17.2 (REQ-SEC-002) / Property 32.
+# Referenced by .github/workflows/secrets-scan.yml via GITLEAKS_CONFIG.
+#
+# (c) This file holds the ruleset and the allowlist for known false positives
+# (e.g. example/test fixtures). The allowlist is the documented false-positive
+# strategy: an entry here is the deliberate, version-controlled record that a
+# match is a known non-secret — never a silent in-line bypass.
+
+title = "ascp-platform secrets-scan config"
+
+# Inherit gitleaks' full built-in default ruleset (AWS keys, GitHub/GitLab tokens,
+# Slack tokens, private keys, generic API keys, passwords, connection strings, ...).
+# Custom rules below are ADDED on top of the defaults, not a replacement for them.
+[extend]
+useDefault = true
+
+# --- Custom rules (added on top of the defaults) -----------------------------
+
+[[rules]]
+id = "generic-connection-string"
+description = "Database/service connection string carrying inline credentials"
+regex = '''(?i)(postgres|postgresql|mysql|mongodb(\+srv)?|redis|amqp)://[^:@\s/]+:[^@\s/]+@[^\s/]+'''
+keywords = ["postgres", "postgresql", "mysql", "mongodb", "redis", "amqp"]
+
+# --- Allowlist (documented known false positives) ----------------------------
+
+[allowlist]
+description = "Known false positives: documentation, test fixtures, and planted-secret test data."
+
+# Paths whose matches are intentional (placeholders, example values, planted
+# fixtures used by the Property 32 acceptance test). A real secret must NOT be
+# added here to silence it — entries are reviewed in PR.
+paths = [
+  '''(^|/)tests/fixtures/.*''',
+  '''(^|/)docs/.*\.md$''',
+  '''(^|/)\.gitleaks\.toml$''',
+  '''(^|/)\.env\.example$''',
+]
+
+# Obvious non-secret placeholder values seen in docs/examples.
+regexes = [
+  '''(?i)(example|sample|dummy|placeholder|changeme|your[-_]?(api[-_]?key|token|secret))''',
+  '''AKIAIOSFODNN7EXAMPLE''',
+]
