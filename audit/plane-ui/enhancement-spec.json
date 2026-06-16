@@ -1,0 +1,135 @@
+{
+ "executive_summary": "The live Plane board (ground truth: audit/plane-ui/design-tokens.json + screens/01-issues-default.png, 02-kanban-board.png, 03-ticket-detail.png) is stock Plane in its default light theme, and it actively works against this project's whole value proposition: a Spec-to-Evidence control plane whose entire reason to exist is that humans AND machines can see, at a glance, where every coverage item sits across a 12-state agent lifecycle (Backlog \u2192 Agent-Triaged \u2192 Spec-Compiling \u2192 Spec-Verified \u2192 Plan-Approved \u2192 Agent-Executing \u2192 In-Verification \u2192 Human-Review \u2192 Done, plus terminal HANDOFF/Blocked/Failed) and whether it is proven, on what Evidence_Record, by which agent, against which requirement. The board renders almost none of that. The four diagnostic root causes: (1) COLLAPSED SURFACE + DEAD TOKENS \u2014 body bg oklch(0.9543 0.001 230.67) is a flat cool gray ~1% off the pure-white cards, radius:0px, shadow:none, and the `border` token is mis-set to the TEXT color, so cards have zero figure-ground and read as a spreadsheet, the opposite of Linear-crisp/Notion-calm. (2) SEMANTICS CARRIED BY COLOR ALONE AND FAILING WCAG \u2014 workflow state is a neutral gray dot (#4e5355, zero hue: status is literally not color-coded), and the only colored chrome is the saturated `--editor-colors-*` pastel palette whose label-text-on-pastel pairs compute 1.8\u20132.3:1 (orange #fd9038 = 2.28:1, green #0fc27b = 2.33:1, light-blue #17bee9 = 2.19:1 on white) \u2014 failing 1.4.3, 1.4.11, and 1.4.1 simultaneously; status is unreadable to color-blind humans and unparseable to agents. (3) THE MACHINE PAYLOAD IS BURIED OR INVISIBLE \u2014 evidence_status appears NOWHERE on any card/row/detail despite being the single most important field; agent_role is swallowed into a \"4 Labels\" overflow pill; requirement_id (ASCP-E3-5) lives only inside the H1 title string next to the unrelated sequence ID (ASCP-24); the four-field Evidence_Record and EARS modality tags ([ubiquitous]/[event-driven]/[unwanted]) render as undifferentiated bold prose. (4) DENSITY INVERTED \u2014 Kanban cards waste a full row on a status pill that merely restates their own column, another row on empty ghost-icon placeholders, then truncate the title (the actual content) to one line; only ~3.5 of 12 columns fit at 1512px with no overview, so the pipeline is never legible end-to-end. The fix is overwhelmingly a token + view-config + content-convention effort, NOT a fork: a luminance-first OKLCH light theme (3-surface warm-neutral ramp, contrast-verified text ladder with a hard 4.5:1 floor, one restrained indigo accent reserved for interaction only, and a 12-hue equal-OKLCH-lightness status palette that doubles as label-text AND status-glyph color), delivered by overriding Plane's CSS custom properties; paired with Plane self-hosted Community config that already supports most of what's needed (custom States in pipeline order, the 10 custom fields + 22 labels the blueprint already defines, per-project public Saved Views with minimal display properties, board grouping/sub-grouping). The decisive reconciliation finding: the blueprint ALREADY models agent_role/evidence_status/requirement_id/coverage_type/output_hash/ears_pattern/gate as 10 first-class custom fields \u2014 so the real defect is not the data model, it is that the board UI never SURFACES those typed fields on the card face; the highest-leverage move is therefore a view-config + CSS pass that promotes the existing custom fields (especially evidence_status) to the most prominent, color-encoded, machine-readable token on every card. Two hard Community-edition boundaries to design around: Plane has NO native WIP limits and NO native transition workflows (both must be enforced via webhooks/REST, which the project already does in webhook_handler.py / plane_client.py), and there is no in-product themer beyond Light/Dark \u2014 the crisp restyle is a self-hosted CSS-variable override layer, kept separate so it survives upgrades.",
+ "top_findings": [
+  "EVIDENCE_STATUS IS INVISIBLE EVERYWHERE \u2014 the #1 machine/human field is absent from every card, row, and the detail Properties panel. The EARS body of ASCP-24 mandates a {unproven\u2192proven\u2192failed} status machine and a 4-field Evidence_Record, and the blueprint ALREADY defines `evidence_status` as a custom dropdown field, yet the UI shows only Plane's generic State='Done'. A reviewer cannot distinguish 'Done-but-unproven' from 'Done-and-proven', and the autonomous loop has no rendered field to read. Highest-leverage single fix: surface evidence_status as the most prominent color-coded chip on every card (proven=green, unproven=amber, failed=red), reusing the existing field \u2014 no new data model needed.",
+  "STATUS IS NOT COLOR-CODED AND FAILS WCAG ON EVERY AXIS \u2014 the live state 'dot' is neutral gray #4e5355 (zero saturation), so all 12 lifecycle states look identical; the only colored chrome (the `--editor-colors-*` pastels) produces label-text-on-tint contrast of 1.8\u20132.3:1 (orange 2.28:1, green 2.33:1, light-blue 2.19:1 on white), failing 1.4.3 (text), 1.4.11 (non-text), and 1.4.1 (color-alone) at once. Status must become a shape+icon+text+color quad: a distinct status glyph per state, a text label, and one equal-OKLCH-lightness hue per state that passes 4.5:1 as text AND 3:1 as a glyph.",
+  "COLLAPSED SURFACE RAMP + MIS-TOKENED BORDER \u2014 body bg oklch(0.9543 0.001 230.67) sits ~1% off pure-white cards (cards on a ~1.0:1 board = no figure-ground), radius:0px reads as a database tool not a refined PM surface, shadow:none removes Linear/Notion elevation, and the `body.border` token is wrongly set to the near-black TEXT color oklch(0.2378). Replace with a 3-surface warm-neutral ramp (canvas #FBFBFA / surface #FFFFFF / sunken #F6F6F4), a real hairline border token (~#E8E8E4), 6\u20138px radius, and border-first elevation with one whisper shadow.",
+  "THE MACHINE PAYLOAD IS SMUGGLED THROUGH FREE-TEXT AND OVERFLOW \u2014 agent_role renders only as a label that gets swallowed into a '4 Labels +N' overflow pill; requirement_id (ASCP-E3-5) lives only inside the H1 title string, visually unrelated to and confusable with the sequence ID (ASCP-24); the four-field Evidence_Record, EARS modality tags, and encoded identifiers (feature_list.json, output_hash, four-field gate) all render as undifferentiated bold prose with no mono/chip treatment. The board answers the wrong questions at a glance and forces both humans and scrapers to NLP-parse prose.",
+  "REDUNDANT-PILL + GHOST-ICON DENSITY INVERSION \u2014 every Kanban card spends a full row on a state pill that merely restates the column it already sits in ('Backlog' inside Backlog), another row on empty monochrome ghost-icons (estimate/date/assignee placeholders with no values), then truncates the title \u2014 the actual EARS content \u2014 to one line at ~38 chars. Net: ~7 low-signal cards per viewport where ~12 high-signal cards should fit. Hide redundant state in board view, render meta only when populated, and allow a 2-line title clamp.",
+  "12-COLUMN PIPELINE IS NEVER LEGIBLE END-TO-END \u2014 at 1512px only ~3.5 of the 12 lifecycle columns render (~330px each) with no minimap/overview, so the downstream half of the agent lifecycle is invisible without scrolling; column headers carry a raw integer count only (Backlog 186 vs single-digit active stages) with no WIP signal, no color band, and no count at all on empty stages, so the board's headline fact \u2014 a 30x back-loaded, downstream-starved pipeline \u2014 has zero visual encoding. Narrow columns to ~272px, add a sticky lifecycle overview strip, and encode WIP/aging in headers.",
+  "NO NON-COLOR ENCODING AND NO MACHINE-READABILITY CONTRACT \u2014 beyond Plane's default DOM there are no stable data-* hooks (data-state, data-evidence-status, data-agent-role, data-requirement-id, data-trace), no explicit ARIA list/listitem column/card roles, and no parallel structured projection. For an agent-driven board the highest-leverage transparency win is a documented contract: dual-encode every status (color+glyph+text), emit canonical data-* attributes + ARIA, and regenerate a /board.json from the REST API so agents read typed fields instead of scraping pixels.",
+  "PLANE COMMUNITY HAS NO NATIVE WIP LIMITS AND NO NATIVE TRANSITION WORKFLOWS \u2014 the two governance primitives this control plane depends on (WIP caps per state, evidence-gated transitions, human-only Plan-Approved/Done edges) do not exist as Community config; native Workflows/Approvals are Business/Enterprise-gated. They must be enforced via webhooks + REST (which the project already does in webhook_handler.py and the actor-authority guards in plane_client.py), and visualized via header WIP badges + an evidence-status chip rather than expected as a settings toggle."
+ ],
+ "light_theme_tokens": {
+  "canvas": "oklch(0.985 0.003 95)",
+  "surface": "oklch(1 0 0)",
+  "surface_raised": "oklch(1 0 0)",
+  "border": "oklch(0.88 0.006 95)",
+  "border_subtle": "oklch(0.922 0.005 95)",
+  "text": "oklch(0.30 0.012 95)",
+  "text_muted": "oklch(0.50 0.012 95)",
+  "text_faint": "oklch(0.62 0.010 95)",
+  "accent": "oklch(0.55 0.19 274)",
+  "proven": "oklch(0.60 0.13 150)",
+  "handoff": "oklch(0.62 0.14 60)",
+  "blocked": "oklch(0.57 0.18 27)",
+  "radius": "8px",
+  "font": "\"Inter Variable\", \"Inter\", ui-sans-serif, system-ui, sans-serif"
+ },
+ "plane_config_changes": [
+  {
+   "path": "Project Settings \u2192 States (docs.plane.so/core-concepts/issues/states)",
+   "change": "Author the canonical 12 states in pipeline order, mapped to Plane's 5 state-groups so groupings/rollups work: backlog=[Backlog]; unstarted=[Agent-Triaged]; started=[Spec-Compiling, Spec-Verified, Plan-Approved, Agent-Executing, In-Verification, Human-Review]; completed=[Done]; cancelled=[HANDOFF, Blocked, Failed]. Reorder via the States UI so the board reads left-to-right as the real agent flow (the column order IS the state sequence \u2014 there is no separate board-column editor). Set Backlog as default. Assign each state a color from the equal-OKLCH-lightness status palette so the header dot/glyph is color-coded, not the current neutral gray #4e5355."
+  },
+  {
+   "path": "Project Settings \u2192 Custom Properties / Work Item Properties",
+   "change": "The blueprint already defines 10 custom fields \u2014 ensure all exist as TYPED fields (not labels): agent_role (dropdown: initializer|implementer|verifier|research|human), evidence_status (dropdown: unproven|proven|failed \u2014 THE highest-priority surfaced field), requirement_id (text, ^[A-Z]+-[A-Z]+-[0-9]{3}$), coverage_type (dropdown: functional|NFR|WIRING \u2014 single-select to kill the current contradictory type:wiring+type:functional+type:nfr trio), run_state, ears_pattern (dropdown: ubiquitous|event-driven|state-driven|unwanted|optional|complex), gate, worktree_branch, agent_run_id, output_hash (sha256:<64hex>). Note: custom Work Item TYPES are Pro-only, but custom PROPERTIES on the default type are available in Community."
+  },
+  {
+   "path": "Project Settings \u2192 Labels (22 labels, 6 families)",
+   "change": "Keep the existing 22-label taxonomy (agent:*/human:*, priority:*, type:*, gate:*, phase:*, terminal handoff/blocked/failed) for filtering, but stop overloading them as the primary semantic carrier now that typed custom fields exist. Resolve the duplicate-priority defect: Priority is the native field (authoritative for board sort); drop or re-home priority:blocking so there are not two priority signals. Map each label family to a low-chroma tonal chip pair (tinted bg + same-hue darker text) instead of raw saturated dots, so labels read as a governed taxonomy not confetti."
+  },
+  {
+   "path": "Project \u2192 Views \u2192 Add view (public, per-project) \u2014 docs.plane.so/core-concepts/views",
+   "change": "Author a small canonical PUBLIC view set (private views are Pro-only): (1) 'Pipeline' \u2014 Board layout, Group by State, Order by Priority, minimal display props; (2) 'By Agent' \u2014 Board, Sub-group by Assignee/agent_role as swimlanes (sub-grouping IS Plane's swimlane mechanism); (3) 'This Phase' \u2014 Board filtered to active phase label; (4) 'Audit/All' \u2014 Table layout, every display property + custom field ON, Order by Last Updated, as the maximal machine-readable cut; (5) 'Roadmap' \u2014 Timeline/Gantt. Provision via REST for cross-project consistency."
+  },
+  {
+   "path": "Board view \u2192 Display options \u2192 Display Properties (docs.plane.so/core-concepts/issues/display-options)",
+   "change": "On the calm 'Pipeline' board, turn OFF the redundant State property (it restates the column when grouped by state) and turn OFF empty placeholders (Estimate, Start Date, Sub-work item Count, Modules, Cycle, Attachment, Link) so ghost-icons stop rendering when unset. Turn ON the high-signal set in fixed order: evidence_status (leftmost, color-coded), agent_role, ID, Priority, Assignee, phase. Set Order by = Priority; Show empty groups ON only so empty downstream stages remain visible as signal; Show sub-work items OFF on the board."
+  },
+  {
+   "path": "Project Settings \u2192 Estimates (docs.plane.so/core-concepts/issues/estimates)",
+   "change": "Optionally enable a 6-value estimate system (Community cap is 6 \u2014 Fibonacci 1/2/3/5/8/13 or XS\u2013XL) for capacity observability. Keep the Estimate display property OFF on the calm Pipeline board and ON only in the Table/'Audit' and Timeline views where sizing data belongs."
+  },
+  {
+   "path": "Webhooks + REST API (developers.plane.so/dev-tools/intro-webhooks) \u2014 NOT a UI setting",
+   "change": "Because Community has NO native WIP limits and NO native transition Workflows, enforce both machine-side (already partly done in webhook_handler.py / plane_client.py actor-authority guards): subscribe to work-item state-change events, validate transitions against the allowed-transition + actor-authority matrix (human-only Plan-Approved and Done edges; evidence_status=proven + 4 non-empty Evidence_Record fields required to enter Spec-Verified/Done), count items per started-group state to flag WIP breaches, and regenerate a /board.json projection so agents read typed fields instead of scraping the DOM."
+  },
+  {
+   "path": "User Profile \u2192 Preferences \u2192 Theme (docs.plane.so/core-concepts/account/settings)",
+   "change": "Set Theme = Light (or Custom with near-white neutral #FBFBFA + restrained indigo brand ~#5B5BD6) as the per-user baseline. NOTE this is per-user not instance-wide and is NOT the real restyle lever \u2014 the crisp light theme is delivered by the CSS custom-property override layer below, applied at the self-hosted web build, kept as a separate override file so it survives version upgrades."
+  }
+ ],
+ "css_enhancements": [
+  {
+   "target": ":root (Plane theme CSS custom properties \u2014 override --color-background-100/90/80, --color-text-100/200/300, --color-border-100/200/300, --color-primary-*)",
+   "rule": "--color-background-100:#FFFFFF; --color-background-90:#FBFBFA; --color-background-80:#F6F6F4; --color-text-100:#3A3A36; --color-text-200:#76766E; --color-text-300:#9A9A92; --color-border-100:#E8E8E4; --color-border-200:#DDDDD8; --color-primary-100:#5B5BD6; --radius-card:8px; --radius-chip:5px;",
+   "rationale": "Replaces the collapsed cool-gray ramp and the mis-tokened near-black border with a 3-surface warm-neutral light ramp (Linear-warm/Notion-calm), a contrast-verified text ladder (primary ~10:1, secondary ~5:1, tertiary ~3.4:1 decorative-only on white), and one restrained indigo accent. Single source of truth both human CSS and any agent reading computed styles consume; survives upgrades as an override layer."
+  },
+  {
+   "target": ".kanban-card / .issue-card (board card container)",
+   "rule": "padding:10px 12px; gap:6px; border-radius:8px; border:1px solid var(--color-border-100); box-shadow:0 1px 2px rgba(15,15,15,0.04); background:var(--color-background-100);",
+   "rationale": "Border-first elevation with a single whisper shadow gives cards real figure-ground on the warm canvas (current cards are #fff on ~#fff with shadow:none and radius:0). Tightens padding from ~16px to Linear-grade 10/12 to raise cards-per-column from ~7 to ~12 without crowding."
+  },
+  {
+   "target": ".issue-card .card-title (board) and .list-row .title",
+   "rule": "font-size:13px; line-height:1.35; font-weight:510; letter-spacing:-0.05px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;",
+   "rationale": "Makes the EARS title the scan anchor at Linear's signature weight 510, and replaces the one-line ~38-char truncation with a 2-line clamp so the meaningful half of the title/identifier is no longer cut, restoring card distinguishability."
+  },
+  {
+   "target": ".issue-id / .ticket-key (every issue identifier: list ID, card ID, ticket breadcrumb)",
+   "rule": "font-family:\"Berkeley Mono\",ui-monospace,\"SF Mono\",monospace; font-variant-numeric:tabular-nums; font-size:12px; color:var(--color-text-300);",
+   "rationale": "Mono + tabular-nums aligns ID columns and disambiguates 0/O,1/l; the highest-leverage machine-readability typography fix. Visually flags requirement_id/sequence-id as literal copyable tokens (Linear signature) and lets the human title carry full weight/contrast."
+  },
+  {
+   "target": ".status-chip / .evidence-chip / .label-chip (all property pills)",
+   "rule": "background:[status-hue]/10% alpha over surface; color:[status-hue at OKLCH L\u22480.45]; border:none; box-shadow:none; border-radius:5px; font-size:11.5px; font-weight:500; padding:2px 7px; letter-spacing:0;",
+   "rationale": "Converts the saturated 1.8\u20132.3:1 candy pills into quiet Notion-style tonal chips where text hits \u22654.5:1 on its tint and the colored 6\u20138px glyph carries the saturation. Pill restraint is the core calm/legibility move; strips borders+shadows that add noise."
+  },
+  {
+   "target": ".status-glyph (per-state status icon, ~14px, on cards + column headers)",
+   "rule": "width:14px;height:14px; color encoded per state; background-image keyed to [data-state] \u2014 dashed-ring(Backlog), hollow-ring(Agent-Triaged), progress-arc 25/50/75%(Spec-Compiling/Executing/In-Verification), open-check(Spec-Verified/Plan-Approved), filled-check(Done), outline-diamond(HANDOFF), filled-octagon(Blocked), filled-triangle(Failed);",
+   "rationale": "Dual-encodes state as shape+color so it is legible to color-blind humans, OCR/vision models, and screenshot-diffs (satisfies WCAG 1.4.1). Lets status colors stay low-saturation/calm because color is no longer load-bearing alone. The decisive fix for the zero-hue neutral-dot defect."
+  },
+  {
+   "target": "12-state status palette (per-state --state-*-fg / --state-*-bg, equal OKLCH lightness)",
+   "rule": "fg=oklch(0.45 C H), bg=oklch(0.95 C H) varying ONLY hue: Backlog gray(C\u22480); Agent-Triaged slate 250; Spec-Compiling amber 75; Spec-Verified teal 180; Plan-Approved blue 245; Agent-Executing violet 285; In-Verification cyan 200; Human-Review purple 300; Done green 150; HANDOFF orange 60; Blocked red 27; Failed maroon 20 (deliberately darker L\u22480.35 so Blocked\u2260Failed read as distinct severities).",
+   "rationale": "Holding lightness constant in OKLCH makes every status hue read at equal visual weight and land at the same AA-passing contrast regardless of hue (Linear's perceptual-uniformity keystone), so no state shouts louder than another and the board reads balanced and calm."
+  },
+  {
+   "target": ".kanban-column (board column container) + .column-header",
+   "rule": "--board-col-w:272px; --board-col-gap:12px; width:var(--board-col-w); .column-header{position:sticky;top:0;font-size:11px;font-weight:590;letter-spacing:0.03em;text-transform:uppercase;border-top:2px solid var(--state-accent)} .column-header .count{font-weight:600;padding:0 6px;border-radius:10px;background:var(--color-background-80)}",
+   "rationale": "Narrows columns so 5\u20136 lifecycle stages fit at 1512px (was ~3.5), reinforces stage identity with a per-state 2px top-rule, and upgrades the faint inline count to a weighted WIP badge \u2014 turning headers into observability instruments and the left-to-right flow into a legible pipeline."
+  },
+  {
+   "target": ":focus-visible (cards, rows, buttons, nav) and [aria-selected]",
+   "rule": "outline:2px solid var(--color-primary-100); outline-offset:2px; box-shadow:0 0 0 2px rgba(91,91,214,0.35); [aria-selected]{background:rgba(91,91,214,0.06);border-left:2px solid var(--color-primary-100)}",
+   "rationale": "Adds a 2px \u22653:1 focus ring (WCAG 2.4.13/2.4.11) and a faint-wash selection state using the single indigo accent reserved for interaction only (never status), so keyboard operability and current selection are always legible in screenshots/recordings."
+  },
+  {
+   "target": "@media (prefers-reduced-motion: reduce) on board",
+   "rule": "*,.kanban-card,.kanban-column{transition:none!important;animation:none!important} \u2014 and keep an instant focus/selection ring as the non-motion cue.",
+   "rationale": "Collapses card drag-snap, column collapse, and reorder transitions to instant for vestibular-sensitive users (WCAG 2.3.3) while preserving feedback via the instant ring."
+  },
+  {
+   "target": ".meta-icon[data-empty] (ghost placeholder icons on cards/rows)",
+   "rule": "display:none; /* render a meta token only when its field has a value */",
+   "rationale": "Stops the monochrome ghost-icon row (empty estimate/date/assignee/module placeholders) from consuming the densest part of the card; presence becomes signal, matching the Linear pattern of 1\u20132 meaningful tokens not a row of empty outlines."
+  }
+ ],
+ "content_conventions": [
+  "EVERY card/row/detail surfaces evidence_status as the leading, color-coded chip: proven=green check + test count (e.g. '\u2714 4/4'), unproven=amber half-glyph, failed=red. This is the single most important glanceable signal on a Spec-to-Evidence board and the field already exists in the data model \u2014 the convention is that it is always rendered, always first, never overflow-hidden.",
+  "Pin agent_role as the second meta token with its own short uppercase mono code chip, excluded from the generic 'N Labels' overflow, so the owning agent per ticket is readable at board density even though the column already implies a pipeline stage.",
+  "Split structured identity from prose in titles: render requirement_id (e.g. ASCP-E3-5) and epic ref as a small mono eyebrow above the title, distinct from Plane's sequence ID (ASCP-24); keep the H1 to the human-readable name only; move the four design constraints out of the title into the EARS body (single source of truth, no drift).",
+  "Render EARS modality keywords as fixed-width color-coded mono chips in a left gutter, not bold prose: ubiquitous=gray, event-driven=blue, state-driven=green, unwanted=red/peach, optional=purple \u2014 so requirement modality is a scannable left rail for humans and a trivial selector for machines, and the existing color palette finally encodes meaning.",
+  "Wrap all encoded/machine-load-bearing identifiers in inline mono code style: feature_list.json, Evidence_Record, output_hash, test_file, test_name, collected_at, nfr_subtype, and enum/default literals ({functional,NFR,WIRING}, DEFAULT true). Disambiguates underscores from word breaks and gives parsers and humans one consistent visual class for 'this is a literal field/file/flag'.",
+  "Number and anchor every EARS requirement (R1\u2026Rn) and acceptance criterion (AC1\u2026ACn) with stable deep-link ids (#r3, #ac2), and add an explicit 'Verifies: R2,R4' / 'Verified by: AC1,AC3' traceability spine plus a coverage strip ('N requirements \u00b7 M criteria \u00b7 K uncovered') so coverage is auditable at a glance and citable in commits/comments/agent logs.",
+  "Render acceptance criteria as a live verification ledger: each AC gets a status pill (pending/passing/failing/blocked) and a 4-cell Evidence_Record strip (test_file/test_name/output_hash/collected_at) that turns green only when all four fields are non-empty \u2014 making the four-field evidence gate's state observable directly on the criterion rather than asserted in prose.",
+  "Adopt a fixed, parseable Evidence_Record comment template the verifier agent always posts and pins: a fenced ```evidence block with exactly the four mandated keys in fixed order (test_file, test_name, output_hash, collected_at) plus evidence_kind, so the PreToolUse gate and human readers can deterministically validate 'four non-empty fields'.",
+  "Make coverage_type single-valued per ticket (functional XOR NFR XOR WIRING) via the typed custom field, eliminating the current contradictory type:wiring + type:functional + type:nfr label trio that gives any parser three conflicting answers.",
+  "Emit stable data-* attributes + ARIA on every rendered element as the machine-readability fallback to the typed REST fields: data-state (canonical enum, not display text), data-state-group, data-evidence-status, data-evidence-tests='4/4', data-agent-role, data-requirement-id, data-coverage-type, data-priority, data-blocked, data-trace-spec/test/output; column=role=list aria-label='<state> (<count>)', card=role=listitem with a summarizing aria-label, terminal states aria-disabled, status glyph aria-label not just visual. Document this attribute contract so agents/tests/observability target fields deterministically.",
+  "Maintain a parallel /board.json (optionally JSON-LD) regenerated from the Plane REST API carrying the same canonical enums, Evidence_Record, trace ids, and transition history \u2014 agents consume the JSON, the DOM data-* attributes are the visual-debug oracle, humans get the styled board: one source of truth, three faithful projections.",
+  "Group the detail Properties rail by namespace (Type, Phase, Gate, Agent, Priority) with hairline separators instead of an unsorted colored chip pile, and collapse empty native fields (Assignees/Start date/Due date) into a single muted 'Add field' affordance so populated facts dominate.",
+  "Order board columns strictly by SDLC flow (Backlog \u2192 Agent-Triaged \u2192 Spec-Compiling \u2192 Spec-Verified \u2192 Plan-Approved \u2192 Agent-Executing \u2192 In-Verification \u2192 Human-Review \u2192 Done; terminal HANDOFF/Blocked/Failed grouped at the right) and give empty downstream stages a real empty-state ('No items in <stage>' + what enters it + count badge 0) so an empty queue reads as meaningful signal, not a broken/misconfigured column."
+ ]
+}
