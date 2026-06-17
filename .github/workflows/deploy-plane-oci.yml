@@ -96,6 +96,18 @@ jobs:
           install -d -m 700 ~/.oci
           printf '%s\n' "$OCI_CLI_KEY_CONTENT" > ~/.oci/key.pem
           chmod 600 ~/.oci/key.pem
+          # Diagnose the 401 without leaking secrets: derive the public-key
+          # fingerprint FROM the private key and compare to the configured one.
+          echo "== key ↔ fingerprint check =="
+          CFP=$(openssl rsa -pubout -in ~/.oci/key.pem -outform DER 2>/dev/null | openssl md5 -c 2>/dev/null | sed 's/^.*= *//')
+          if [ -z "$CFP" ]; then
+            echo "::error::OCI_CLI_KEY_CONTENT is not a parseable RSA private key — it's malformed (pasted without line breaks, missing BEGIN/END, or wrong key type)."
+          elif [ "$CFP" = "$OCI_CLI_FINGERPRINT" ]; then
+            echo "Private key MATCHES OCI_CLI_FINGERPRINT ✓  → if auth still 401s, the public key isn't added to this user, or USER/TENANCY OCID is wrong."
+          else
+            echo "::error::MISMATCH — the private key in OCI_CLI_KEY_CONTENT does NOT correspond to OCI_CLI_FINGERPRINT. They're from different key pairs."
+            echo "fingerprint computed from your key = $CFP   (set OCI_CLI_FINGERPRINT to THIS, or replace the key with the one matching the configured fingerprint)"
+          fi
           cat > ~/.oci/config <<CFG
           [DEFAULT]
           user=${OCI_CLI_USER}
