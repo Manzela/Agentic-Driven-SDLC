@@ -53,16 +53,12 @@ jobs:
           if [ -z "$K" ]; then
             echo "::error::VM_SSH_PRIVATE_KEY is required (the VM deploy key)."; exit 1
           fi
-          if [ -z "$T$A$G" ]; then
-            echo "::error::No Cloudflare credential found. Add exactly ONE repo secret:"
-            echo "::error::  CF_TUNNEL_TOKEN (dashboard tunnel connector token), OR"
-            echo "::error::  CF_API_TOKEN (scoped: Account‹Tunnel:Edit› + Zone‹DNS:Edit,Zone:Read›), OR"
-            echo "::error::  CF_GLOBAL_KEY (+ optional CF_EMAIL). Then re-run this workflow."
-            exit 1
-          fi
-          # Choose the path: explicit connector token wins; else API automation.
-          if [ -n "$T" ]; then echo "MODE=token"  >> "$GITHUB_ENV"; echo "Mode: use existing connector token.";
-          else                 echo "MODE=api"    >> "$GITHUB_ENV"; echo "Mode: API-automate tunnel + DNS, then connect."; fi
+          # Choose the path: explicit connector token wins; else API automation;
+          # else fall back to starting a connector ALREADY present on the VM
+          # (covers the case where a tunnel/credentials were installed earlier).
+          if   [ -n "$T" ]; then echo "MODE=token"    >> "$GITHUB_ENV"; echo "Mode: use existing connector token.";
+          elif [ -n "$A$G" ]; then echo "MODE=api"    >> "$GITHUB_ENV"; echo "Mode: API-automate tunnel + DNS, then connect.";
+          else                   echo "MODE=existing" >> "$GITHUB_ENV"; echo "Mode: no CF secret — try to start an already-present connector on the VM."; fi
 
       - name: Configure SSH
         env:
@@ -91,6 +87,10 @@ jobs:
           CF_EMAIL: ${{ secrets.CF_EMAIL }}
         run: |
           set +x
+          if [ "$MODE" = "existing" ]; then
+            echo "No CF secret — will attempt to (re)start an existing connector on the VM."
+            exit 0
+          fi
           if [ "$MODE" = "token" ]; then
             printf '%s' "$CF_TUNNEL_TOKEN" > ~/.cf_token
             chmod 600 ~/.cf_token
@@ -173,8 +173,39 @@ jobs:
           PY
 
       - name: Install + start cloudflared on the VM
+        env:
+          MODE: ${{ env.MODE }}
         run: |
           set +x
+          if [ "$MODE" = "existing" ]; then
+            # No token to deliver — just try to start whatever connector is already
+            # installed/configured on the VM (systemd unit and/or ~/.cloudflared creds).
+            ssh plane-vm "sudo bash -seuo pipefail" <<'REMOTE'
+              set -Eeuo pipefail
+              if ! command -v cloudflared >/dev/null 2>&1; then
+                echo "::error::cloudflared is not installed on the VM and no CF credential was provided."
+                echo "::error::Add a CF_TUNNEL_TOKEN / CF_API_TOKEN / CF_GLOBAL_KEY secret and re-run."
+                exit 2
+              fi
+              if ! systemctl list-unit-files 2>/dev/null | grep -q '^cloudflared'; then
+                echo "::error::cloudflared is installed but no service is configured (no tunnel credentials on this VM)."
+                echo "::error::This VM was never bound to a tunnel — provide a Cloudflare credential secret and re-run."
+                exit 2
+              fi
+              systemctl enable --now cloudflared || true
+              systemctl restart cloudflared || true
+              sleep 8
+              if systemctl is-active --quiet cloudflared; then
+                echo "[vm] existing cloudflared ACTIVE."
+                systemctl status cloudflared --no-pager | sed -n '1,8p' || true
+              else
+                echo "::error::existing cloudflared failed to start:"
+                journalctl -u cloudflared --no-pager | tail -40 || true
+                exit 1
+              fi
+            REMOTE
+            exit 0
+          fi
           # Hand the masked token to the VM over stdin; the remote removes it post-install.
           ssh plane-vm "umask 077; cat > /tmp/.cf_token" < ~/.cf_token
           rm -f ~/.cf_token
