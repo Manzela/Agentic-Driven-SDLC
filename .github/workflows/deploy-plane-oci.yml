@@ -149,8 +149,15 @@ jobs:
           if [ -n "${PLANE_B64}" ] && [ ! -f plane.env ]; then echo "${PLANE_B64}" | base64 -d | \$SUDO tee plane.env >/dev/null; fi
           if [ -n "${CREDS_B64}" ]; then echo "${CREDS_B64}" | base64 -d | \$SUDO tee credentials.env >/dev/null; fi
 
-          \$SUDO chmod +x ./deploy.sh
-          if [ -n "\$SUDO" ]; then \$SUDO -E ./deploy.sh; else ./deploy.sh; fi
+          # The self-contained standalone-deploy.sh needs no PLANE_ENV secret — it
+          # generates its own strong secrets and is ARM-aware. Prefer it when present.
+          if [ -f ./standalone-deploy.sh ]; then
+            \$SUDO chmod +x ./standalone-deploy.sh
+            if [ -n "\$SUDO" ]; then \$SUDO -E bash ./standalone-deploy.sh; else bash ./standalone-deploy.sh; fi
+          else
+            \$SUDO chmod +x ./deploy.sh
+            if [ -n "\$SUDO" ]; then \$SUDO -E ./deploy.sh; else ./deploy.sh; fi
+          fi
           REMOTE
           echo "remote.sh built ($(wc -c < remote.sh) bytes)."
 
@@ -175,7 +182,7 @@ jobs:
           set +e
           CREATE_OUT=$(oci instance-agent command create \
             --compartment-id "$OCI_COMPARTMENT_OCID" \
-            --execution-time-out-in-seconds 3000 \
+            --timeout-in-seconds 3000 \
             --display-name "ascp-plane-deploy-${GITHUB_RUN_ID}" \
             --content file://content.json \
             --target file://target.json 2>&1)
