@@ -349,6 +349,21 @@ else
   log "plane.env already exists — keeping existing secrets."
 fi
 
+# ── 3b. Proxy/Caddy ACME vars — MUST be non-empty ─────────────────────────────
+# Plane's proxy Caddyfile has a global `acme_ca {$CERT_ACME_CA}`; a BLANK value
+# makes Caddy fail to parse, so the proxy crash-loops and nothing serves :80.
+# Behind the Cloudflare Tunnel we serve plain HTTP on :80, so the CA is parsed
+# but unused. Patch in-place so both fresh and pre-existing plane.env get it.
+ensure_kv() {
+  if grep -q "^$1=" plane.env; then sed -i "s|^$1=.*|$1=$2|" plane.env
+  else printf '%s=%s\n' "$1" "$2" >> plane.env; fi
+}
+ensure_kv CERT_ACME_CA "https://acme-v02.api.letsencrypt.org/directory"
+# CERT_EMAIL is injected as a WHOLE Caddy global directive line, so it must be
+# 'email <addr>', not a bare address (a bare value → "unrecognized global option").
+ensure_kv CERT_EMAIL "email admin@autonomous-agent.dev"
+log "Ensured CERT_ACME_CA / CERT_EMAIL are valid proxy directives."
+
 # ── 4. ARM / Ampere preflight: native arm64 if available, else QEMU amd64 ─────
 if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then
   if docker manifest inspect makeplane/plane-backend:stable 2>/dev/null | grep -q 'arm64'; then
@@ -360,17 +375,43 @@ if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then
   fi
 fi
 
-# ── 5. Pull + bring up ────────────────────────────────────────────────────────
-log "Pulling images + starting the stack (this can take 10–20 min under emulation)…"
-docker compose --env-file plane.env pull
+# ── 5. Bring up ───────────────────────────────────────────────────────────────
+# `up -d` pulls any MISSING images itself, so we skip an explicit `compose pull`
+# (re-pulling all 13 images every run was the slow, sometimes-hanging step).
+log "Starting the stack (up -d pulls only missing images)…"
 docker compose --env-file plane.env up -d
+# Force-recreate the proxy so any plane.env change (e.g. CERT_ACME_CA) is applied
+# even if compose's change-detection wouldn't otherwise recreate it. Without this
+# a previously crash-looping Caddy keeps its old (broken) config on re-runs.
+log "Recreating the proxy to apply current env…"
+docker compose --env-file plane.env up -d --force-recreate --no-deps proxy || true
 
-# ── 6. Wait for the surface ───────────────────────────────────────────────────
-log "Waiting for Plane to answer on http://localhost:80/ …"
+# ── 6. Wait for the surface + diagnostics ─────────────────────────────────────
+log "Waiting for Plane to answer on http://localhost:80/ … (up to ~5 min)"
+UP=0
 for i in $(seq 1 60); do
-  if curl -fsS -o /dev/null http://localhost:80/; then log "Plane is UP."; break; fi
+  # --max-time bounds each probe so a hung/slow backend can't stall the loop.
+  code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 8 "http://localhost:80/" || echo 000)
+  if [ "$code" != "000" ] && [ "$code" -ge 200 ] && [ "$code" -lt 500 ]; then
+    UP=1; log "Plane answered on :80 (HTTP $code)."; break
+  fi
+  [ $((i % 6)) -eq 0 ] && log "  …still waiting (last HTTP $code, ${i}/60)"
   sleep 5
 done
+
+echo; log "container status (docker compose ps):"
+docker compose --env-file plane.env ps || true
+
+if [ "$UP" -ne 1 ]; then
+  log "Plane did NOT answer on :80 — capturing diagnostics:"
+  echo "--- arch / platform ---"; uname -m; echo "DOCKER_DEFAULT_PLATFORM=${DOCKER_DEFAULT_PLATFORM:-<native>}"
+  echo "--- listening on :80/:443? ---"; { ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null || true; } | grep -E ':80 |:443 ' || echo "  nothing listening on :80/:443"
+  for svc in proxy web api migrator plane-db plane-redis; do
+    echo "--- logs: $svc (tail 30) ---"
+    docker compose --env-file plane.env logs --tail=30 "$svc" 2>&1 || true
+  done
+  echo "--- SELinux ---"; getenforce 2>/dev/null || echo "n/a"
+fi
 
 cat <<'NEXT'
 
