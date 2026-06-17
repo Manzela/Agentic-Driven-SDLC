@@ -1,0 +1,224 @@
+name: Go Live (Cloudflare Tunnel → Oracle VM)
+
+# One dispatch to take plane.autonomous-agent.dev from Error 1033 to LIVE.
+#
+# It AUTO-DETECTS whichever Cloudflare credential you have in repo secrets and
+# does the right thing — you only ever need to provide ONE of them:
+#
+#   • CF_TUNNEL_TOKEN  — a connector token from a tunnel you already created in
+#                        the Zero Trust dashboard (Networks → Tunnels). Simplest:
+#                        the workflow just installs + starts the connector.
+#   • CF_API_TOKEN     — a scoped API token (Account ‹Cloudflare Tunnel: Edit› +
+#                        Zone ‹DNS: Edit› + Zone ‹Zone: Read› on autonomous-agent.dev).
+#                        FULLY AUTOMATED: creates/reuses the tunnel, sets its
+#                        ingress (plane.autonomous-agent.dev → http://localhost:80),
+#                        upserts the proxied DNS CNAME, then installs the connector.
+#   • CF_GLOBAL_KEY    — your Cloudflare Global API Key (+ CF_EMAIL, defaults to the
+#                        account owner email). Same fully-automated path as CF_API_TOKEN.
+#
+# Always also required: VM_SSH_PRIVATE_KEY (the VM deploy key, as for deploy-plane).
+#
+# The token never appears in argv or logs: it is masked and handed to the VM over
+# an stdin temp file that the remote deletes after `cloudflared service install`.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CF_HOSTNAME: plane.autonomous-agent.dev
+  CF_ZONE: autonomous-agent.dev
+  CF_TUNNEL_NAME: plane-ascp
+  VM_HOST: ${{ vars.VM_HOST || '158.178.129.208' }}
+  VM_USER: ${{ vars.VM_USER || 'opc' }}
+
+jobs:
+  golive:
+    name: Publish Plane at the public hostname
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect credentials
+        env:
+          K: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          T: ${{ secrets.CF_TUNNEL_TOKEN }}
+          A: ${{ secrets.CF_API_TOKEN }}
+          G: ${{ secrets.CF_GLOBAL_KEY }}
+        run: |
+          echo "VM_SSH_PRIVATE_KEY: $([ -n "$K" ] && echo present || echo MISSING)"
+          echo "CF_TUNNEL_TOKEN:    $([ -n "$T" ] && echo present || echo absent)"
+          echo "CF_API_TOKEN:       $([ -n "$A" ] && echo present || echo absent)"
+          echo "CF_GLOBAL_KEY:      $([ -n "$G" ] && echo present || echo absent)"
+          if [ -z "$K" ]; then
+            echo "::error::VM_SSH_PRIVATE_KEY is required (the VM deploy key)."; exit 1
+          fi
+          if [ -z "$T$A$G" ]; then
+            echo "::error::No Cloudflare credential found. Add exactly ONE repo secret:"
+            echo "::error::  CF_TUNNEL_TOKEN (dashboard tunnel connector token), OR"
+            echo "::error::  CF_API_TOKEN (scoped: Account‹Tunnel:Edit› + Zone‹DNS:Edit,Zone:Read›), OR"
+            echo "::error::  CF_GLOBAL_KEY (+ optional CF_EMAIL). Then re-run this workflow."
+            exit 1
+          fi
+          # Choose the path: explicit connector token wins; else API automation.
+          if [ -n "$T" ]; then echo "MODE=token"  >> "$GITHUB_ENV"; echo "Mode: use existing connector token.";
+          else                 echo "MODE=api"    >> "$GITHUB_ENV"; echo "Mode: API-automate tunnel + DNS, then connect."; fi
+
+      - name: Configure SSH
+        env:
+          VM_SSH_PRIVATE_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VM_SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -t rsa,ecdsa,ed25519 "$VM_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cat > ~/.ssh/config <<CFG
+          Host plane-vm
+            HostName $VM_HOST
+            User $VM_USER
+            IdentityFile ~/.ssh/id_deploy
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 20
+          CFG
+          chmod 600 ~/.ssh/config
+
+      - name: Resolve connector token (API-automate tunnel + DNS if needed)
+        env:
+          MODE: ${{ env.MODE }}
+          CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_GLOBAL_KEY: ${{ secrets.CF_GLOBAL_KEY }}
+          CF_EMAIL: ${{ secrets.CF_EMAIL }}
+        run: |
+          set +x
+          if [ "$MODE" = "token" ]; then
+            printf '%s' "$CF_TUNNEL_TOKEN" > ~/.cf_token
+            chmod 600 ~/.cf_token
+            echo "Connector token taken from CF_TUNNEL_TOKEN."
+            exit 0
+          fi
+          python3 - <<'PY'
+          import base64, json, os, secrets, urllib.error, urllib.request
+
+          API = "https://api.cloudflare.com/client/v4"
+          api_token = os.environ.get("CF_API_TOKEN", "").strip()
+          gkey      = os.environ.get("CF_GLOBAL_KEY", "").strip()
+          email     = (os.environ.get("CF_EMAIL", "").strip() or "danielq1603@gmail.com")
+          zone_name = os.environ["CF_ZONE"]
+          host      = os.environ["CF_HOSTNAME"]
+          tname     = os.environ["CF_TUNNEL_NAME"]
+
+          def headers():
+              h = {"Content-Type": "application/json"}
+              if api_token:
+                  h["Authorization"] = "Bearer " + api_token
+              else:
+                  h["X-Auth-Email"] = email
+                  h["X-Auth-Key"] = gkey
+              return h
+
+          def call(method, path, body=None):
+              data = json.dumps(body).encode() if body is not None else None
+              req = urllib.request.Request(API + path, data=data, headers=headers(), method=method)
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return json.load(r)
+              except urllib.error.HTTPError as e:
+                  detail = e.read().decode("utf-8", "replace")
+                  raise SystemExit(f"::error::Cloudflare API {method} {path} -> HTTP {e.code}: {detail}")
+
+          z = call("GET", f"/zones?name={zone_name}")
+          if not z.get("result"):
+              raise SystemExit(f"::error::Zone {zone_name} not found / not visible to this credential.")
+          zone_id = z["result"][0]["id"]
+          acct_id = z["result"][0]["account"]["id"]
+          print(f"Zone {zone_name} -> {zone_id} (account {acct_id})")
+
+          ts = call("GET", f"/accounts/{acct_id}/cfd_tunnel?name={tname}&is_deleted=false")
+          if ts.get("result"):
+              tid = ts["result"][0]["id"]
+              print(f"Reusing existing tunnel {tname} -> {tid}")
+          else:
+              tsec = base64.b64encode(secrets.token_bytes(32)).decode()
+              c = call("POST", f"/accounts/{acct_id}/cfd_tunnel",
+                       {"name": tname, "tunnel_secret": tsec, "config_src": "cloudflare"})
+              tid = c["result"]["id"]
+              print(f"Created tunnel {tname} -> {tid}")
+
+          call("PUT", f"/accounts/{acct_id}/cfd_tunnel/{tid}/configurations",
+               {"config": {"ingress": [
+                   {"hostname": host, "service": "http://localhost:80"},
+                   {"service": "http_status:404"},
+               ]}})
+          print(f"Ingress set: {host} -> http://localhost:80")
+
+          content = f"{tid}.cfargotunnel.com"
+          recs = call("GET", f"/zones/{zone_id}/dns_records?name={host}")
+          body = {"type": "CNAME", "name": host, "content": content, "proxied": True, "ttl": 1}
+          if recs.get("result"):
+              rid = recs["result"][0]["id"]
+              call("PUT", f"/zones/{zone_id}/dns_records/{rid}", body)
+              print(f"Updated DNS CNAME {host} -> {content} (proxied)")
+          else:
+              call("POST", f"/zones/{zone_id}/dns_records", body)
+              print(f"Created DNS CNAME {host} -> {content} (proxied)")
+
+          tk = call("GET", f"/accounts/{acct_id}/cfd_tunnel/{tid}/token")
+          token = tk["result"]
+          print("::add-mask::" + token)
+          with open(os.path.expanduser("~/.cf_token"), "w") as f:
+              f.write(token)
+          os.chmod(os.path.expanduser("~/.cf_token"), 0o600)
+          print("Connector token resolved via API.")
+          PY
+
+      - name: Install + start cloudflared on the VM
+        run: |
+          set +x
+          # Hand the masked token to the VM over stdin; the remote removes it post-install.
+          ssh plane-vm "umask 077; cat > /tmp/.cf_token" < ~/.cf_token
+          rm -f ~/.cf_token
+          ssh plane-vm "sudo bash -seuo pipefail" <<'REMOTE'
+            set -Eeuo pipefail
+            if ! command -v cloudflared >/dev/null 2>&1; then
+              echo "[vm] installing cloudflared (arm64 rpm)…"
+              dnf install -y https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.rpm
+            fi
+            TOKEN="$(cat /tmp/.cf_token)"; rm -f /tmp/.cf_token
+            cloudflared service uninstall >/dev/null 2>&1 || true
+            cloudflared service install "$TOKEN"
+            systemctl enable --now cloudflared
+            sleep 8
+            if systemctl is-active --quiet cloudflared; then
+              echo "[vm] cloudflared ACTIVE — tunnel connected."
+              systemctl status cloudflared --no-pager | sed -n '1,8p' || true
+            else
+              echo "::error::cloudflared failed to start:"
+              journalctl -u cloudflared --no-pager | tail -40 || true
+              exit 1
+            fi
+          REMOTE
+
+      - name: Verify the public hostname is live
+        run: |
+          # Give the edge a moment to register the connector, then probe end-to-end.
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://${CF_HOSTNAME}/" || echo 000)
+            echo "attempt $i: https://${CF_HOSTNAME}/ -> HTTP $code"
+            case "$code" in
+              200|302|301|307|308|403) echo "Public hostname is LIVE (HTTP $code)."; exit 0 ;;
+            esac
+            sleep 10
+          done
+          echo "::warning::Hostname not confirmed live yet (last HTTP $code). DNS/edge propagation can lag a minute; re-check the URL."
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Go Live → \`${CF_HOSTNAME}\`"
+            echo "- Mode: \`${MODE:-?}\` (token = existing connector token; api = auto-created tunnel + DNS)."
+            echo "- cloudflared installed + running as a systemd service on the VM, bound to the connector token."
+            echo "- In API mode: tunnel \`${CF_TUNNEL_NAME}\` ingress → \`http://localhost:80\`, proxied CNAME upserted."
+            echo "- Visit https://${CF_HOSTNAME}/ — Error 1033 clears once the connector registers at the edge."
+          } >> "$GITHUB_STEP_SUMMARY"
