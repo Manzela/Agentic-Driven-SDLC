@@ -177,40 +177,17 @@ jobs:
           MODE: ${{ env.MODE }}
         run: |
           set +x
-          if [ "$MODE" = "existing" ]; then
-            # No token to deliver — just try to start whatever connector is already
-            # installed/configured on the VM (systemd unit and/or ~/.cloudflared creds).
-            ssh plane-vm "sudo bash -seuo pipefail" <<'REMOTE'
-              set -Eeuo pipefail
-              if ! command -v cloudflared >/dev/null 2>&1; then
-                echo "::error::cloudflared is not installed on the VM and no CF credential was provided."
-                echo "::error::Add a CF_TUNNEL_TOKEN / CF_API_TOKEN / CF_GLOBAL_KEY secret and re-run."
-                exit 2
-              fi
-              if ! systemctl list-unit-files 2>/dev/null | grep -q '^cloudflared'; then
-                echo "::error::cloudflared is installed but no service is configured (no tunnel credentials on this VM)."
-                echo "::error::This VM was never bound to a tunnel — provide a Cloudflare credential secret and re-run."
-                exit 2
-              fi
-              systemctl enable --now cloudflared || true
-              systemctl restart cloudflared || true
-              sleep 8
-              if systemctl is-active --quiet cloudflared; then
-                echo "[vm] existing cloudflared ACTIVE."
-                systemctl status cloudflared --no-pager | sed -n '1,8p' || true
-              else
-                echo "::error::existing cloudflared failed to start:"
-                journalctl -u cloudflared --no-pager | tail -40 || true
-                exit 1
-              fi
-            REMOTE
-            exit 0
+          # Deliver the connector token (token/api modes) to the VM; existing mode has none.
+          if [ -f ~/.cf_token ]; then
+            ssh plane-vm "umask 077; cat > /tmp/.cf_token" < ~/.cf_token
+            rm -f ~/.cf_token
           fi
-          # Hand the masked token to the VM over stdin; the remote removes it post-install.
-          ssh plane-vm "umask 077; cat > /tmp/.cf_token" < ~/.cf_token
-          rm -f ~/.cf_token
+          # Single column-0 heredoc (terminator must be unindented). Branches on the
+          # presence of the delivered token: install+bind with it, else (existing mode)
+          # just (re)start an already-configured connector, or fail with guidance.
           ssh plane-vm "sudo bash -seuo pipefail" <<'REMOTE'
-            set -Eeuo pipefail
+          set -Eeuo pipefail
+          if [ -f /tmp/.cf_token ]; then
             if ! command -v cloudflared >/dev/null 2>&1; then
               echo "[vm] installing cloudflared (arm64 rpm)…"
               dnf install -y https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.rpm
@@ -218,16 +195,24 @@ jobs:
             TOKEN="$(cat /tmp/.cf_token)"; rm -f /tmp/.cf_token
             cloudflared service uninstall >/dev/null 2>&1 || true
             cloudflared service install "$TOKEN"
-            systemctl enable --now cloudflared
-            sleep 8
-            if systemctl is-active --quiet cloudflared; then
-              echo "[vm] cloudflared ACTIVE — tunnel connected."
-              systemctl status cloudflared --no-pager | sed -n '1,8p' || true
-            else
-              echo "::error::cloudflared failed to start:"
-              journalctl -u cloudflared --no-pager | tail -40 || true
-              exit 1
+          else
+            if ! command -v cloudflared >/dev/null 2>&1 || ! systemctl list-unit-files 2>/dev/null | grep -q '^cloudflared'; then
+              echo "::error::No Cloudflare credential was provided and no cloudflared connector is configured on this VM."
+              echo "::error::Add ONE repo secret — CF_TUNNEL_TOKEN, CF_API_TOKEN, or CF_GLOBAL_KEY — then re-run this workflow."
+              exit 2
             fi
+          fi
+          systemctl enable --now cloudflared
+          systemctl restart cloudflared || true
+          sleep 8
+          if systemctl is-active --quiet cloudflared; then
+            echo "[vm] cloudflared ACTIVE — tunnel connected."
+            systemctl status cloudflared --no-pager | sed -n '1,8p' || true
+          else
+            echo "::error::cloudflared failed to start:"
+            journalctl -u cloudflared --no-pager | tail -40 || true
+            exit 1
+          fi
           REMOTE
 
       - name: Verify the public hostname is live
