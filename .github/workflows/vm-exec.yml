@@ -1,0 +1,56 @@
+name: VM Exec (debug)
+
+# Fast debugging helper: SSH into the Oracle VM and run a single command (as root,
+# in /opt/ascp-plane). Used to inspect/repair the running Plane stack without a
+# full re-deploy. Manual only; requires VM_SSH_PRIVATE_KEY.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cmd:
+        description: "Command to run on the VM (root, cwd /opt/ascp-plane)"
+        required: true
+        default: "docker compose --env-file plane.env ps"
+
+permissions:
+  contents: read
+
+jobs:
+  exec:
+    name: Run command on the VM
+    runs-on: ubuntu-latest
+    env:
+      VM_HOST: ${{ vars.VM_HOST || '158.178.129.208' }}
+      VM_USER: ${{ vars.VM_USER || 'opc' }}
+    steps:
+      - name: Guard — SSH key
+        env:
+          KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+        run: '[ -n "$KEY" ] || { echo "::error::VM_SSH_PRIVATE_KEY not set"; exit 1; }'
+
+      - name: Configure SSH
+        env:
+          VM_SSH_PRIVATE_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VM_SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -t rsa,ecdsa,ed25519 "$VM_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cat > ~/.ssh/config <<CFG
+          Host plane-vm
+            HostName $VM_HOST
+            User $VM_USER
+            IdentityFile ~/.ssh/id_deploy
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 20
+          CFG
+          chmod 600 ~/.ssh/config
+
+      - name: Run
+        env:
+          CMD: ${{ inputs.cmd }}
+        run: |
+          # Pipe the command as a script to root's bash on the VM (cwd /opt/ascp-plane).
+          printf '%s\n' "set -x; cd /opt/ascp-plane 2>/dev/null || cd /opt/ascp-plane; $CMD" \
+            | ssh plane-vm "sudo bash -s" 2>&1 | tee vm-out.txt
+          echo "----- exit: ${PIPESTATUS[0]} -----"
