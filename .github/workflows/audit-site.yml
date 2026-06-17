@@ -1,0 +1,75 @@
+name: Site Audit (responsive + a11y + perf)
+
+# Cross-screen audit of the live Plane site. Runs Playwright (screenshots across
+# a phone/tablet/desktop viewport matrix + horizontal-overflow + bottom-nav
+# overlap checks + axe-core a11y) and Lighthouse (mobile + desktop), and uploads
+# everything as artifacts. Manual trigger only.
+#
+# Cloudflare Access: set repo secrets CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET
+# (a Cloudflare Access **service token**) so the auditor passes the Zero-Trust gate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Target URL to audit"
+        default: "https://plane.autonomous-agent.dev"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Responsive + a11y + Lighthouse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install audit deps
+        working-directory: audit/site
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright @axe-core/playwright lighthouse
+          npx playwright install --with-deps chromium
+
+      - name: Responsive + a11y (Playwright + axe)
+        working-directory: audit/site
+        env:
+          AUDIT_URL: ${{ inputs.url }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: node site-audit.mjs || echo "::warning::site-audit flagged issues (overflow/error) — see summary.json + screenshots"
+
+      - name: Lighthouse (mobile + desktop)
+        working-directory: audit/site
+        env:
+          AUDIT_URL: ${{ inputs.url }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -u
+          HDRS=""
+          if [ -n "${CF_ACCESS_CLIENT_ID:-}" ]; then
+            printf '{"CF-Access-Client-Id":"%s","CF-Access-Client-Secret":"%s"}' \
+              "$CF_ACCESS_CLIENT_ID" "$CF_ACCESS_CLIENT_SECRET" > extra-headers.json
+            HDRS="--extra-headers=extra-headers.json"
+          fi
+          CF='--headless=new --no-sandbox'
+          npx lighthouse "$AUDIT_URL" --quiet --chrome-flags="$CF" $HDRS \
+            --preset=desktop --output=html --output-path=audit-out/lighthouse-desktop.html || true
+          npx lighthouse "$AUDIT_URL" --quiet --chrome-flags="$CF" $HDRS \
+            --form-factor=mobile --screenEmulation.mobile \
+            --output=html --output-path=audit-out/lighthouse-mobile.html || true
+          rm -f extra-headers.json
+
+      - name: Upload audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-audit
+          path: audit/site/audit-out
+          if-no-files-found: warn
