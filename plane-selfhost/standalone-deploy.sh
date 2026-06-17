@@ -359,8 +359,10 @@ ensure_kv() {
   else printf '%s=%s\n' "$1" "$2" >> plane.env; fi
 }
 ensure_kv CERT_ACME_CA "https://acme-v02.api.letsencrypt.org/directory"
-ensure_kv CERT_EMAIL "admin@autonomous-agent.dev"
-log "Ensured CERT_ACME_CA / CERT_EMAIL are set (the proxy Caddyfile requires them)."
+# CERT_EMAIL is injected as a WHOLE Caddy global directive line, so it must be
+# 'email <addr>', not a bare address (a bare value → "unrecognized global option").
+ensure_kv CERT_EMAIL "email admin@autonomous-agent.dev"
+log "Ensured CERT_ACME_CA / CERT_EMAIL are valid proxy directives."
 
 # ── 4. ARM / Ampere preflight: native arm64 if available, else QEMU amd64 ─────
 if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then
