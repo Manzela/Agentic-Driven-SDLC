@@ -388,7 +388,12 @@ docker compose --env-file plane.env up -d --force-recreate --no-deps proxy || tr
 log "Waiting for Plane to answer on http://localhost:80/ … (up to ~5 min)"
 UP=0
 for i in $(seq 1 60); do
-  if curl -fsS -o /dev/null http://localhost:80/; then UP=1; log "Plane is UP (HTTP answered on :80)."; break; fi
+  # --max-time bounds each probe so a hung/slow backend can't stall the loop.
+  code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 8 "http://localhost:80/" || echo 000)
+  if [ "$code" != "000" ] && [ "$code" -ge 200 ] && [ "$code" -lt 500 ]; then
+    UP=1; log "Plane answered on :80 (HTTP $code)."; break
+  fi
+  [ $((i % 6)) -eq 0 ] && log "  …still waiting (last HTTP $code, ${i}/60)"
   sleep 5
 done
 
