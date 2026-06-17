@@ -156,7 +156,7 @@ jobs:
 
       - name: Submit Run Command and wait
         run: |
-          set -Eeuo pipefail
+          set -Euo pipefail
           # Build --content and --target as files to avoid argv limits / quoting.
           python3 - <<'PY'
           import json, os
@@ -166,13 +166,28 @@ jobs:
           json.dump({"instanceId": os.environ["OCI_INSTANCE_OCID"]}, open("target.json","w"))
           PY
 
-          CMD_ID=$(oci instance-agent command create \
+          # Auth sanity — surfaces a 401/NotAuthenticated immediately if the key/
+          # fingerprint/OCIDs are wrong (prints the real error rather than hiding it).
+          echo "== OCI auth check (region list) =="
+          oci iam region list --query 'data[0].name' 2>&1 | head -20 || true
+
+          echo "== creating Run Command =="
+          set +e
+          CREATE_OUT=$(oci instance-agent command create \
             --compartment-id "$OCI_COMPARTMENT_OCID" \
             --execution-time-out-in-seconds 3000 \
             --display-name "ascp-plane-deploy-${GITHUB_RUN_ID}" \
             --content file://content.json \
-            --target file://target.json \
-            --query 'data.id' --raw-output)
+            --target file://target.json 2>&1)
+          RC=$?
+          set -e
+          echo "$CREATE_OUT"
+          if [ "$RC" -ne 0 ]; then
+            echo "::error::oci instance-agent command create failed (rc=$RC). See the OCI error above."
+            echo "::error::Common causes: (1) the 'Compute Instance Run Command' agent plugin is not enabled on the instance; (2) IAM policy missing 'manage instance-agent-command-family'; (3) wrong OCI_COMPARTMENT_OCID; (4) bad API key/fingerprint."
+            exit 1
+          fi
+          CMD_ID=$(printf '%s' "$CREATE_OUT" | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['id'])")
           echo "Run Command created: $CMD_ID"
 
           # Poll the execution on this instance until terminal.
