@@ -1,0 +1,152 @@
+name: Deploy Plane (Oracle VM)
+
+# Continuous deployment of the self-hosted Plane control plane to the Oracle
+# Ampere A1 VM. The GitHub-hosted runner has outbound network, so it SSHes into
+# the VM, syncs this repo, renders the secret env files from GitHub Secrets, and
+# runs plane-selfhost/deploy.sh there. Idempotent: safe to re-run.
+#
+# ── ONE-TIME SETUP (repo → Settings → Secrets and variables → Actions) ────────
+#   Secrets (required):
+#     VM_SSH_PRIVATE_KEY  the PRIVATE key whose public half is in the VM's
+#                         ~ubuntu/.ssh/authorized_keys (the key pair used to
+#                         launch the instance). Paste the full PEM/OpenSSH key.
+#   Secrets (optional but needed for a hands-off first boot / provisioning):
+#     PLANE_ENV           full contents of plane.env (filled from plane.env.template).
+#                         Written to the VM only if the VM has no plane.env yet.
+#     CREDENTIALS_ENV     full contents of credentials.env (after the one-time
+#                         browser first-run that creates workspace `ascp` +
+#                         project `ASCP` + API token). Enables auto-provisioning.
+#   Variables (optional — sensible defaults shown):
+#     VM_HOST             default 151.145.85.207
+#     VM_USER             default ubuntu
+#     VM_DEPLOY_DIR       default /home/ubuntu/agentic-sdlc
+#
+# Trigger: manual (workflow_dispatch) or a push to main that touches the deploy
+# surface. The job no-ops with a clear message if VM_SSH_PRIVATE_KEY is unset.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "plane-selfhost/**"
+      - "plane-integration/**"
+      - "docs/plane/plane_backlog.json"
+      - ".github/workflows/deploy-plane.yml"
+
+# Never let two deploys race on the same VM.
+concurrency:
+  group: deploy-plane-oracle-vm
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: SSH deploy to Oracle Ampere A1
+    runs-on: ubuntu-latest
+    env:
+      VM_HOST: ${{ vars.VM_HOST || '151.145.85.207' }}
+      VM_USER: ${{ vars.VM_USER || 'ubuntu' }}
+      VM_DEPLOY_DIR: ${{ vars.VM_DEPLOY_DIR || '/home/ubuntu/agentic-sdlc' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard — require the SSH key secret
+        env:
+          KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::VM_SSH_PRIVATE_KEY is not set. Add it under repo Settings →"
+            echo "::error::Secrets and variables → Actions, then re-run this workflow."
+            exit 1
+          fi
+          echo "SSH key secret present."
+
+      - name: Configure SSH (key + known_hosts)
+        env:
+          VM_SSH_PRIVATE_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VM_SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # Pin the host key (TOFU) so the connection isn't interactive and isn't
+          # blindly trusting a changed key on later runs.
+          ssh-keyscan -t rsa,ecdsa,ed25519 "$VM_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cat > ~/.ssh/config <<CFG
+          Host plane-vm
+            HostName $VM_HOST
+            User $VM_USER
+            IdentityFile ~/.ssh/id_deploy
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 20
+            ServerAliveInterval 30
+          CFG
+          chmod 600 ~/.ssh/config
+
+      - name: Sync repo to the VM (preserves on-VM secret files)
+        run: |
+          # Tarball excludes .git and the runner's own ssh dir; extraction is
+          # additive/overwrite and never deletes the VM-only plane.env /
+          # credentials.env (they are gitignored and not in this archive).
+          tar czf /tmp/repo.tgz --exclude=.git --exclude=node_modules .
+          ssh plane-vm "mkdir -p '$VM_DEPLOY_DIR'"
+          scp -q /tmp/repo.tgz plane-vm:/tmp/repo.tgz
+          ssh plane-vm "tar xzf /tmp/repo.tgz -C '$VM_DEPLOY_DIR' && rm -f /tmp/repo.tgz"
+
+      - name: Stage env files from secrets (only if provided)
+        env:
+          PLANE_ENV: ${{ secrets.PLANE_ENV }}
+          CREDENTIALS_ENV: ${{ secrets.CREDENTIALS_ENV }}
+        run: |
+          # Pass secret file contents over stdin so they never appear in argv or logs.
+          if [ -n "$PLANE_ENV" ]; then
+            printf '%s' "$PLANE_ENV" | ssh plane-vm "cat > '$VM_DEPLOY_DIR/plane-selfhost/plane.env.incoming'"
+            echo "Staged plane.env.incoming on the VM."
+          fi
+          if [ -n "$CREDENTIALS_ENV" ]; then
+            printf '%s' "$CREDENTIALS_ENV" | ssh plane-vm "cat > '$VM_DEPLOY_DIR/plane-selfhost/credentials.env.incoming'"
+            echo "Staged credentials.env.incoming on the VM."
+          fi
+
+      - name: Run the deploy on the VM
+        run: |
+          ssh plane-vm "sudo VM_DEPLOY_DIR='$VM_DEPLOY_DIR' bash -seuo pipefail" <<'REMOTE'
+            set -Eeuo pipefail
+            export DEBIAN_FRONTEND=noninteractive
+            cd "${VM_DEPLOY_DIR:-/home/ubuntu/agentic-sdlc}/plane-selfhost"
+            DIR="$(pwd)"
+
+            # Docker (idempotent install).
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "[vm] installing Docker…"
+              curl -fsSL https://get.docker.com | sh
+            fi
+            systemctl enable --now docker >/dev/null 2>&1 || true
+
+            # Move staged secret files into place only if the real file is absent,
+            # so a redeploy never clobbers the live, already-configured env.
+            if [ -f "$DIR/plane.env.incoming" ]; then
+              if [ ! -f "$DIR/plane.env" ]; then mv "$DIR/plane.env.incoming" "$DIR/plane.env"; echo "[vm] installed plane.env from secret.";
+              else rm -f "$DIR/plane.env.incoming"; echo "[vm] plane.env already present — kept existing."; fi
+            fi
+            if [ -f "$DIR/credentials.env.incoming" ]; then
+              mv -f "$DIR/credentials.env.incoming" "$DIR/credentials.env"; echo "[vm] installed/updated credentials.env from secret."
+            fi
+
+            chmod +x ./deploy.sh
+            echo "[vm] running deploy.sh…"
+            ./deploy.sh
+          REMOTE
+
+      - name: Deploy summary
+        if: always()
+        run: |
+          {
+            echo "### Plane deploy → \`${VM_HOST}\`"
+            echo ""
+            echo "- Repo synced to \`${VM_DEPLOY_DIR}\` on the VM and \`deploy.sh\` executed."
+            echo "- First boot needs the one-time browser step (admin → workspace \`ascp\` → project \`ASCP\` → API token); then set the \`CREDENTIALS_ENV\` secret and re-run to auto-provision."
+            echo "- Publish at the domain with \`plane-selfhost/tunnel.sh\` (Cloudflare Tunnel + Access)."
+          } >> "$GITHUB_STEP_SUMMARY"

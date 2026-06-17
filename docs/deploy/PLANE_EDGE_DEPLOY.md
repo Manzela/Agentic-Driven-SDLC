@@ -50,6 +50,32 @@ are the reference detail behind each scripted step.
 
 ---
 
+## Continuous deployment — GitHub Actions → the VM (`.github/workflows/deploy-plane.yml`)
+
+Once the VM exists, deploys run from CI: a GitHub-hosted runner SSHes into the VM,
+syncs this repo, renders the secret env files, and runs `deploy.sh` there. Triggers
+on **manual dispatch** and on **push to `main`** touching `plane-selfhost/**` /
+`plane-integration/**` / the backlog — so every future change redeploys automatically.
+
+**One-time setup** (repo → Settings → Secrets and variables → Actions):
+
+| Kind | Name | Value |
+|---|---|---|
+| Secret | `VM_SSH_PRIVATE_KEY` | the **private** key whose public half is in the VM's `~ubuntu/.ssh/authorized_keys` (the key pair the instance was launched with). **Required.** |
+| Secret | `PLANE_ENV` | full contents of a filled `plane.env` (from `plane.env.template`). Written to the VM only if it has none yet — enables a hands-off first boot. |
+| Secret | `CREDENTIALS_ENV` | full contents of `credentials.env` (after the one-time browser first-run). Enables auto-provisioning of the 8 epics / 49 stories / 186 tasks / 7 cycles. |
+| Variable | `VM_HOST` | VM public IP (default `151.145.85.207`). |
+| Variable | `VM_USER` | SSH user (default `ubuntu`). |
+| Variable | `VM_DEPLOY_DIR` | path on the VM (default `/home/ubuntu/agentic-sdlc`). |
+
+Never paste a private key into chat or a file — add it directly as the `VM_SSH_PRIVATE_KEY`
+secret. The on-VM `plane.env` / `credentials.env` are preserved across redeploys (the
+repo sync never deletes them, and staged secrets only overwrite when newer/absent).
+Publishing at the domain (`tunnel.sh`, Cloudflare Tunnel + Access) remains a one-time
+step on the VM. The manual reference for each step follows.
+
+---
+
 ## Step 0 — Provision the VM  *(USER action — billable; I can't create paid accounts/payment)*
 
 | Spec | Minimum | Recommended |
