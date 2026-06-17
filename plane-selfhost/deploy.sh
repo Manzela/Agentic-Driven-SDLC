@@ -97,20 +97,22 @@ if [[ -f "$CREDS" ]] && ! grep -q "__REPLACE" "$CREDS"; then
   log "Done. Real Plane board provisioned: 8 epics / 49 stories / 186 tasks / 7 cycles."
   log "Next: bring up the Cloudflare Tunnel + Access (Steps 2–3 of PLANE_EDGE_DEPLOY.md)."
 else
-  cat <<'EOF'
+  # Unquoted heredoc so ${LISTEN_HTTP_PORT} resolves to the real port; the
+  # literal $EDITOR is escaped so it is shown as-is, not expanded here.
+  cat <<EOF
 
 ────────────────────────────────────────────────────────────────────────────
  The stack is RUNNING, but the board is not provisioned yet because this is a
  fresh instance. Do the one-time human bootstrap (Plane gates first-run setup):
 
    4a. Open the instance and complete first-run admin setup:
-         http://localhost:<LISTEN_HTTP_PORT>/   (or https://plane.autonomous-agent.dev
+         http://localhost:${LISTEN_HTTP_PORT}/   (or https://plane.autonomous-agent.dev
          once the Cloudflare Tunnel from Step 2 is live)
    4b. Create a workspace with slug  ascp  and a project named  ASCP.
    4c. Workspace Settings → API tokens → add a token. Copy the project UUID
        from the project URL/Settings.
    4d. Fill credentials.env:
-         cp credentials.env.template credentials.env && $EDITOR credentials.env
+         cp credentials.env.template credentials.env && \$EDITOR credentials.env
    4e. Re-run this script (./deploy.sh) — it will detect credentials.env and
        provision the 8 epics / 49 stories / 186 tasks / 7 cycles automatically.
 ────────────────────────────────────────────────────────────────────────────
