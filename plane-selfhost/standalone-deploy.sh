@@ -373,9 +373,10 @@ if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then
   fi
 fi
 
-# ── 5. Pull + bring up ────────────────────────────────────────────────────────
-log "Pulling images + starting the stack (this can take 10–20 min under emulation)…"
-docker compose --env-file plane.env pull
+# ── 5. Bring up ───────────────────────────────────────────────────────────────
+# `up -d` pulls any MISSING images itself, so we skip an explicit `compose pull`
+# (re-pulling all 13 images every run was the slow, sometimes-hanging step).
+log "Starting the stack (up -d pulls only missing images)…"
 docker compose --env-file plane.env up -d
 # Force-recreate the proxy so any plane.env change (e.g. CERT_ACME_CA) is applied
 # even if compose's change-detection wouldn't otherwise recreate it. Without this
@@ -384,9 +385,9 @@ log "Recreating the proxy to apply current env…"
 docker compose --env-file plane.env up -d --force-recreate --no-deps proxy || true
 
 # ── 6. Wait for the surface + diagnostics ─────────────────────────────────────
-log "Waiting for Plane to answer on http://localhost:80/ … (up to ~10 min)"
+log "Waiting for Plane to answer on http://localhost:80/ … (up to ~5 min)"
 UP=0
-for i in $(seq 1 120); do
+for i in $(seq 1 60); do
   if curl -fsS -o /dev/null http://localhost:80/; then UP=1; log "Plane is UP (HTTP answered on :80)."; break; fi
   sleep 5
 done
