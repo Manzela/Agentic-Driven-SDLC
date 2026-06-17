@@ -50,6 +50,38 @@ are the reference detail behind each scripted step.
 
 ---
 
+## Continuous deployment without SSH — OCI Run Command (`.github/workflows/deploy-plane-oci.yml`)
+
+For when you don't have the VM's SSH key: a GitHub runner authenticates to OCI with
+an **API signing key** and uses the **Oracle Cloud Agent "Run Command"** service to
+make the instance run `deploy.sh` on itself. Triggers on manual dispatch and on push
+to `main` touching the deploy surface.
+
+**OCI prerequisites (set in the OCI Console — can't be done from CI):**
+- Oracle Cloud Agent → **"Compute Instance Run Command" plugin = Enabled** on the instance.
+- The API user has IAM rights for Run Command, e.g. `Allow group <grp> to manage instance-agent-command-family in tenancy` (a tenancy admin already does).
+
+**GitHub secrets** (repo → Settings → Secrets and variables → Actions) — generate a fresh OCI API key, **download** the private key, and never paste it in chat:
+
+| Name | From |
+|---|---|
+| `OCI_CLI_USER` | Identity → Users → your user → OCID |
+| `OCI_CLI_TENANCY` | Profile → Tenancy → OCID |
+| `OCI_CLI_FINGERPRINT` | shown after you add the API key |
+| `OCI_CLI_KEY_CONTENT` | the API **private** key PEM you downloaded |
+| `OCI_CLI_REGION` | e.g. `il-jerusalem-1` |
+| `OCI_INSTANCE_OCID` | `ocid1.instance.oc1.il-jerusalem-1.…` (this VM) |
+| `OCI_COMPARTMENT_OCID` | the instance's compartment (often = tenancy OCID) |
+| `PLANE_ENV` | filled `plane.env` contents (hands-off first boot) |
+| `CREDENTIALS_ENV` | filled `credentials.env` (after first-run; enables provisioning) |
+
+The workflow renders the env files and a **short-lived** clone token into the Run
+Command content (stored transiently by OCI, then **deleted** by the workflow; GitHub
+masks secrets in logs). For a stronger posture, switch repo/env delivery to an Object
+Storage pre-authenticated request. SSH variant: `deploy-plane.yml`.
+
+---
+
 ## Step 0 — Provision the VM  *(USER action — billable; I can't create paid accounts/payment)*
 
 | Spec | Minimum | Recommended |

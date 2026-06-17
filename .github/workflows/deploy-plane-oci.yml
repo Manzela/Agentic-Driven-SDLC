@@ -1,0 +1,213 @@
+name: Deploy Plane (Oracle VM via OCI Run Command)
+
+# Continuous deployment of the self-hosted Plane control plane to the Oracle
+# Ampere A1 VM WITHOUT SSH. A GitHub-hosted runner authenticates to OCI with an
+# API signing key and uses the Oracle Cloud Agent "Run Command" service to make
+# the instance run plane-selfhost/deploy.sh on itself. Idempotent; safe to re-run.
+#
+# ── PREREQUISITES on the OCI side (cannot be set from here — verify these) ─────
+#   1. Oracle Cloud Agent → "Compute Instance Run Command" plugin = ENABLED on the
+#      instance (Console → the instance → Oracle Cloud Agent tab).
+#   2. The instance has outbound internet (to reach github.com + Docker Hub) — it
+#      does by default with a public IP + the default route/security list.
+#   3. An IAM policy granting the API user the Run Command verbs, e.g. (root/danielq):
+#         Allow group <your-group> to manage instance-agent-command-family in tenancy
+#         Allow group <your-group> to read instance-family in tenancy
+#      (A single-admin tenancy owner typically already has this.)
+#
+# ── GitHub setup (repo → Settings → Secrets and variables → Actions) ──────────
+#   Secrets (OCI auth — from the API key you generate; DOWNLOAD it, never paste in chat):
+#     OCI_CLI_USER         user OCID         (Identity → Users → your user → OCID)
+#     OCI_CLI_TENANCY      tenancy OCID      (Profile → Tenancy → OCID)
+#     OCI_CLI_FINGERPRINT  the new API key's fingerprint (shown after you add it)
+#     OCI_CLI_KEY_CONTENT  the API PRIVATE key PEM (the file you downloaded)
+#     OCI_CLI_REGION       region identifier (e.g. il-jerusalem-1)
+#     OCI_INSTANCE_OCID    ocid1.instance.oc1.il-jerusalem-1.…  (this VM)
+#     OCI_COMPARTMENT_OCID compartment OCID the instance lives in (often = tenancy OCID)
+#   Secrets (Plane config):
+#     PLANE_ENV            full contents of a filled plane.env (from plane.env.template)
+#     CREDENTIALS_ENV      full credentials.env (after the one-time browser first-run)
+#
+# NOTE on secret handling: the remote script (which embeds the env files, base64'd,
+# and a SHORT-LIVED clone token) is sent as Run Command "content" and is therefore
+# stored transiently by OCI. The workflow DELETES the command afterward, GitHub masks
+# secrets in logs, and the clone token expires when the job ends. For a stronger
+# posture, switch repo+env delivery to an Object Storage pre-authenticated request.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "plane-selfhost/**"
+      - "plane-integration/**"
+      - "docs/plane/plane_backlog.json"
+      - ".github/workflows/deploy-plane-oci.yml"
+
+concurrency:
+  group: deploy-plane-oracle-vm
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: OCI Run Command deploy
+    runs-on: ubuntu-latest
+    env:
+      OCI_INSTANCE_OCID: ${{ secrets.OCI_INSTANCE_OCID }}
+      OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+      DEPLOY_REF: ${{ github.ref_name }}
+    steps:
+      - name: Guard — require OCI auth secrets
+        env:
+          U: ${{ secrets.OCI_CLI_USER }}
+          T: ${{ secrets.OCI_CLI_TENANCY }}
+          K: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+          I: ${{ secrets.OCI_INSTANCE_OCID }}
+        run: |
+          missing=""
+          [ -z "$U" ] && missing="$missing OCI_CLI_USER"
+          [ -z "$T" ] && missing="$missing OCI_CLI_TENANCY"
+          [ -z "$K" ] && missing="$missing OCI_CLI_KEY_CONTENT"
+          [ -z "$I" ] && missing="$missing OCI_INSTANCE_OCID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secret(s):$missing — add them under repo"
+            echo "::error::Settings → Secrets and variables → Actions, then re-run."
+            exit 1
+          fi
+          echo "OCI auth secrets present."
+
+      - name: Install OCI CLI
+        run: |
+          python3 -m pip install --quiet --upgrade oci-cli
+          oci --version
+
+      - name: Write OCI config + key
+        env:
+          OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+          OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+          OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+          OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+        run: |
+          set +x
+          install -d -m 700 ~/.oci
+          printf '%s\n' "$OCI_CLI_KEY_CONTENT" > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config <<CFG
+          [DEFAULT]
+          user=${OCI_CLI_USER}
+          tenancy=${OCI_CLI_TENANCY}
+          fingerprint=${OCI_CLI_FINGERPRINT}
+          region=${OCI_CLI_REGION}
+          key_file=${HOME}/.oci/key.pem
+          CFG
+          chmod 600 ~/.oci/config
+          oci os ns get >/dev/null 2>&1 && echo "OCI auth OK" || echo "::warning::OCI auth probe failed (object-storage read may be denied); continuing to Run Command."
+
+      - name: Build the remote deploy script
+        env:
+          PLANE_ENV: ${{ secrets.PLANE_ENV }}
+          CREDENTIALS_ENV: ${{ secrets.CREDENTIALS_ENV }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +x
+          # base64 the env files so arbitrary content survives embedding cleanly.
+          PLANE_B64=$(printf '%s' "$PLANE_ENV" | base64 -w0)
+          CREDS_B64=$(printf '%s' "$CREDENTIALS_ENV" | base64 -w0)
+          REPO="${GITHUB_REPOSITORY}"            # owner/name
+          REF="${DEPLOY_REF:-main}"
+          DIR="/home/ubuntu/agentic-sdlc"
+          # Heredoc is quoted so nothing expands here except via the explicit
+          # substitutions we append; the script runs ON THE INSTANCE.
+          cat > remote.sh <<REMOTE
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          SUDO=""; [ "\$(id -u)" -eq 0 ] || SUDO="sudo"
+          DIR="${DIR}"
+
+          # toolchain
+          command -v git >/dev/null 2>&1 || { \$SUDO apt-get update -y && \$SUDO apt-get install -y git; }
+          if ! command -v docker >/dev/null 2>&1; then curl -fsSL https://get.docker.com | \$SUDO sh; fi
+          \$SUDO systemctl enable --now docker >/dev/null 2>&1 || true
+
+          # fetch/refresh the repo (token is short-lived; valid only during this CI run)
+          if [ -d "\$DIR/.git" ]; then
+            \$SUDO git -C "\$DIR" remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+            \$SUDO git -C "\$DIR" fetch --depth 1 origin "${REF}"
+            \$SUDO git -C "\$DIR" checkout -f FETCH_HEAD
+          else
+            \$SUDO git clone --depth 1 --branch "${REF}" "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "\$DIR"
+          fi
+          \$SUDO git -C "\$DIR" remote set-url origin "https://github.com/${REPO}.git"   # scrub token from remote config
+
+          # render env files from base64 (only if provided; never clobber a live plane.env)
+          cd "\$DIR/plane-selfhost"
+          if [ -n "${PLANE_B64}" ] && [ ! -f plane.env ]; then echo "${PLANE_B64}" | base64 -d | \$SUDO tee plane.env >/dev/null; fi
+          if [ -n "${CREDS_B64}" ]; then echo "${CREDS_B64}" | base64 -d | \$SUDO tee credentials.env >/dev/null; fi
+
+          \$SUDO chmod +x ./deploy.sh
+          if [ -n "\$SUDO" ]; then \$SUDO -E ./deploy.sh; else ./deploy.sh; fi
+          REMOTE
+          echo "remote.sh built ($(wc -c < remote.sh) bytes)."
+
+      - name: Submit Run Command and wait
+        run: |
+          set -Eeuo pipefail
+          # Build --content and --target as files to avoid argv limits / quoting.
+          python3 - <<'PY'
+          import json, os
+          script = open("remote.sh").read()
+          json.dump({"source":{"sourceType":"TEXT","text":script},
+                     "output":{"outputType":"TEXT"}}, open("content.json","w"))
+          json.dump({"instanceId": os.environ["OCI_INSTANCE_OCID"]}, open("target.json","w"))
+          PY
+
+          CMD_ID=$(oci instance-agent command create \
+            --compartment-id "$OCI_COMPARTMENT_OCID" \
+            --execution-time-out-in-seconds 3000 \
+            --display-name "ascp-plane-deploy-${GITHUB_RUN_ID}" \
+            --content file://content.json \
+            --target file://target.json \
+            --query 'data.id' --raw-output)
+          echo "Run Command created: $CMD_ID"
+
+          # Poll the execution on this instance until terminal.
+          deadline=$(( $(date +%s) + 2400 ))
+          while :; do
+            oci instance-agent command-execution get \
+              --instance-agent-command-id "$CMD_ID" \
+              --instance-id "$OCI_INSTANCE_OCID" > exec.json 2>/dev/null || true
+            STATE=$(python3 -c "import json;print(json.load(open('exec.json')).get('data',{}).get('lifecycle-state',''))" 2>/dev/null || echo "")
+            echo "state=$STATE"
+            case "$STATE" in
+              SUCCEEDED) break ;;
+              FAILED|TIMED_OUT|CANCELED)
+                echo "::error::Run Command ended in state $STATE"; FAILED=1; break ;;
+              *) [ $(date +%s) -gt $deadline ] && { echo "::error::timed out waiting for Run Command"; FAILED=1; break; }; sleep 15 ;;
+            esac
+          done
+
+          echo "----- instance deploy output -----"
+          python3 -c "import json;d=json.load(open('exec.json')).get('data',{});c=d.get('content',{});print('exit-code:',c.get('exit-code'));print(c.get('output',{}).get('text') if isinstance(c.get('output'),dict) else c.get('text',''))" 2>/dev/null || cat exec.json
+          echo "----------------------------------"
+
+          # Best-effort cleanup of the stored command (removes the transient content).
+          oci instance-agent command delete --instance-agent-command-id "$CMD_ID" --force >/dev/null 2>&1 || true
+
+          [ "${FAILED:-0}" = "1" ] && exit 1 || echo "Deploy command succeeded."
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Plane deploy via OCI Run Command"
+            echo ""
+            echo "- Target instance: \`${OCI_INSTANCE_OCID}\`"
+            echo "- The agent cloned the repo and ran \`plane-selfhost/deploy.sh\` on the VM."
+            echo "- First boot needs the one-time browser step (admin → workspace \`ascp\` → project \`ASCP\` → API token); then set \`CREDENTIALS_ENV\` and re-run to auto-provision."
+            echo "- Publish at the domain with \`plane-selfhost/tunnel.sh\` (Cloudflare Tunnel + Access)."
+          } >> "$GITHUB_STEP_SUMMARY"
