@@ -365,12 +365,27 @@ log "Pulling images + starting the stack (this can take 10–20 min under emulat
 docker compose --env-file plane.env pull
 docker compose --env-file plane.env up -d
 
-# ── 6. Wait for the surface ───────────────────────────────────────────────────
-log "Waiting for Plane to answer on http://localhost:80/ …"
-for i in $(seq 1 60); do
-  if curl -fsS -o /dev/null http://localhost:80/; then log "Plane is UP."; break; fi
+# ── 6. Wait for the surface + diagnostics ─────────────────────────────────────
+log "Waiting for Plane to answer on http://localhost:80/ … (up to ~10 min)"
+UP=0
+for i in $(seq 1 120); do
+  if curl -fsS -o /dev/null http://localhost:80/; then UP=1; log "Plane is UP (HTTP answered on :80)."; break; fi
   sleep 5
 done
+
+echo; log "container status (docker compose ps):"
+docker compose --env-file plane.env ps || true
+
+if [ "$UP" -ne 1 ]; then
+  log "Plane did NOT answer on :80 — capturing diagnostics:"
+  echo "--- arch / platform ---"; uname -m; echo "DOCKER_DEFAULT_PLATFORM=${DOCKER_DEFAULT_PLATFORM:-<native>}"
+  echo "--- listening on :80/:443? ---"; { ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null || true; } | grep -E ':80 |:443 ' || echo "  nothing listening on :80/:443"
+  for svc in proxy web api migrator plane-db plane-redis; do
+    echo "--- logs: $svc (tail 30) ---"
+    docker compose --env-file plane.env logs --tail=30 "$svc" 2>&1 || true
+  done
+  echo "--- SELinux ---"; getenforce 2>/dev/null || echo "n/a"
+fi
 
 cat <<'NEXT'
 
