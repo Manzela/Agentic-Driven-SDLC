@@ -1,0 +1,98 @@
+name: Deploy Cloudflare Tunnel (Oracle VM)
+
+# Publishes the VM's local Plane (http://localhost:80) at the public hostname via
+# a **token-based** Cloudflare Tunnel — no interactive `cloudflared tunnel login`.
+# The GitHub runner SSHes into the VM, installs cloudflared (arm64 RPM), and
+# installs+starts the cloudflared systemd service bound to your tunnel token.
+#
+# ── ONE-TIME (Cloudflare Zero Trust dashboard) ────────────────────────────────
+#   Networks → Tunnels → Create a tunnel (Cloudflared) → name it (e.g. plane-ascp)
+#   → add a Public Hostname:  plane.autonomous-agent.dev  → service http://localhost:80
+#   → copy the connector **token** and store it as the repo secret CF_TUNNEL_TOKEN.
+#   (Also requires VM_SSH_PRIVATE_KEY, as for the deploy workflow.)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tunnel:
+    name: Install + run cloudflared on the VM
+    runs-on: ubuntu-latest
+    env:
+      VM_HOST: ${{ vars.VM_HOST || '158.178.129.208' }}
+      VM_USER: ${{ vars.VM_USER || 'opc' }}
+    steps:
+      - name: Guard — require secrets
+        env:
+          KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          TOK: ${{ secrets.CF_TUNNEL_TOKEN }}
+        run: |
+          miss=""
+          [ -z "$KEY" ] && miss="$miss VM_SSH_PRIVATE_KEY"
+          [ -z "$TOK" ] && miss="$miss CF_TUNNEL_TOKEN"
+          if [ -n "$miss" ]; then
+            echo "::error::Missing secret(s):$miss"
+            echo "::error::CF_TUNNEL_TOKEN: in Cloudflare Zero Trust → Networks → Tunnels, create a tunnel, add public hostname plane.autonomous-agent.dev → http://localhost:80, copy the token."
+            exit 1
+          fi
+          echo "Secrets present."
+
+      - name: Configure SSH
+        env:
+          VM_SSH_PRIVATE_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VM_SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -t rsa,ecdsa,ed25519 "$VM_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cat > ~/.ssh/config <<CFG
+          Host plane-vm
+            HostName $VM_HOST
+            User $VM_USER
+            IdentityFile ~/.ssh/id_deploy
+            StrictHostKeyChecking accept-new
+            ConnectTimeout 20
+          CFG
+          chmod 600 ~/.ssh/config
+
+      - name: Install + start cloudflared (token-based) on the VM
+        env:
+          CF_TUNNEL_TOKEN: ${{ secrets.CF_TUNNEL_TOKEN }}
+        run: |
+          # Hand the token to the VM over stdin (never in argv/logs); the remote
+          # reads it from a root-only temp file and removes it after install.
+          printf '%s' "$CF_TUNNEL_TOKEN" | ssh plane-vm "umask 077; cat > /tmp/.cf_token"
+          ssh plane-vm "sudo bash -seuo pipefail" <<'REMOTE'
+            set -Eeuo pipefail
+            if ! command -v cloudflared >/dev/null 2>&1; then
+              echo "[vm] installing cloudflared (arm64 rpm)…"
+              dnf install -y https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.rpm
+            fi
+            TOKEN="$(cat /tmp/.cf_token)"; rm -f /tmp/.cf_token
+            # Reinstall the service cleanly so it's bound to the current token.
+            cloudflared service uninstall >/dev/null 2>&1 || true
+            cloudflared service install "$TOKEN"
+            systemctl enable --now cloudflared
+            sleep 6
+            if systemctl is-active --quiet cloudflared; then
+              echo "[vm] cloudflared is ACTIVE — tunnel connected."
+              systemctl status cloudflared --no-pager | sed -n '1,8p' || true
+            else
+              echo "::error::cloudflared failed to start:"
+              journalctl -u cloudflared --no-pager | tail -40 || true
+              exit 1
+            fi
+          REMOTE
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Cloudflare Tunnel → \`${VM_HOST}\`"
+            echo "- cloudflared installed + running as a systemd service, bound to CF_TUNNEL_TOKEN."
+            echo "- Public hostname (set in the CF dashboard) routes to http://localhost:80 on the VM."
+            echo "- Visit the domain; if you also gate it with Cloudflare Access, add a service token for the audit workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
