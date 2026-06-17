@@ -377,6 +377,11 @@ fi
 log "Pulling images + starting the stack (this can take 10–20 min under emulation)…"
 docker compose --env-file plane.env pull
 docker compose --env-file plane.env up -d
+# Force-recreate the proxy so any plane.env change (e.g. CERT_ACME_CA) is applied
+# even if compose's change-detection wouldn't otherwise recreate it. Without this
+# a previously crash-looping Caddy keeps its old (broken) config on re-runs.
+log "Recreating the proxy to apply current env…"
+docker compose --env-file plane.env up -d --force-recreate --no-deps proxy || true
 
 # ── 6. Wait for the surface + diagnostics ─────────────────────────────────────
 log "Waiting for Plane to answer on http://localhost:80/ … (up to ~10 min)"
