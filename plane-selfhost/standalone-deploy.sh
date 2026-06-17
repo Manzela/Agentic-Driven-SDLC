@@ -349,6 +349,19 @@ else
   log "plane.env already exists — keeping existing secrets."
 fi
 
+# ── 3b. Proxy/Caddy ACME vars — MUST be non-empty ─────────────────────────────
+# Plane's proxy Caddyfile has a global `acme_ca {$CERT_ACME_CA}`; a BLANK value
+# makes Caddy fail to parse, so the proxy crash-loops and nothing serves :80.
+# Behind the Cloudflare Tunnel we serve plain HTTP on :80, so the CA is parsed
+# but unused. Patch in-place so both fresh and pre-existing plane.env get it.
+ensure_kv() {
+  if grep -q "^$1=" plane.env; then sed -i "s|^$1=.*|$1=$2|" plane.env
+  else printf '%s=%s\n' "$1" "$2" >> plane.env; fi
+}
+ensure_kv CERT_ACME_CA "https://acme-v02.api.letsencrypt.org/directory"
+ensure_kv CERT_EMAIL "admin@autonomous-agent.dev"
+log "Ensured CERT_ACME_CA / CERT_EMAIL are set (the proxy Caddyfile requires them)."
+
 # ── 4. ARM / Ampere preflight: native arm64 if available, else QEMU amd64 ─────
 if [ "$(uname -m)" = "aarch64" ] || [ "$(uname -m)" = "arm64" ]; then
   if docker manifest inspect makeplane/plane-backend:stable 2>/dev/null | grep -q 'arm64'; then
