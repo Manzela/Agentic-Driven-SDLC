@@ -135,9 +135,18 @@ jobs:
               mv -f "$DIR/credentials.env.incoming" "$DIR/credentials.env"; echo "[vm] installed/updated credentials.env from secret."
             fi
 
-            chmod +x ./deploy.sh
-            echo "[vm] running deploy.sh…"
-            ./deploy.sh
+            # Prefer the self-contained standalone-deploy.sh (generates its own
+            # secrets, ARM-aware) so no PLANE_ENV secret is required. Fall back to
+            # deploy.sh (which uses the staged plane.env) if it's not present.
+            if [ -f ./standalone-deploy.sh ]; then
+              chmod +x ./standalone-deploy.sh
+              echo "[vm] running standalone-deploy.sh…"
+              bash ./standalone-deploy.sh
+            else
+              chmod +x ./deploy.sh
+              echo "[vm] running deploy.sh…"
+              ./deploy.sh
+            fi
           REMOTE
 
       - name: Deploy summary
