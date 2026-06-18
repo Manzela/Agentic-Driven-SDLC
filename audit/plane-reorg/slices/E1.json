@@ -1,0 +1,227 @@
+{
+ "epic": "E1",
+ "title": "Core Plane Infrastructure & Self-Hosting",
+ "story_count": 8,
+ "task_count": 24,
+ "stories": [
+  {
+   "key": "REQ-INFRA-001",
+   "title": "Self-Hosted Docker Topology Stand-Up",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-INFRA-001",
+   "coverage_type": "WIRING",
+   "labels": [
+    "priority:blocking",
+    "phase:0",
+    "type:wiring",
+    "human:review"
+   ],
+   "acceptance_criteria": [
+    "docker compose config validates with zero errors and resolves all x-* env anchors onto the services that reference them.",
+    "After up -d, docker compose ps shows one running container per single-replica service and migrator shows Exited(0).",
+    "The named volumes pgdata, redisdata, uploads, rabbitmq_data, proxy_config, proxy_data, and the four logs_* volumes are created and bound.",
+    "depends_on ordering verified: stopping plane-db surfaces api reconnect in logs_api; a full restart returns the stack to all-running.",
+    "Stack uses pinned images postgres:15.7-alpine, valkey/valkey:7.2.11-alpine, rabbitmq:3.13.6-management-alpine, minio/minio:latest, and makeplane/plane-* pinned via APP_RELEASE."
+   ],
+   "tasks": [
+    "Validate and bring up the full compose topology",
+    "Verify dependency ordering and restart resilience",
+    "Create the E1 tracking issue in Plane"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "REQ-INFRA-002",
+   "title": "Reverse Proxy & Port-8090 Ingress",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-INFRA-002",
+   "coverage_type": "WIRING",
+   "labels": [
+    "priority:blocking",
+    "phase:0",
+    "type:wiring",
+    "gate:security",
+    "human:review"
+   ],
+   "acceptance_criteria": [
+    "curl -sf http://localhost:8090/ returns HTTP 200 and serves the Plane web app shell.",
+    "curl -sf http://localhost:8090/api/instances/ returns a JSON instance descriptor from the api service, confirming /api reaches api:8000.",
+    "Proxy published ports are exactly 8090->80 and 8453->443; no internal service port (8000, 9000, 5432, 6379, 5672) is host-published.",
+    "CORS preflight from origin http://localhost:8090 is accepted; an origin not in CORS_ALLOWED_ORIGINS is rejected.",
+    "proxy_config and proxy_data volumes persist the Caddy config and provisioned certs across a proxy restart."
+   ],
+   "tasks": [
+    "Configure proxy ingress on 8090/8453",
+    "Wire origin/CORS to the 8090 ingress",
+    "Verify proxied routes"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "REQ-INFRA-003",
+   "title": "Environment-Driven Configuration & Secrets",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-INFRA-003",
+   "coverage_type": "NFR",
+   "labels": [
+    "priority:blocking",
+    "phase:0",
+    "type:nfr",
+    "gate:security",
+    "human:review"
+   ],
+   "acceptance_criteria": [
+    "Running-container env and proxy/app logs show no Postgres/MinIO/RabbitMQ password or SECRET_KEY echoed in a request URL or access-log line.",
+    "Every secret/credential in plane.env is overridable and the override propagates to the consuming service (verified via api effective env).",
+    "DATABASE_URL, AMQP_URL, REDIS_URL resolve correctly both blank-defaulted and explicitly set.",
+    "WEBHOOK_ALLOWED_IPS/WEBHOOK_ALLOWED_HOSTS are applied: a non-allowlisted private-IP webhook is refused; an allowlisted one is permitted.",
+    "DEBUG=0 is the deployed default; DEBUG=1 is recognized as a non-production posture."
+   ],
+   "tasks": [
+    "Externalize and rotate secrets",
+    "Prove no secret leakage (REQ-17.5 substrate guard)",
+    "Configure webhook egress allowlists"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "REQ-INFRA-004",
+   "title": "Durable Storage Tier (Postgres + MinIO + RabbitMQ + Redis)",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-INFRA-004",
+   "coverage_type": "functional",
+   "labels": [
+    "priority:blocking",
+    "phase:0",
+    "type:functional",
+    "human:review"
+   ],
+   "acceptance_criteria": [
+    "plane-db accepts connections (pg_isready), max_connections=1000 is set, and the plane database exists with Plane's migrated schema after migrator completes.",
+    "The MinIO uploads bucket exists and round-trips identical bytes via http://plane-minio:9000 with configured AWS credentials (content-addressed-blob contract).",
+    "RabbitMQ plane-mq is reachable on 5672 with vhost plane and worker/beat-worker connect and consume.",
+    "Redis/Valkey plane-redis responds to PING and live/api use it.",
+    "Volume-durability proof: a marker Postgres row and MinIO object survive docker compose down (no -v) then up -d."
+   ],
+   "tasks": [
+    "Provision the four durable tiers on named volumes",
+    "Prove volume durability across recreate",
+    "Verify evidence-blob content-addressing round-trip"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "REQ-INFRA-005",
+   "title": "Database Migration & Version Upgrade",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-INFRA-005",
+   "coverage_type": "functional",
+   "labels": [
+    "priority:high",
+    "phase:0",
+    "type:functional",
+    "human:review"
+   ],
+   "acceptance_criteria": [
+    "On first up, migrator applies Plane's schema and exits 0; api starts cleanly with no relation-does-not-exist errors in logs_api.",
+    "Re-running with no schema change is a no-op migration (migrator exits 0, applies nothing new).",
+    "An APP_RELEASE bump pulls new images and the upgrade migration runs against existing pgdata without data loss (REQ-INFRA-004 marker row survives).",
+    "The companion .kiro migrations 001-008 are applied through a tracked runner with schema_migrations bookkeeping; double-apply is idempotent and produces all eight tables.",
+    "A deliberately broken migration causes migrator to exit non-zero and the app tier is held from advancing."
+   ],
+   "tasks": [
+    "Run and verify first-deploy migrations",
+    "Execute and verify a version upgrade",
+    "Apply the companion eight-table .kiro migrations idempotently"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "REQ-INFRA-006",
+   "title": "Backup & Restore of the Durable Tier",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-INFRA-006",
+   "coverage_type": "NFR",
+   "labels": [
+    "priority:high",
+    "phase:0",
+    "type:nfr",
+    "human:review"
+   ],
+   "acceptance_criteria": [
+    "A pg_dump of the plane database completes, is non-empty, and is restorable into a fresh Postgres instance.",
+    "A MinIO uploads bucket mirror reproduces every object byte-identical, verified by output_hash for evidence blobs.",
+    "Round-trip restore proof: seeded marker row + evidence object survive docker compose down -v then restore into fresh volumes and up -d.",
+    "Backup artifacts carry a recorded timestamp and integrity checksum; a corrupted backup is rejected by the restore procedure.",
+    "The restore runbook is documented end-to-end and retention (>= the 365-day audit-log window) is stated."
+   ],
+   "tasks": [
+    "Build the backup jobs",
+    "Prove a full destroy-and-restore round-trip",
+    "Document the restore runbook and retention"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "REQ-INFRA-007",
+   "title": "Horizontal Scaling via Replicas",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-INFRA-007",
+   "coverage_type": "NFR",
+   "labels": [
+    "priority:normal",
+    "phase:0",
+    "type:nfr",
+    "human:review"
+   ],
+   "acceptance_criteria": [
+    "Setting API_REPLICAS=2 and re-applying starts two api containers; docker compose ps shows both running and the proxy serves from either.",
+    "Setting WORKER_REPLICAS=2 starts two workers and RabbitMQ shows both consumers attached to the plane queues; tasks are distributed.",
+    "The stateful services remain at replicas:1 and are never scaled by a *_REPLICAS knob.",
+    "beat-worker defaults to one replica; scaling the worker tier does not duplicate scheduled (beat) tasks.",
+    "Scaling up then back down is graceful: surplus replicas stop cleanly and the remaining replica continues serving."
+   ],
+   "tasks": [
+    "Exercise stateless-tier replica scaling",
+    "Enforce stateful-tier single-instance invariant",
+    "Record scaling envelope on the issue"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "REQ-INFRA-008",
+   "title": "Health, Readiness & Liveness Verification",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-INFRA-008",
+   "coverage_type": "WIRING",
+   "labels": [
+    "priority:blocking",
+    "phase:0",
+    "type:wiring",
+    "gate:completion",
+    "human:review"
+   ],
+   "acceptance_criteria": [
+    "A readiness script returns exit 0 only when all four backing stores are healthy, migrator exited 0, and http://localhost:8090/ + http://localhost:8090/api/instances/ both return 200/JSON.",
+    "Killing any single backing store flips the readiness check to FAIL and names that tier.",
+    "The api service reachable through the proxy returns a valid instance/health payload, confirming the REST surface downstream epics consume is live.",
+    "Webhook egress configuration (WEBHOOK_ALLOWED_IPS/WEBHOOK_ALLOWED_HOSTS) is in place so a later gate-decision webhook has a valid allowlist-checked target.",
+    "Readiness PASS is captured as the gating Evidence_Record before any downstream epic (workspace provisioning) is unblocked."
+   ],
+   "tasks": [
+    "Build the one-pass readiness check",
+    "Verify failure detection",
+    "Verify the REST/Webhook surface is live and gate the downstream epic"
+   ],
+   "on_board": true
+  }
+ ]
+}

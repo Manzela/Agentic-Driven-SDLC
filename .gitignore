@@ -42,6 +42,12 @@ htmlcov/
 plane-integration/.agent_queue.jsonl
 plane-integration/.provision_state.json
 plane-integration/.webhook_deliveries.json
+plane-integration/.env
+plane-integration/.apply_log.json
+plane-integration/.apply_delta_log.json
+plane-integration/.reorg_state.json
+plane-integration/.webhook_dispatched.json
+plane-integration/.agent_queue.offset
 plane-selfhost/credentials.env
 plane-selfhost/plane.env
 venv/

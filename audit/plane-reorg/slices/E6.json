@@ -1,0 +1,191 @@
+{
+ "epic": "E6",
+ "title": "Agent Integration Layer \u2014 Plane \u21c4 Agent (Bidirectional)",
+ "story_count": 7,
+ "task_count": 20,
+ "stories": [
+  {
+   "key": "E6-S1",
+   "title": "Inbound webhook ingestion: HMAC-SHA256 verification + delivery idempotency",
+   "state": "Agent-Triaged",
+   "agent_role": "human",
+   "requirement_id": "REQ-INT-001",
+   "coverage_type": "WIRING",
+   "labels": [
+    "type:wiring",
+    "priority:blocking",
+    "phase:0",
+    "gate:security"
+   ],
+   "acceptance_criteria": [
+    "A body-tampered delivery with a valid-looking header is rejected 401; an offline unit test proves constant-time comparison (no early-return on first byte mismatch).",
+    "Replaying the identical X-Plane-Delivery twice produces exactly one dispatch and two HTTP 200s; verified by ledger row count.",
+    "The dedupe ledger lives in Postgres (webhook_deliveries: delivery_id PK, event_type, received_at, dispatch_id), reconstructable independently of any model session (REQ-16.3).",
+    "The receiver is a WIRING coverage item proven only with an integration-test Evidence_Record exercising the real HTTP path (evidence_kind == integration, REQ-8.3).",
+    "Signature rejection and replay-noop both emit a hook.decision-style span (event, allow|block, reason) to the agent trace endpoint (REQ-12.3)."
+   ],
+   "tasks": [
+    "Webhook receiver endpoint + HMAC-SHA256 constant-time verifier",
+    "Durable delivery-idempotency ledger",
+    "Reject/replay gate-decision telemetry"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "E6-S2",
+   "title": "Webhook-driven agent-run dispatch (state to subagent)",
+   "state": "Agent-Executing",
+   "agent_role": "implementer",
+   "requirement_id": "REQ-INT-002",
+   "coverage_type": "WIRING",
+   "labels": [
+    "type:wiring",
+    "agent:initializer",
+    "agent:coder",
+    "priority:high",
+    "phase:0"
+   ],
+   "acceptance_criteria": [
+    "Agent-Triaged dispatch invokes initializer and the issue transitions to Spec-Compiling via E6-S3 write-back; verified end-to-end on a mock issue.",
+    "Agent-Executing dispatch invokes implementer against the deterministically-selected item (lowest priority integer among unproven items whose dependencies are all proven, ties broken by id lexical order) and no second slice starts while a prior is unproven.",
+    "A dispatch with a prior unproven slice, or without plan approval, results in a Blocked Plane state and an audited block decision, not a silent drop.",
+    "The kill-switch flag flip disables dispatch within <=30s without a process restart (REQ-CTRL-001.2 / Req 20), proven by a flag-toggle integration test.",
+    "Dispatch never writes Done; only the completion gate (E6-S5) can drive Done."
+   ],
+   "tasks": [
+    "State-to-subagent dispatcher",
+    "Pre-dispatch deterministic precondition checks",
+    "Refusal write-back wiring"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "E6-S3",
+   "title": "REST write-back of agent state transitions via external_id",
+   "state": "In-Verification",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-INT-003",
+   "coverage_type": "functional",
+   "labels": [
+    "type:functional",
+    "gate:completion",
+    "priority:high",
+    "phase:2"
+   ],
+   "acceptance_criteria": [
+    "Every one of the 12 shared-vocabulary states is reachable by a write-back driven by a real control-loop transition; an integration test asserts each requirement_id to Plane-state mapping.",
+    "Done is written only after the completion gate (Stop hook + OPA + GitHub required status check) all pass; a fixture with one unproven in-scope item never reaches Done and lands on Blocked (REQ-10.2/10.5).",
+    "HANDOFF and Done are mutually exclusive (mirrors Z3 CHECK-3); a cap-reached run writes HANDOFF and never Done.",
+    "The write-back is idempotent: replaying the same transition produces no state change and no duplicate comment/field write (double-apply test).",
+    "evidence_status, run_state, coverage_type, and (when proven) output_hash are populated from the durable store, never from model self-report."
+   ],
+   "tasks": [
+    "external_id-keyed Plane REST write-back client",
+    "Completion-gate-bound Done/HANDOFF/Blocked routing",
+    "State-mapping coverage tests"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "E6-S4",
+   "title": "Provisioning the Plane workspace from the coverage model",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-INT-004",
+   "coverage_type": "functional",
+   "labels": [
+    "type:functional",
+    "phase:0",
+    "priority:normal"
+   ],
+   "acceptance_criteria": [
+    "After provisioning, the project has all 12 states in correct state groups, all 10 fields with exact option sets, and all 22 labels, asserted by a REST read-back diff against the shared-vocabulary spec.",
+    "Re-running provisioning is idempotent: no duplicate states, fields, labels, or issues (verified by running it twice and diffing).",
+    "Every in-scope feature_list.json item has exactly one Plane issue with external_id == requirement_id; orphan-free both directions (mirrors REQ-6.3).",
+    "Dry-run produces a reviewable plan and mutates nothing."
+   ],
+   "tasks": [
+    "Workspace skeleton provisioner (states/fields/labels)",
+    "Coverage-model-to-issue seeding",
+    "Provisioning verification + dry-run"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "E6-S5",
+   "title": "Bidirectional state-mirror and traceability-triple sync",
+   "state": "Done",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-INT-005",
+   "coverage_type": "functional",
+   "labels": [
+    "type:functional",
+    "gate:completion",
+    "priority:blocking",
+    "phase:3"
+   ],
+   "acceptance_criteria": [
+    "For every in-scope requirement_id, Plane state equals the projection of Postgres coverage status; a reconciliation test injects drift and asserts repair toward Postgres.",
+    "The traceability triple (issue id - worktree_branch - agent_run_id) is queryable from Plane for any proven item; an integration test reconstructs it end-to-end.",
+    "A manual Plane drag to Done on an unproven item is reverted and logged (Plane cannot manufacture a proven).",
+    "Drift always resolves toward Postgres; the sweep is idempotent (no-op on a consistent state)."
+   ],
+   "tasks": [
+    "Postgres-authoritative state projection",
+    "Traceability-triple stamping",
+    "Periodic reconciliation sweep"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "E6-S6",
+   "title": "Integration-layer observability: OTel spans + requirement.id Baggage",
+   "state": "In-Verification",
+   "agent_role": "research",
+   "requirement_id": "REQ-INT-006",
+   "coverage_type": "NFR",
+   "labels": [
+    "type:nfr",
+    "phase:3",
+    "priority:normal"
+   ],
+   "acceptance_criteria": [
+    "A single webhook-dispatch-writeback flow produces a connected trace where every span carries the same requirement.id Baggage value (trace-assertion integration test).",
+    "HMAC-reject, replay-noop, and dispatch-refuse each emit a distinct gate-decision span with allow|block + reason.",
+    "Integration spans export within <=5s of close (not batched), asserted against a mock OTLP collector.",
+    "The OTel GenAI semconv opt-in and pinned SDK versions match the rest of the platform (OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental)."
+   ],
+   "tasks": [
+    "Integration-span instrumentation",
+    "Streaming export wiring",
+    "Trace-continuity assertions"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "E6-S7",
+   "title": "Plane-as-advisory, gates-as-authority (anti-Plane-gating guard)",
+   "state": "Human-Review",
+   "agent_role": "human",
+   "requirement_id": "REQ-INT-007",
+   "coverage_type": "NFR",
+   "labels": [
+    "type:nfr",
+    "gate:completion",
+    "phase:4",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "A static check (and a Property-style test) proves no gate function imports or reads Plane state; the completion verdict remains a pure function of feature_list.json + evidence + OPA (REQ-10.1).",
+    "A human dragging an issue to Done cannot mark any coverage item proven (re-asserts E6-S5's revert).",
+    "A halt intent flows through flagd + hooks and is reflected in Plane as Blocked/HANDOFF, never caused by a Plane edit.",
+    "Advisory-context injection spans are tagged distinctly from gate-decision spans."
+   ],
+   "tasks": [
+    "Advisory-context injection path",
+    "Anti-Plane-gating static + property guard"
+   ],
+   "on_board": true
+  }
+ ]
+}

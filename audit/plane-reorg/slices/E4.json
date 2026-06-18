@@ -1,0 +1,139 @@
+{
+ "epic": "E4",
+ "title": "Verification Engine & Evidence",
+ "story_count": 4,
+ "task_count": 23,
+ "stories": [
+  {
+   "key": "ASCP-E4-S1",
+   "title": "Force one bounded slice at a time in an isolated worktree, scope-sequenced behind deterministic gates",
+   "state": "Agent-Executing",
+   "agent_role": "implementer",
+   "requirement_id": "REQ-EXEC-001",
+   "coverage_type": "functional",
+   "labels": [
+    "agent:coder",
+    "type:functional",
+    "priority:blocking",
+    "gate:stop",
+    "phase:0"
+   ],
+   "acceptance_criteria": [
+    "Given a feature_list.json with several unproven items, the implementer selects exactly one: lowest priority integer whose dependencies are all proven, ties broken by id lexical order; an item with an unproven dependency is never selected.",
+    "tools/worktree_manager.py creates exactly one worktree per active slice on branch slice/<item_id>; a duplicate create_worktree(item_id) raises an error; git worktree list shows exactly one entry.",
+    "A completed slice yields one atomic commit whose trailer contains a REQ-<DOMAIN>-NNN ID; the implementer returns with NO Evidence_Record and hands off to the Verifier as a separate subagent.",
+    "pre_tool_use_hook.py with a Write event and no plan-approved.json exits 2; with a valid marker whose feature_list_sha matches it exits 0; a stale feature_list_sha exits 2 and requires re-approval.",
+    "pre_tool_use_hook.py with a worktree-create event while any prior item is unproven exits 2; when all prior items are proven it exits 0; bypass forms (wrapper script, non-Bash tool) are also blocked.",
+    "The implementer tools allowlist is [Read, Grep, Glob, Edit, Write, Bash]; a smoke test parses the agent markdown and asserts Write/Edit are confined to the slice worktree (sandbox REQ-17.4) with NO tests/, schema/, CI, or other-worktree access.",
+    "The implementer owns run_state.retry_count (DEFAULT 3) and the per-slice token/cost budget (DEFAULT 1,000,000 tokens); on retry_count>=3 or budget exhaustion the slice routes to HANDOFF."
+   ],
+   "tasks": [
+    "Author .claude/agents/implementer.md coding subagent",
+    "Implement tools/worktree_manager.py",
+    "Sandbox & worktree isolation enforcement (REQ-17.4)",
+    "PreToolUse plan-approval gate (check_plan_approval)",
+    "PreToolUse scope-sequencing gate (check_scope_sequencing)",
+    "Phase-0 spine smoke + e2e for the gates"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E4-S2",
+   "title": "Detect compile-but-unwired handlers/routes/jobs/callbacks and require integration-test evidence to prove WIRING items",
+   "state": "In-Verification",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-EXEC-010",
+   "coverage_type": "WIRING",
+   "labels": [
+    "agent:tester",
+    "type:wiring",
+    "priority:high",
+    "gate:completion",
+    "phase:1"
+   ],
+   "acceptance_criteria": [
+    "wiring_checker.py builds a repo-wide call/usage graph (per-file AST graphs merged) and, for any defined-but-unreachable NON-test symbol, emits exactly one WIRING candidate naming that symbol; a reachable route handler emits zero candidates; entry points are seeded from CLI __main__, route/handler decorators, registered hook commands, and registered callbacks, with test files excluded.",
+    "wiring_dead_code.yml (Semgrep) covers decorator-routed handlers/routes and registered-but-uninvoked callbacks; wiring_checker.py (AST) covers plain defined-but-never-called functions; both emit type: WIRING candidates de-duplicated by symbol before ingestion.",
+    "A WIRING candidate surfaced as PostToolUse feedback is turned into a WIRING CoverageItem (status default unproven, in_scope true, >=1 acceptance criterion) added to feature_list.json via the PreToolUse-status-guard-permitted creation path.",
+    "For a WIRING item whose symbol wiring_checker reports unreachable, the Verifier performs unproven -> failed and does NOT emit proven; the Plane issue moves to Failed with evidence_status = failed.",
+    "A WIRING item transitions to proven only when its attached Evidence_Record has evidence_kind == integration and exercises the real execution path; a unit-test Evidence_Record is schema-invalid (CoverageItem allOf) and rejected at the SubagentStop acceptance gate.",
+    "Integration test 26.1 exercises the PostToolUse -> wiring_checker path: a file with a defined-but-never-called function yields a WIRING finding with type: WIRING and the symbol name."
+   ],
+   "tasks": [
+    "Implement tools/wiring_checker.py",
+    "Write tools/semgrep_rules/wiring_dead_code.yml",
+    "PostToolUse changed-files handoff to wiring_checker.py",
+    "WIRING-candidate ingestion into feature_list.json",
+    "Verifier WIRING handling (consume findings, fail/prove)",
+    "Phase-1 wiring integration test"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E4-S3",
+   "title": "Verify each slice across five independent layers and capture a complete Evidence_Record; the implementer never grades its own homework",
+   "state": "In-Verification",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-VERIFY-001",
+   "coverage_type": "functional",
+   "labels": [
+    "agent:tester",
+    "type:functional",
+    "priority:blocking",
+    "gate:completion",
+    "gate:security",
+    "phase:0"
+   ],
+   "acceptance_criteria": [
+    "The Verifier runs all five layers in order (structural, semantic, behavioral, security, perf+a11y); a failure in any layer prevents proven.",
+    "The Verifier frontmatter tools allowlist is [Read, Grep, Glob, Bash] (no Write/Edit/MultiEdit on src/); its tests/ and feature_list.json-status writes go through the PreToolUse artifact-guard verifier.md carve-out; the guard blocks the Implementer from tests/ and blocks all destructive ops.",
+    "A complete Evidence_Record has exactly four fields (test_file, test_name, output_hash matching ^sha256:[a-f0-9]{64}$, collected_at ISO-8601 with +00:00 offset), all present and non-empty; a transition into proven is rejected if any field is absent/empty (PreToolUse status guard AND CoverageItem allOf).",
+    "evidence_collector.py computes output_hash over the canonicalized verification artifact so a re-run on the same code reproduces the identical hash; a zero-byte artifact is rejected, not blessed as sha256('').",
+    "subagent_stop_hook.py exits 0 on a complete 4-field Evidence_Record and exits 2 naming the missing field when output_hash (or any field) is absent; it BLOCKS (exit 2) any evidence-bearing result whose actor_agent is implementer.md (Property 24).",
+    "PostToolUse runs ruff + mypy + Semgrep + wiring on changed files and emits findings as next-turn feedback at exit 1 (never exit 2); it does NOT enforce the 0-HIGH/CRITICAL SAST threshold (that is the CI SAST gate).",
+    "The Verifier flips unproven -> proven only when all five layers pass AND every touched file has line coverage >= 85% read from coverage.json; a slice with any touched file < 85% is marked failed and proven is withheld (Property 23); SonarQube CI also fails on a coverage drop below 85%."
+   ],
+   "tasks": [
+    "Author .claude/agents/verifier.md independent evaluator",
+    "Implement tools/evidence_collector.py",
+    "PostToolUse five-layer feedback hook",
+    "SubagentStop Evidence_Record + role-separation gate",
+    "CI security + quality gates",
+    "Verification property suite"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E4-S4",
+   "title": "Verify performance budgets, accessibility, and UI-screen render-completeness as first-class NFR evidence",
+   "state": "In-Verification",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-VERIFY-007",
+   "coverage_type": "NFR",
+   "labels": [
+    "agent:tester",
+    "type:nfr",
+    "priority:high",
+    "gate:completion",
+    "phase:1"
+   ],
+   "acceptance_criteria": [
+    "A subtype == performance NFR item is proven only with a k6/Lighthouse report attached as an evidence_kind: perf Evidence_Record asserting the p95/Core-Web-Vitals budget read from the Requirement-20 threshold registry (task 44).",
+    "A subtype == accessibility NFR item is proven only with an axe-core run showing zero WCAG-A/AA violations on covered screens, attached as an evidence_kind: a11y Evidence_Record.",
+    "A subtype == ui-screen item enumerates declared_states (at least empty/loading/error/ready); each declared state has an attached render-assertion Evidence_Record produced by the Playwright behavioral layer; a missing state's render evidence withholds proven (Property 31).",
+    "The CoverageItem schema requires nfr_subtype when type == NFR (allOf if/then); the perf_a11y_verifier selects its evidence tool from subtype/nfr_subtype deterministically, never from item text.",
+    "k6/Lighthouse/axe/Playwright outputs map into the four-field, additionalProperties:false Evidence_Record: test_file = runner script / Playwright spec, test_name = budget id / screen-state id, output_hash = sha256:<hex> of the canonicalized report artifact, collected_at = run timestamp.",
+    "A CI perf/a11y execution path exists (extend coverage-gate.yml or a dedicated perf-a11y job): for NFR-subtype items it installs and runs k6, Lighthouse, @axe-core/playwright, and the per-screen render checks, uploading result artifacts on failure.",
+    "Property 31 (tests/property/test_perf_a11y.py) passes: an NFR-perf/NFR-a11y/ui-screen item may not be proven without the corresponding evidence; no Z3 oracle, PBT/CI-verified; the frozen 34-check harness count is unchanged."
+   ],
+   "tasks": [
+    "Amend .claude/agents/verifier.md with the perf_a11y_verifier fifth layer",
+    "CoverageItem schema fields for NFR/UI routing",
+    "Perf/a11y CI execution step",
+    "Property 31 perf/a11y/ui-screen evidence test",
+    "evidence_collector.py NFR/render artifact assembly"
+   ],
+   "on_board": true
+  }
+ ]
+}

@@ -1,0 +1,166 @@
+{
+ "epic": "E5",
+ "title": "Completion &amp; Quality-Gate Automation",
+ "story_count": 5,
+ "task_count": 21,
+ "stories": [
+  {
+   "key": "ASCP-E5-S10",
+   "title": "Fail-Closed Completion Gate (Stop hook + OPA/Conftest + GitHub ruleset)",
+   "state": "In-Verification",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-10",
+   "coverage_type": "functional",
+   "labels": [
+    "gate:completion",
+    "gate:stop",
+    "priority:blocking",
+    "type:functional",
+    "phase:0",
+    "phase:1"
+   ],
+   "acceptance_criteria": [
+    "evaluate_stop filters to in_scope_items and counts ONLY in-scope items in every gate (Req 5.7).",
+    "HANDOFF triggers (cap phase-discriminated on spec_pass_count>=7 / iteration_count>=25, then budget token_cost_usd>=TOKEN_BUDGET, then implementation-phase check_no_progress N=3) each return allow()/exit 0 with a HANDOFF summary BEFORE the unproven-items gate.",
+    "The completion gate computes not_proven = [i for i in in_scope_items if i.status != 'proven'] and blocks (exit 2) when non-empty; a failed in-scope item blocks exactly like unproven.",
+    "Empty-coverage gate blocks (exit 2) when in_scope_items == []; spec-completion gate blocks while violation_count > 0 and fails closed when violation_count < 0.",
+    "with_reentrancy_guard sets stop_hook_active before evaluation, releases only on allow, short-circuits to allow() if already set; unhandled exception exits 2 (fail closed).",
+    "coverage_query.rego denies merge on: any in-scope item status != 'proven'; any in-scope proven item failing complete_evidence (all four fields != ''); zero in-scope items (INIT). coverage-gate.yml treats ANY non-zero Conftest exit as a merge BLOCK.",
+    "No gate reads a prediction (CHECK-5); Postgres-unavailable falls back to file-backed state reaching the SAME conservative/blocking decision (Note N-25), never fail-open.",
+    "Properties 4, 5, 22 pass under --hypothesis-seed=0; CHECK-1/CHECK-3/CHECK-5 pass in formal_verification_merged.py.",
+    "Phase-0 OPA stub (status-only) is weaker than the Phase-1 full policy; the coverage-gate required-check registration survives the stub->full swap (re-register)."
+   ],
+   "tasks": [
+    "stop_hook.py evaluate_stop completion gate + reentrancy guard",
+    "coverage_query.rego full zero-evidence merge policy",
+    "coverage-gate.yml workflow + GitHub ruleset registration",
+    "Completion-gate property/Z3 verification + Plane gate mirroring"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E5-S17",
+   "title": "Supply-Chain & Security Gates (SAST + secrets + SLSA + sandbox)",
+   "state": "In-Verification",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-17",
+   "coverage_type": "NFR",
+   "labels": [
+    "gate:security",
+    "gate:ci",
+    "priority:blocking",
+    "type:nfr",
+    "phase:1",
+    "phase:2"
+   ],
+   "acceptance_criteria": [
+    "The CI SAST gate (codeql.yml + Semgrep workflow) fails the run on any HIGH/CRITICAL finding; PostToolUse surfaces Semgrep findings as next-turn feedback only (exit 1, never blocks) and does NOT enforce the threshold.",
+    "secrets-scan.yml: on pull_request + protected-branch pushes; gitleaks (pinned) on the PR diff; SARIF report; .gitleaks.toml ruleset + false-positive allowlist; fails on any secret. Fixture test: planted AWS key fails, clean diff passes (Property 32).",
+    "The PreToolUse secret-block guard scans args/prompt/span-attrs/URL against secret regexes and blocks carrying calls with exit 2 (Property 20) \u2014 a live prevention gate.",
+    "The sandbox confines writes to the per-slice worktree mounted in, denies network egress by default (explicit audited allowlist exceptions), and is the named enforcer of the Implementer's 'worktree only' permission.",
+    "SLSA provenance is generated on merge and verifiable via gh attestation verify; the SLSA release workflow jointly satisfies REQ-AUDIT-003 with the audit-chain verifier.",
+    "secrets-scan is a REQUIRED merge gate (Phase 1) registered in the GitHub ruleset and documented in docs/github-ruleset.md (canonical list = task 14.2).",
+    "Build-order split: the secrets-scan.yml workflow may be created early (wave 33) but merge-blocking enforcement waits until task 45's gitleaks scan logic lands."
+   ],
+   "tasks": [
+    "CI SAST gate (Semgrep + CodeQL)",
+    "Secrets-detection gate (secrets-scan.yml)",
+    "PreToolUse secret-block prevention guard",
+    "Sandbox & worktree isolation (REQ-17.4)",
+    "SLSA build provenance on merge",
+    "Required-check registration + Plane security-gate mirroring"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E5-S30",
+   "title": "DeepEval Eval-Gating in CI (faithfulness + answer relevancy)",
+   "state": "Human-Review",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-30",
+   "coverage_type": "NFR",
+   "labels": [
+    "gate:ci",
+    "type:nfr",
+    "phase:3",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "tools/deepeval_gate.py calls assert_test() on faithfulness >= 0.8 and answer relevancy >= 0.7, reading thresholds from the task-44 execution-bounds/threshold registry (operator-overridable), not hard-coded as sole source.",
+    "The judge is pinned to a named deterministic model+provider: DEFAULT claude-opus-4-8 via Anthropic on Vertex AI, temperature=0, fixed seed, pinned snapshot \u2014 recorded in the gate config / workflow.",
+    "The golden-set dataset lives under tests/eval/, is version-controlled (reproducible), and is seeded from Verifier-run evidence.",
+    "Invariant reconciliation is explicit: deepeval_gate does NOT self-grade the agent's own output and is NOT a probabilistic completeness prediction \u2014 it is a deterministic acceptance check on a fixed dataset scoped to product-output quality, independent of the completion gates.",
+    "An empty-evaluation CI run passes vacuously (green, zero cases); fail-closed on judge-LLM failure after bounded retry (<= 2).",
+    "deepeval-gate is a REQUIRED status check (Phase-4 task 40.6) recorded via GitHub check-run history + SLSA provenance (NOT the hook hash chain \u2014 REQ-27.8 scope rule).",
+    "A smoke/integration test asserts the build fails when a metric is below threshold (no Z3 oracle; this is the named verification mechanism)."
+   ],
+   "tasks": [
+    "deepeval_gate.py module + pinned judge",
+    "Golden-set eval fixtures",
+    "deepeval-gate.yml workflow + ruleset registration",
+    "Eval-gate smoke test + Plane mirroring"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E5-S31",
+   "title": "OWASP ZAP DAST Baseline Security Scan",
+   "state": "Human-Review",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-31",
+   "coverage_type": "NFR",
+   "labels": [
+    "gate:security",
+    "gate:ci",
+    "type:nfr",
+    "phase:2",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    ".github/workflows/zap-baseline.yml uses zaproxy/action-baseline@v0.12.0 with fail_action: true, triggered on pull_request (optionally a protected-branch target filter).",
+    "A CI job step boots the app/service at a known http://localhost:<port> and the action target input is populated with that URL (v1 baseline target = unauthenticated localhost).",
+    "The scan is baseline/passive only \u2014 no active probing (zero false-positive risk from active probes).",
+    "zap-baseline is registered as a REQUIRED CI status check (Phase-4 task 40.5) in the GitHub ruleset, documented in docs/github-ruleset.md (canonical list = task 14.2).",
+    "The gate decision is recorded via GitHub check-run history + SLSA provenance (NOT the hook hash chain \u2014 REQ-27.8); the absence of a Z3 Property/CHECK is documented intent, consistent with secrets-scan/coverage-gate/deepeval-gate."
+   ],
+   "tasks": [
+    "zap-baseline.yml DAST workflow + CI app stand-up",
+    "zap-baseline required-check registration",
+    "DAST gate mirroring to Plane"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E5-S32",
+   "title": "OpenFeature/flagd Agent Code Kill-Switch",
+   "state": "Human-Review",
+   "agent_role": "human",
+   "requirement_id": "REQ-32",
+   "coverage_type": "NFR",
+   "labels": [
+    "gate:security",
+    "human:review",
+    "priority:blocking",
+    "type:nfr",
+    "phase:2"
+   ],
+   "acceptance_criteria": [
+    "The flagd/ directory holds a flag-definitions file (flagd.json), provider config, and a self-hosted deployment manifest; the flag schema enumerates kill.initializer/kill.implementer/kill.verifier/kill.research/kill.all (boolean, one per gated capability).",
+    "Each agent entry point queries the OpenFeature client at start-of-turn; a set kill.<capability> (or kill.all) makes the capability HARD-REFUSE (refuse the gated tool call / skip the capability \u2014 analogous to a PreToolUse exit-2 block).",
+    "ONE propagation mechanism is chosen and the <=30 s guarantee is tied to it: DEFAULT flagd gRPC streaming; documented fallback file-based provider with explicit poll interval <= 30 s.",
+    "Unreachable flagd -> fail-closed (capability DISABLED, flag treated as true); the kill-switch never fails open.",
+    "Flag toggles are restricted to the Delivery Owner / Operator role; each toggle is authenticated and recorded.",
+    "Every toggle (and every start-of-turn kill-refusal) appends a gate_audit_log entry via audit_log.append(...) AND emits an OTel gate-decision event to the shared trace endpoint.",
+    "A <=30 s propagation test verifies the chosen provider mechanism disables the capability without a process restart; the unreachable-flagd fail-closed behavior is tested (runtime/CI-verified, no Z3 oracle).",
+    "The OpenFeature kill-switch invariant (set/unreachable flag implies capability refused, fail-closed) is documented as a runtime/CI-verified invariant."
+   ],
+   "tasks": [
+    "Self-hosted flagd service + flag schema",
+    "OpenFeature SDK wiring into agent entry points",
+    "Toggle authority, authentication & audit/OTel wiring",
+    "Kill-switch verification + Plane operator control"
+   ],
+   "on_board": true
+  }
+ ]
+}

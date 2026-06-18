@@ -6,26 +6,33 @@ The intelligence (compiling a spec, implementing a slice, verifying it) is perfo
 by Claude Code agents; THIS module is the deterministic glue between those agents and
 the live Plane board, enforcing the .kiro completion-gate discipline:
 
-  • `status`                      board summary by state
-  • `next`                        the next actionable work item (JSON) for an agent
-  • `advance <id> <state> <role>` move an item, enforcing actor authority + gate order
-  • `prove <id> <tf> <tn> <hash>` attach a 4-field Evidence_Record then set Done (verifier)
-  • `handoff <id> <reason> <role>`route to HANDOFF (cap/budget/no-progress) — never Done
+  • status                          board summary by state
+  • next                            the next AGENT-actionable work item (JSON); human-gated
+                                    items are surfaced with awaiting:human, never served as work
+  • advance <id> <state> <role>     move an item (plane_client enforces actor + gate order + read-back)
+  • prove <id> <tf> <tn> <hash>     VALIDATE a 4-field Evidence_Record, then set Done (verifier only)
+  • handoff <id> <reason> <role>    route to HANDOFF (cap/budget/no-progress) — never Done
+  • block  <id> <reason> <role>     route to Blocked with a reason (auditable)
+  • fail   <id> <reason>            route to Failed (verifier; verification failed)
 
-Completion-gate invariant (mirrors evaluate_stop): an item may only reach `Done` via
-`prove` (verifier + complete Evidence_Record). cap/budget/no-progress => `handoff`,
-which is a terminal state distinct from Done.
+Completion-gate invariant: Done is reachable only via prove() — verifier + a VALID
+Evidence_Record + a legal predecessor (In-Verification/Human-Review). cap/budget/no-progress
+=> handoff (terminal, distinct from Done). State UUIDs + gate order are enforced in plane_client.
 """
-import sys, json, time, pathlib
+import sys, json, pathlib
+from datetime import datetime, timezone
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import plane_client as pc
+from tools.evidence_collector import validate_evidence_record
 
 PBASE = pc.PBASE
 
-# priority order of states for "what should an agent pick up next"
-ACTIONABLE_ORDER = ["Agent-Triaged", "Spec-Compiling", "Spec-Verified",
-                    "Plan-Approved", "Agent-Executing", "In-Verification", "Human-Review"]
-# the natural next state + acting role for a simple forward advance
+# states an AGENT can act on (human-gated states are surfaced separately, not served as work)
+ACTIONABLE_ORDER = ["Agent-Triaged", "Spec-Compiling", "Plan-Approved",
+                    "Agent-Executing", "In-Verification"]
+# natural next state + acting role (advisory; plane_client enforces legality)
 NEXT_STEP = {
     "Backlog": ("Agent-Triaged", "initializer"),
     "Agent-Triaged": ("Spec-Compiling", "initializer"),
@@ -37,74 +44,105 @@ NEXT_STEP = {
     "Human-Review": ("Done", "verifier"),
 }
 
-def _items():
-    return pc._api("GET", f"{PBASE}/work-items/?per_page=100")
 
 def _all_items():
-    out, url = [], f"{PBASE}/work-items/?per_page=100"
-    while url:
-        d = pc._api("GET", url)
-        rs = d.get("results", d) if isinstance(d, dict) else d
-        out += rs
-        nxt = d.get("next_page_results") if isinstance(d, dict) else False
-        cur = d.get("next_cursor") if isinstance(d, dict) else None
-        url = (f"{PBASE}/work-items/?per_page=100&cursor={cur}") if (nxt and cur) else None
-    return out
+    return pc._paginate(f"{PBASE}/work-items/")
 
-# state-uuid -> name
-ID2STATE = {v: k for k, v in pc.STATES.items()}
 
 def status():
-    items = _all_items()
     from collections import Counter
-    by = Counter(ID2STATE.get(i.get("state"), "?") for i in items)
+    items = _all_items()
+    by = Counter(pc.id2state(i.get("state")) or "?" for i in items)
     print(f"Board: {len(items)} work items")
-    for name, _g, _m in []:
-        pass
-    for st in (list(pc.STATES) or []):
+    for st in list(pc.states()):
         if by.get(st):
             print(f"  {st:16s} {by[st]}")
-    leftover = {k: v for k, v in by.items() if k not in pc.STATES}
-    for k, v in leftover.items():
-        print(f"  {k:16s} {v}")
+    for k, v in by.items():
+        if k not in pc.states():
+            print(f"  {str(k):16s} {v}")
+
 
 def next_item():
     items = _all_items()
     cand = []
     for i in items:
-        st = ID2STATE.get(i.get("state"), "?")
+        st = pc.id2state(i.get("state")) or "?"
         if st in ACTIONABLE_ORDER:
             cand.append((ACTIONABLE_ORDER.index(st), i))
     if not cand:
         print(json.dumps({"actionable": None})); return
     cand.sort(key=lambda x: (x[0], x[1].get("sequence_id", 0)))
-    st_idx, it = cand[0]
-    st = ID2STATE.get(it.get("state"))
+    _idx, it = cand[0]
+    st = pc.id2state(it.get("state"))
     nxt, role = NEXT_STEP.get(st, (None, None))
-    print(json.dumps({"issue_id": it["id"], "name": it.get("name"), "state": st,
-                      "next_state": nxt, "next_role": role}, indent=1))
+    out = {"issue_id": it["id"], "name": it.get("name"), "state": st,
+           "next_state": nxt, "next_role": role}
+    if role == "human":
+        out["awaiting"] = "human"   # do not auto-act; a human gate
+    print(json.dumps(out, indent=1))
+
 
 def advance(issue_id, to_state, role):
-    r = pc.transition(issue_id, to_state, role)
+    pc.transition(issue_id, to_state, role)  # enforces actor + gate-order + read-back
     print(json.dumps({"advanced": issue_id, "to": to_state, "by": role, "ok": True}))
 
+
 def prove(issue_id, test_file, test_name, output_hash):
-    collected = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    pc.post_evidence(issue_id, test_file, test_name, output_hash, collected, "verifier")
-    pc.transition(issue_id, "Done", "verifier")
-    print(json.dumps({"proven": issue_id, "evidence": {"test_file": test_file,
-          "test_name": test_name, "output_hash": output_hash, "collected_at": collected}, "state": "Done"}))
+    record = {"test_file": test_file, "test_name": test_name,
+              "output_hash": output_hash,
+              "collected_at": datetime.now(timezone.utc).isoformat()}
+    if not validate_evidence_record(record):  # REL-03: reject empty/garbage before Done
+        print(json.dumps({"error": "invalid Evidence_Record",
+                          "hint": "output_hash must be sha256:<64 lowercase hex>; all fields non-empty",
+                          "record": record}))
+        sys.exit(2)
+    cur = pc.id2state(pc.get_issue(issue_id).get("state"))
+    if cur not in ("In-Verification", "Human-Review"):  # gate predecessor (REL-03)
+        print(json.dumps({"error": f"cannot prove from state {cur!r}",
+                          "hint": "item must be In-Verification or Human-Review"}))
+        sys.exit(2)
+    pc.post_evidence(issue_id, test_file, test_name, output_hash, record["collected_at"], "verifier")
+    pc.transition(issue_id, "Done", "verifier")  # gate-order + read-back enforced in plane_client
+    print(json.dumps({"proven": issue_id, "evidence": record, "state": "Done"}))
+
 
 def handoff(issue_id, reason, role="verifier"):
-    pc.comment(issue_id, f"<p><b>HANDOFF</b> — reason: {reason} (a human picks this up; not Done)</p>")
+    pc.comment(issue_id, f"HANDOFF — reason: {reason} (a human picks this up; not Done)")  # escaped
     pc.transition(issue_id, "HANDOFF", role)
     print(json.dumps({"handoff": issue_id, "reason": reason}))
 
+
+def block(issue_id, reason, role="implementer"):
+    pc.comment(issue_id, f"BLOCKED — reason: {reason}")  # escaped
+    pc.transition(issue_id, "Blocked", role)
+    print(json.dumps({"blocked": issue_id, "reason": reason}))
+
+
+def fail(issue_id, reason, role="verifier"):
+    pc.comment(issue_id, f"FAILED verification — reason: {reason}")  # escaped
+    pc.transition(issue_id, "Failed", role)
+    print(json.dumps({"failed": issue_id, "reason": reason}))
+
+
+USAGE = ("usage: the_loop.py [status | next | advance <id> <state> <role> | "
+         "prove <id> <tf> <tn> <hash> | handoff <id> <reason> <role> | "
+         "block <id> <reason> <role> | fail <id> <reason>]")
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
-    if cmd == "status": status()
-    elif cmd == "next": next_item()
-    elif cmd == "advance": advance(sys.argv[2], sys.argv[3], sys.argv[4])
-    elif cmd == "prove": prove(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
-    elif cmd == "handoff": handoff(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "verifier")
-    else: print("usage: the_loop.py [status|next|advance <id> <state> <role>|prove <id> <tf> <tn> <hash>|handoff <id> <reason> <role>]")
+    if cmd == "status":
+        status()
+    elif cmd == "next":
+        next_item()
+    elif cmd == "advance":
+        advance(sys.argv[2], sys.argv[3], sys.argv[4])
+    elif cmd == "prove":
+        prove(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
+    elif cmd == "handoff":
+        handoff(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "verifier")
+    elif cmd == "block":
+        block(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "implementer")
+    elif cmd == "fail":
+        fail(sys.argv[2], sys.argv[3])
+    else:
+        print(USAGE)
