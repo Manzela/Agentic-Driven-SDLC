@@ -87,6 +87,16 @@ def advance(issue_id, to_state, role):
     print(json.dumps({"advanced": issue_id, "to": to_state, "by": role, "ok": True}))
 
 
+def _gate(issue_id, to_state, role):
+    """Authority + actor-independence + gate-order — checked BEFORE any board write,
+    so a rejected actor never orphans a comment/evidence record (review MAJOR #1)."""
+    pc.check_actor(role, to_state)                       # raises PermissionError if not allowed
+    cur = pc.id2state(pc.get_issue(issue_id).get("state"))
+    if not pc.legal_edge(cur, to_state):
+        raise PermissionError(f"illegal transition {cur!r} -> {to_state!r} (gate order)")
+    return cur
+
+
 def prove(issue_id, test_file, test_name, output_hash):
     record = {"test_file": test_file, "test_name": test_name,
               "output_hash": output_hash,
@@ -96,29 +106,28 @@ def prove(issue_id, test_file, test_name, output_hash):
                           "hint": "output_hash must be sha256:<64 lowercase hex>; all fields non-empty",
                           "record": record}))
         sys.exit(2)
-    cur = pc.id2state(pc.get_issue(issue_id).get("state"))
-    if cur not in ("In-Verification", "Human-Review"):  # gate predecessor (REL-03)
-        print(json.dumps({"error": f"cannot prove from state {cur!r}",
-                          "hint": "item must be In-Verification or Human-Review"}))
-        sys.exit(2)
+    _gate(issue_id, "Done", "verifier")  # authority+state BEFORE posting (no orphaned evidence)
     pc.post_evidence(issue_id, test_file, test_name, output_hash, record["collected_at"], "verifier")
-    pc.transition(issue_id, "Done", "verifier")  # gate-order + read-back enforced in plane_client
+    pc.transition(issue_id, "Done", "verifier")  # re-validates + read-back in plane_client
     print(json.dumps({"proven": issue_id, "evidence": record, "state": "Done"}))
 
 
 def handoff(issue_id, reason, role="verifier"):
+    _gate(issue_id, "HANDOFF", role)             # gate BEFORE the comment write
     pc.comment(issue_id, f"HANDOFF — reason: {reason} (a human picks this up; not Done)")  # escaped
     pc.transition(issue_id, "HANDOFF", role)
     print(json.dumps({"handoff": issue_id, "reason": reason}))
 
 
 def block(issue_id, reason, role="implementer"):
+    _gate(issue_id, "Blocked", role)
     pc.comment(issue_id, f"BLOCKED — reason: {reason}")  # escaped
     pc.transition(issue_id, "Blocked", role)
     print(json.dumps({"blocked": issue_id, "reason": reason}))
 
 
 def fail(issue_id, reason, role="verifier"):
+    _gate(issue_id, "Failed", role)
     pc.comment(issue_id, f"FAILED verification — reason: {reason}")  # escaped
     pc.transition(issue_id, "Failed", role)
     print(json.dumps({"failed": issue_id, "reason": reason}))
@@ -128,7 +137,7 @@ USAGE = ("usage: the_loop.py [status | next | advance <id> <state> <role> | "
          "prove <id> <tf> <tn> <hash> | handoff <id> <reason> <role> | "
          "block <id> <reason> <role> | fail <id> <reason>]")
 
-if __name__ == "__main__":
+def _main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
     if cmd == "status":
         status()
@@ -146,3 +155,12 @@ if __name__ == "__main__":
         fail(sys.argv[2], sys.argv[3])
     else:
         print(USAGE)
+
+
+if __name__ == "__main__":
+    # Emit structured JSON on a gate/transport failure instead of a raw traceback (review MAJOR #1)
+    try:
+        _main()
+    except (PermissionError, RuntimeError, KeyError, ValueError, IndexError) as e:
+        print(json.dumps({"error": type(e).__name__, "detail": str(e)}))
+        sys.exit(2)

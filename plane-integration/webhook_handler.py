@@ -80,8 +80,12 @@ def _atomic_write(path, text):
     os.replace(tmp, path)   # atomic on POSIX
 
 
-# _seen: OrderedDict[delivery_id] = ts, recency = insertion order (REL-02/COR-02)
-_seen = OrderedDict((d, t) for d, t in _load_json(SEEN, []))
+# _seen: OrderedDict[delivery_id] = ts, recency = insertion order (REL-02/COR-02).
+# Tolerate the legacy ["uuid", ...] on-disk format (review MAJOR #2): a bare string
+# becomes (uuid, 0.0) instead of crashing the unpack at import on an upgraded host.
+_seen = OrderedDict(
+    (tuple(x) if isinstance(x, (list, tuple)) and len(x) == 2 else (x, 0.0))
+    for x in _load_json(SEEN, []))
 _dispatched = _load_json(DISPATCHED, {})   # {issue_id: last_state_dispatched}
 
 

@@ -68,4 +68,37 @@ def test_consumer_offset_exactly_once(tmp_path):
     with open(ac.QUEUE, "a") as f:
         f.write(json.dumps({"kind": "event", "event": "module"}) + "\n")
     assert ac.drain() == 1
-    assert int(ac.OFFSET.read_text()) == 3
+    assert ac._read_offset() == 3
+
+
+def test_partial_trailing_line_not_committed(tmp_path):
+    # a torn/in-flight append (no trailing newline) must NOT be processed or committed past
+    ac.QUEUE = tmp_path / "q.jsonl"
+    ac.OFFSET = tmp_path / "q.offset"
+    ac.QUEUE.write_text(json.dumps({"kind": "event"}) + "\n" + '{"kind":"event","x"')  # truncated
+    assert ac.drain() == 1                       # only the complete first line
+    assert ac._read_offset() == 1
+    with open(ac.QUEUE, "a") as f:               # complete the line
+        f.write(':1}\n')
+    assert ac.drain() == 1                        # now the (newly complete) second line
+    assert ac._read_offset() == 2
+
+
+def test_transient_fetch_failure_does_not_advance(tmp_path, monkeypatch):
+    # at-least-once: an unfetchable dispatch job leaves the offset put (retried next poll)
+    ac.QUEUE = tmp_path / "q.jsonl"
+    ac.OFFSET = tmp_path / "q.offset"
+    ac.QUEUE.write_text(json.dumps({"kind": "agent_dispatch", "agent_role": "verifier",
+                                    "issue_id": "i1", "state": "In-Verification"}) + "\n")
+
+    def _boom(_iid):
+        raise RuntimeError("board unreachable")
+    monkeypatch.setattr(ac.pc, "get_issue", _boom)
+    assert ac.drain() == 0                        # not settled
+    assert ac._read_offset() == 0       # offset NOT advanced (no silent drop)
+
+    # board reachable but item moved on → settled drop (commit)
+    monkeypatch.setattr(ac.pc, "get_issue", lambda _iid: {"state": "uuid"})
+    monkeypatch.setattr(ac.pc, "id2state", lambda _s: "Done")  # != In-Verification → stale
+    assert ac.drain() == 1
+    assert ac._read_offset() == 1
