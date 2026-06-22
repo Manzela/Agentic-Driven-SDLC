@@ -48,3 +48,6 @@ venv/
 plane-integration/.reorg_state.json
 # Local MCP wiring may carry a machine-specific creds path; commit .mcp.json.example instead.
 .mcp.json
+# Spine loop-driver durable state + canary fire-sink — regenerated per run, never source.
+run_state.json
+.spine_hook_fires.jsonl

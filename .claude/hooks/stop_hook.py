@@ -23,17 +23,24 @@ per REQ-GATE-005 ("ambiguous states SHALL resolve to blocked, not passed").
 from __future__ import annotations
 
 import json
+import os
+import pathlib
 import sys
 from typing import Any
 
-# ── Module constants ────────────────────────────────────────────────────────
-# DEFAULTs bound to the task-44 execution-bounds config (Requirement 20 NFR
-# registry); an operator may override them there. Defined here so the importable
-# core has no external dependency.
+# Make `from tools...` resolve when run as a hook subprocess (cwd-independent).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
-MAX_TURNS_PER_SLICE = 25       # DEFAULT iteration cap per slice (matches --max-turns 25)
-N_PROGRESS_WINDOW = 3          # DEFAULT no-progress consecutive-slice window (N=3)
-SPEC_COMPLETION_HARD_CAP = 7   # DEFAULT spec-completion HARD pass cap (lex-specialis HANDOFF)
+# ── Module constants ────────────────────────────────────────────────────────
+# Thresholds are env-overridable and single-sourced in tools/execution_bounds
+# (no inline numeric literals here). An operator overrides them via the
+# SPINE_* env vars; the importable core reads them at import time.
+from tools.execution_bounds import (  # noqa: E402
+    MAX_TURNS_PER_SLICE,
+    N_PROGRESS_WINDOW,
+    SPEC_COMPLETION_HARD_CAP,
+    BLOCK_STREAK_HANDOFF,
+)
 
 
 # ── Decision constructors ───────────────────────────────────────────────────
@@ -134,6 +141,24 @@ def evaluate_stop(run_state: dict, feature_list: dict) -> dict:
                 f"Escalate to a human (REQ-LOOP-005).",
             )
 
+        # (4) External blocker / repeated-block escalation. These ALSO route to
+        #     HANDOFF (exit 0) so a stuck loop surfaces to a human instead of
+        #     re-blocking forever. Placed AFTER the cap/budget/no-progress
+        #     HANDOFF triggers and BEFORE the blocking gates (proposed/02).
+        if str(run_state.get("external_blocker") or "").strip():
+            return _allow(
+                "HANDOFF",
+                f"HANDOFF: external blocker declared: "
+                f"{run_state['external_blocker']}. Hand to a human to clear it.",
+            )
+        if int(run_state.get("block_streak", 0) or 0) >= BLOCK_STREAK_HANDOFF:
+            return _allow(
+                "HANDOFF",
+                f"HANDOFF: {run_state['block_streak']} consecutive blocked "
+                f"stops (>= {BLOCK_STREAK_HANDOFF}). Escalating instead of "
+                f"re-blocking.",
+            )
+
         # ── Blocking gates (exit 2) — reached only when NO HANDOFF trigger is
         #    active. Here continuation is actually desired.
 
@@ -215,27 +240,44 @@ def main(argv: list[str] | None = None) -> int:
     try:
         event: dict[str, Any] = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
-        # Unparseable event → fail closed.
-        decision = _block("Stop blocked: unparseable Stop event JSON. Fail closed.")
-        print(json.dumps(decision))
+        # Unparseable event → fail closed. Block reason on STDERR (Claude Code
+        # ignores stdout on exit 2).
+        print("Stop blocked: unparseable Stop event JSON. Fail closed.",
+              file=sys.stderr)
         return 2
 
-    # Non-loop (interactive) Stop event: no loop payload, so the completeness
-    # gate does not apply — allow termination rather than block on empty coverage.
-    if "run_state" not in event and "feature_list" not in event:
-        decision = _allow(
-            None,
-            "Allow: no loop payload on the Stop event (interactive session); "
-            "the completeness gate applies only to autonomous-loop stops.",
-        )
-        print(json.dumps(decision))
+    # Reentrancy: a forced continuation is NOT a fresh task. When the harness
+    # re-fires Stop because the previous block injected a continuation,
+    # `stop_hook_active` is set. Emit nothing, allow — re-gating here would loop.
+    if event.get("stop_hook_active"):
         return 0
 
-    run_state = event.get("run_state") or {}
-    feature_list = event.get("feature_list") or {}
-    decision = evaluate_stop(run_state, feature_list)
-    print(json.dumps(decision))
-    return 0 if decision["decision"] == "allow" else 2
+    # Load durable state from disk when the harness Stop event omits it. The
+    # loop driver persists run_state.json/feature_list.json under
+    # ${CLAUDE_PROJECT_DIR}; a real harness Stop event carries neither key.
+    root = pathlib.Path(os.environ.get("CLAUDE_PROJECT_DIR", ".")).resolve()
+    run_state = event.get("run_state")
+    feature_list = event.get("feature_list")
+    is_loop = ("run_state" in event) or ("feature_list" in event) or event.get("loop")
+    if run_state is None:
+        rs = root / "run_state.json"
+        run_state = json.loads(rs.read_text()) if rs.is_file() else None
+    if feature_list is None:
+        fl = root / "feature_list.json"
+        feature_list = json.loads(fl.read_text()) if fl.is_file() else None
+
+    # Interactive (non-loop) stop with no durable state: the completeness gate
+    # does not apply — allow termination rather than block on empty coverage.
+    if not is_loop and run_state is None and feature_list is None:
+        return 0
+
+    decision = evaluate_stop(run_state or {}, feature_list or {})
+    if decision["decision"] == "allow":
+        print(decision["reason"])
+        return 0
+    # Block reason on STDERR (Claude Code ignores stdout on exit 2).
+    print(decision["reason"], file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":
