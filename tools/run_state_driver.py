@@ -37,6 +37,7 @@ def tick(
     made_progress: bool,
     violation_count: int,
     external_blocker: str | None = None,
+    budget_exceeded: bool = False,
 ) -> dict:
     """Advance counters, persist, and return the updated row.
 
@@ -46,11 +47,12 @@ def tick(
       was no progress AND violation_count > 0.
     - violation_count is overwritten with the supplied value.
     - external_blocker is overwritten (None clears it).
+    - budget_exceeded is overwritten with the supplied value.
     """
     p = _path(root)
     row: dict = json.loads(p.read_text()) if p.is_file() else init(root, "unknown")
 
-    row["iteration_count"] += 1
+    row["iteration_count"] = row.get("iteration_count", 0) + 1
 
     if made_progress:
         row["no_progress_n"] = 0
@@ -61,6 +63,7 @@ def tick(
 
     row["violation_count"] = int(violation_count)
     row["external_blocker"] = external_blocker
+    row["budget_exceeded"] = bool(budget_exceeded)
 
     p.write_text(json.dumps(row, indent=2))
     return row
