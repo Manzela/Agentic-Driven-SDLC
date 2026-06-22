@@ -157,7 +157,14 @@ def post_tool_use(event: dict, runners: dict = None) -> dict:
 # --------------------------------------------------------------------------- #
 
 def _real_lint(paths: list[str]) -> list[dict]:
-    return _run_subprocess(["ruff", "check", "--output-format", "json", *paths],
+    # ruff is a PYTHON linter — only lint .py files. Passing a .md/.json/.txt
+    # would make ruff parse it as Python and emit spurious SyntaxError findings.
+    # With no .py paths, skip entirely (never invoke ruff with an empty path
+    # list, which would lint the whole cwd).
+    py = [p for p in paths if p.endswith(".py")]
+    if not py:
+        return []
+    return _run_subprocess(["ruff", "check", "--output-format", "json", *py],
                            source="lint", json_array=True)
 
 
