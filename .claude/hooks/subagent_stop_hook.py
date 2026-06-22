@@ -99,8 +99,16 @@ def main() -> int:
         print(json.dumps({"decision": "block", "reason": str(exc)}))
         return 2
     ti = event.get("tool_input", event)
+    # The evidence gate applies ONLY to a proven-flip submission (an event that
+    # actually carries an Evidence_Record). An ordinary subagent finishing its
+    # turn submits no evidence — there is nothing to gate, so it is allowed to
+    # stop. Gating every SubagentStop would make it impossible for any non-flip
+    # subagent (e.g. an implementer) to ever terminate.
+    record = ti.get("evidence")
+    if not record:
+        return 0
     decision = evaluate(
-        record=ti.get("evidence", {}),
+        record=record,
         output=ti.get("output", ti.get("artifact")),
         resolved_actor=actor,
         omission_declaration=ti.get("omission_declaration"),
