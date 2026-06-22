@@ -225,5 +225,28 @@ def test_loads_run_state_from_disk_when_event_omits_it(tmp_path):
     assert rc == 2  # gate fired on disk-loaded state
 
 
+# ── Corrupt durable-state files MUST fail CLOSED (exit 2 + STDERR reason), NOT
+#    crash with an uncaught JSONDecodeError (exit 1, which Claude Code treats as
+#    non-blocking). REQ-GATE-005: ambiguous states resolve to BLOCKED. ─────────
+
+def test_corrupt_run_state_on_disk_fails_closed(tmp_path):
+    (tmp_path / "run_state.json").write_text("not json{")
+    (tmp_path / "feature_list.json").write_text(_json.dumps(
+        {"items": [{"id": "X", "in_scope": True, "status": "unproven"}]}))
+    rc, out, err = _run({"loop": True}, env={"CLAUDE_PROJECT_DIR": str(tmp_path)}, cwd=tmp_path)
+    assert rc == 2, f"corrupt run_state must block (exit 2), got rc={rc} err={err}"
+    assert err.strip() != "" and out.strip() == ""
+    assert "run_state.json" in err
+
+
+def test_corrupt_feature_list_on_disk_fails_closed(tmp_path):
+    (tmp_path / "run_state.json").write_text(_json.dumps({"violation_count": 0}))
+    (tmp_path / "feature_list.json").write_text("not json{")
+    rc, out, err = _run({"loop": True}, env={"CLAUDE_PROJECT_DIR": str(tmp_path)}, cwd=tmp_path)
+    assert rc == 2, f"corrupt feature_list must block (exit 2), got rc={rc} err={err}"
+    assert err.strip() != "" and out.strip() == ""
+    assert "feature_list.json" in err
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

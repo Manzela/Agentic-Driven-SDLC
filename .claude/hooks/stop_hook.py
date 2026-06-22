@@ -259,12 +259,36 @@ def main(argv: list[str] | None = None) -> int:
     run_state = event.get("run_state")
     feature_list = event.get("feature_list")
     is_loop = ("run_state" in event) or ("feature_list" in event) or event.get("loop")
+    # A corrupt durable-state file is an AMBIGUOUS state, not an absent one:
+    # Stop is a CLOSED gate and MUST block (exit 2), never crash with exit 1
+    # (which Claude Code treats as non-blocking, letting an incomplete loop
+    # terminate silently). Mirror the unparseable-EVENT path above: catch the
+    # decode/IO error, emit a block reason on STDERR, and fail CLOSED.
+    # REQ-GATE-005: "ambiguous states SHALL resolve to blocked, not passed."
     if run_state is None:
         rs = root / "run_state.json"
-        run_state = json.loads(rs.read_text()) if rs.is_file() else None
+        if rs.is_file():
+            try:
+                run_state = json.loads(rs.read_text())
+            except (json.JSONDecodeError, OSError) as exc:
+                print(
+                    f"Stop blocked: run_state.json is unreadable "
+                    f"({type(exc).__name__}: {exc}). Fail closed.",
+                    file=sys.stderr,
+                )
+                return 2
     if feature_list is None:
         fl = root / "feature_list.json"
-        feature_list = json.loads(fl.read_text()) if fl.is_file() else None
+        if fl.is_file():
+            try:
+                feature_list = json.loads(fl.read_text())
+            except (json.JSONDecodeError, OSError) as exc:
+                print(
+                    f"Stop blocked: feature_list.json is unreadable "
+                    f"({type(exc).__name__}: {exc}). Fail closed.",
+                    file=sys.stderr,
+                )
+                return 2
 
     # Interactive (non-loop) stop with no durable state: the completeness gate
     # does not apply — allow termination rather than block on empty coverage.
