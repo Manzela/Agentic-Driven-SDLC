@@ -64,7 +64,9 @@ def main(html_path: str, fl_path: str) -> int:
         record=record, output=html, resolved_actor=VERIFIER_ROLE,
         omission_declaration="[Gap] only the happy-path render is checked in this slice.",
     )
-    if gate["decision"] != "approve":
+    # Accept omits a decision value (returns None); only "block" denies. The old
+    # `!= "approve"` check is stale now that the gate no longer emits "approve".
+    if gate["decision"] == "block":
         print("SLICE PROOF FAILED at SubagentStop:", gate["reason"])
         return 2
 
