@@ -129,8 +129,26 @@ def _plane_comment(issue_id, html):
         return False
 
 
+def _governed_cwd_ok(root) -> bool:
+    """True iff ``root`` is a governed spine checkout: ``.claude/settings.json``
+    exists AND disables the ralph-loop plugin, so a dispatched agent runs under
+    the governance spine rather than ungoverned / ralph-shadowed. Fail closed."""
+    s = pathlib.Path(root) / ".claude" / "settings.json"
+    if not s.is_file():
+        return False
+    try:
+        d = json.loads(s.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return d.get("enabledPlugins", {}).get("ralph-loop@claude-plugins-official") is False
+
+
 def _exec_claude(role, job):
     """Spawn a bounded headless agent run. OFF unless ASCP_AGENT_EXEC=1."""
+    if not _governed_cwd_ok(ROOT):
+        _log("REFUSED exec: cwd is not a governed spine checkout "
+             "(.claude/settings.json missing or ralph-loop not disabled). Staying in stage mode.")
+        return False
     prompt = (
         f"You are the {role} agent. Plane work-item {job.get('issue_id')} "
         f"('{job.get('name')}') entered state '{job.get('state')}'. Perform the {role} step "
