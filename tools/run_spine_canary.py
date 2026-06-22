@@ -16,6 +16,17 @@ layers:
        * ``assert_ralph_absent`` — no fire's ``command_path`` routes through a
          ralph ``stop-hook.sh`` (belt-and-suspenders: the loop must be driven by
          the spine Stop hook, never the ralph plugin).
+       * ``assert_positive_path`` — the slice reaches ``proven`` ONLY via a real
+         ``agent_type:"verifier"`` SubagentStop fire whose ``verifier_session_id``
+         differs from the ``implementer_session_id`` (no self-grade). An item that
+         became ``proven`` with no qualifying verifier fire — or via a fire whose
+         verifier/implementer sessions are identical — raises ``AssertionError``.
+       * ``assert_governance_terminal`` — the loop ended on a governance terminal
+         (``run_state.status`` in {complete, handoff}, case-insensitive), driven by
+         the spine Stop hook (``terminated_by == "governance_stop_hook"`` when
+         present), with ``watchdog_kill`` and ``manual_stop`` both falsy and the
+         turn count under the live ``--max-turns`` budget. A non-terminal status,
+         a watchdog/manual kill, or a budget overrun raises ``AssertionError``.
 
   2. ``main(argv)`` — orchestrates the live canary:
        (1) stage a temp slice dir (one in-scope unproven item) + run_state init;
@@ -164,6 +175,135 @@ def assert_ralph_absent(fire_rows) -> None:
         )
 
 
+# Terminal labels the spine Stop hook emits ("COMPLETE"/"HANDOFF") plus the
+# design's lowercase wording — compared case-insensitively.
+_TERMINAL_STATUSES = {"complete", "handoff"}
+
+
+def _fire_evidence(fire_row: dict) -> dict:
+    """Pull the evidence block out of a SubagentStop fire row, whatever its shape.
+
+    The telemetry sink may carry the evidence inline (``evidence``), nested under
+    a captured ``tool_input``/``payload``, or under ``input``. Returns ``{}`` when
+    no dict-shaped evidence is present.
+    """
+    if not isinstance(fire_row, dict):
+        return {}
+    ev = fire_row.get("evidence")
+    if not isinstance(ev, dict):
+        for container in ("tool_input", "payload", "input"):
+            inner = fire_row.get(container)
+            if isinstance(inner, dict) and isinstance(inner.get("evidence"), dict):
+                ev = inner["evidence"]
+                break
+    return ev if isinstance(ev, dict) else {}
+
+
+def assert_positive_path(fire_rows, feature_list, *, slice_id: str | None = None) -> None:
+    """Raise AssertionError unless ``proven`` was earned by a real, distinct verifier.
+
+    Positive control: an item may reach ``proven`` ONLY through a SubagentStop fire
+    that (a) resolves actor ``verifier`` (``agent_type``/``actor_agent`` == verifier),
+    and (b) carries an evidence block whose ``verifier_session_id`` differs from its
+    ``implementer_session_id`` (no same-session self-grade). A proven item with no
+    qualifying verifier fire — or one whose fire's sessions are identical — trips the
+    assertion. When ``slice_id`` is given, only that item is checked; otherwise every
+    in-scope proven item must be backed.
+    """
+    items = (feature_list or {}).get("items", []) if isinstance(feature_list, dict) else []
+    proven = [
+        i for i in items
+        if isinstance(i, dict)
+        and i.get("status") == "proven"
+        and i.get("in_scope", True)
+        and (slice_id is None or i.get("id") == slice_id)
+    ]
+    if not proven:
+        # No proven in-scope item to vouch for — the positive path is vacuously
+        # satisfiable, but the canary's slice is DESIGNED to end proven, so an
+        # empty set means the slice never legitimately closed.
+        assert slice_id is None, (
+            f"positive path: slice {slice_id!r} never reached 'proven' — the "
+            "verifier path did not close the canary slice"
+        )
+        return
+
+    # Collect the qualifying verifier fires (distinct sessions).
+    qualifying = 0
+    for r in (fire_rows or []):
+        if not isinstance(r, dict):
+            continue
+        actor = str(
+            r.get("agent_type")
+            or r.get("actor_agent")
+            or _fire_evidence(r).get("actor_agent", "")
+        )
+        if actor != "verifier":
+            continue
+        ev = _fire_evidence(r)
+        vsid = ev.get("verifier_session_id")
+        isid = ev.get("implementer_session_id")
+        if vsid and isid and vsid != isid:
+            qualifying += 1
+
+    assert qualifying >= 1, (
+        f"positive path: {len(proven)} in-scope item(s) are 'proven' "
+        f"({[i.get('id') for i in proven]}) but NO qualifying verifier fire was "
+        "found (need agent_type=='verifier' with distinct verifier/implementer "
+        "sessions) — the item was not legitimately proven by an independent verifier"
+    )
+
+
+def assert_governance_terminal(run_state, *, max_turns: int | None = None) -> None:
+    """Raise AssertionError unless the loop ended on a clean governance terminal.
+
+    Required facts (design §4 'Governance terminal'):
+      * ``status`` (case-insensitive) is one of {complete, handoff};
+      * ``terminated_by`` == ``"governance_stop_hook"`` — enforced only when the
+        field is present (the file-backed run_state may omit it);
+      * ``watchdog_kill`` and ``manual_stop`` are both falsy;
+      * the turn count (``iteration_count``/``turn_count``) is < ``max_turns`` when
+        a budget is supplied — a run that hit the cap did not terminate by governance.
+    """
+    assert isinstance(run_state, dict) and run_state, (
+        "governance terminal: run_state is missing/empty — the loop produced no "
+        "terminal record, so termination cannot be attributed to the spine"
+    )
+
+    status = str(run_state.get("status", "")).strip().lower()
+    assert status in _TERMINAL_STATUSES, (
+        f"governance terminal: run_state.status={run_state.get('status')!r} is not "
+        f"a governance terminal (want one of {sorted(_TERMINAL_STATUSES)}) — the "
+        "loop never reached complete/handoff"
+    )
+
+    terminated_by = run_state.get("terminated_by")
+    if terminated_by is not None:
+        assert terminated_by == "governance_stop_hook", (
+            f"governance terminal: terminated_by={terminated_by!r} — termination "
+            "was not driven by the spine Stop hook"
+        )
+
+    assert not run_state.get("watchdog_kill"), (
+        "governance terminal: watchdog_kill is set — the run was killed by the "
+        "watchdog, not terminated by governance"
+    )
+    assert not run_state.get("manual_stop"), (
+        "governance terminal: manual_stop is set — the run was stopped manually, "
+        "not terminated by governance"
+    )
+
+    if max_turns is not None:
+        turns = run_state.get("iteration_count")
+        if turns is None:
+            turns = run_state.get("turn_count")
+        if turns is not None:
+            assert int(turns) < int(max_turns), (
+                f"governance terminal: turn count {turns} reached the --max-turns "
+                f"budget ({max_turns}) — a capped run is not a governance terminal"
+            )
+
+
 # ── Subprocess helper for the negative-control hooks ────────────────────────
 
 def _run_hook(hook_file: str, event: dict, env: dict | None = None):
@@ -292,6 +432,17 @@ def _load_fire_rows(sink: Path) -> list[dict]:
     return rows
 
 
+def _load_json(path: Path) -> dict:
+    """Load a JSON object from *path*; return ``{}`` on missing/malformed file."""
+    try:
+        if not Path(path).is_file():
+            return {}
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def _load_transcript_rows(path: Path) -> list[dict]:
     rows: list[dict] = []
     if not path or not Path(path).is_file():
@@ -387,15 +538,31 @@ def main(argv=None) -> int:
             except Exception as exc:  # noqa: BLE001 — fail closed.
                 results.append((name, False, f"{type(exc).__name__}: {exc}"[:80]))
 
+        live_assertions = (
+            "all six hooks fired", "ralph absent", "no re-injection",
+            "positive path (verifier-proven)", "governance terminal",
+        )
         if args.live:
+            # Re-read the post-run coverage model + run_state from the slice dir;
+            # the live session mutates both, and the positive-path / governance
+            # assertions gate on the FINAL on-disk state, not the seeded one.
+            final_feature_list = _load_json(slice_dir / "feature_list.json")
+            final_run_state = _load_json(slice_dir / "run_state.json")
+
             _check("all six hooks fired",
                    lambda: assert_all_hooks_fired(fire_rows, REQUIRED_HOOKS))
             _check("ralph absent",
                    lambda: assert_ralph_absent(fire_rows))
             _check("no re-injection",
                    lambda: assert_no_reinjection(transcript_rows, jaccard=0.9))
+            _check("positive path (verifier-proven)",
+                   lambda: assert_positive_path(
+                       fire_rows, final_feature_list, slice_id=args.slice))
+            _check("governance terminal",
+                   lambda: assert_governance_terminal(
+                       final_run_state, max_turns=args.max_turns))
         else:
-            for name in ("all six hooks fired", "ralph absent", "no re-injection"):
+            for name in live_assertions:
                 results.append((name, None, "SKIP (no --live)"))
 
     # ── Per-assertion PASS/FAIL table ──────────────────────────────────────
