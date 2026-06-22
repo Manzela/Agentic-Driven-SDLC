@@ -37,14 +37,24 @@ def _rederive(artifact: str) -> str:
     return "sha256:" + hashlib.sha256(artifact.encode("utf-8")).hexdigest()
 
 
-def _norm_session(s: str) -> str:
-    """Normalise a session id: strip whitespace and casefold.
+def _norm_session(s) -> str:
+    """Normalise an UNTRUSTED session id for comparison: strip whitespace, REJECT
+    non-ASCII (→ ""), then casefold.
 
-    Applied to BOTH sides of every session comparison so that an attacker
-    cannot bypass the SAME_SESSION check by submitting 'impl' vs 'IMPL' —
-    case-variants of the same id must collide after normalisation.
+    ASCII-only is enforced so this normalisation is IDENTICAL to the Rego twin
+    (`_norm_session` in coverage_query.rego uses OPA `lower`; over ASCII,
+    `lower` == Python `casefold`). A non-ASCII id — e.g. 'ß', which Python
+    `casefold` would fold to 'ss' but Rego `lower` would NOT — normalises to ""
+    in BOTH implementations and is treated as absent. This closes (a) the
+    casefold/lower twin-drift and (b) the Unicode self-grade class, on top of the
+    whitespace/case-variant near-duplicate class ('i' vs ' i ' vs 'I').
     """
-    return s.strip().casefold()
+    if not isinstance(s, str):
+        return ""
+    s = s.strip()
+    if not s or not s.isascii():
+        return ""
+    return s.casefold()  # == lower() for ASCII; explicit about intent
 
 
 def check_slice(
@@ -69,23 +79,24 @@ def check_slice(
                 "output_hash does not re-derive from the captured artifact",
             )
         # (c) actor-separation from provenance fields + the (trusted) ledger.
-        vs_raw = evidence.get("verifier_session_id")
-        is_raw = evidence.get("implementer_session_id")
-        if not vs_raw or not is_raw:
+        # Normalise BOTH sides before any comparison; a non-string, empty,
+        # whitespace-only, or non-ASCII id normalises to "" and is treated as
+        # absent (SESSION_MISSING) — never silently distinct.
+        vs = _norm_session(evidence.get("verifier_session_id"))
+        is_ = _norm_session(evidence.get("implementer_session_id"))
+        if not vs or not is_:
             return _reject(
                 "SESSION_MISSING",
-                "evidence lacks verifier_session_id / implementer_session_id",
+                "evidence lacks a valid (non-empty, ASCII) verifier/implementer session id",
             )
-        # Normalise before ALL comparisons — prevents case-variant self-grade bypass.
-        vs = _norm_session(vs_raw)
-        is_ = _norm_session(is_raw)
         if vs == is_:
             return _reject(
                 "SAME_SESSION",
                 "verifier session equals implementer session (self-grading)",
             )
-        # Normalise ledger entries for the same reason.
+        # Normalise ledger entries for the same reason; "" never matches.
         valid = {_norm_session(s) for s in ledger.get("sessions", [])}
+        valid.discard("")
         if vs not in valid or is_ not in valid:
             return _reject(
                 "SESSION_NOT_IN_LEDGER",

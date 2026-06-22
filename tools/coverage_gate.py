@@ -61,15 +61,21 @@ def _norm_session(value: Any) -> str:
     surrounding whitespace or letter-case are the SAME actor for the purpose of
     the actor-separation gate — an implementer must not be able to dodge the
     self-grading check by submitting ``' i '`` as the verifier when it
-    implemented as ``'i'``. We therefore strip surrounding whitespace and then
-    case-fold before comparing. A non-string, ``None``, or whitespace-only id
-    normalizes to ``""`` (treated as absent). Mirrors the Rego
-    ``_norm_session`` helper. Phase B (Task 5) additionally rejects any id
-    absent from the trusted ledger.
+    implemented as ``'i'``. We strip surrounding whitespace, REJECT non-ASCII
+    (→ ``""``), then case-fold. A non-string, ``None``, empty/whitespace-only, or
+    non-ASCII id normalizes to ``""`` (treated as absent). ASCII-only is enforced
+    so this is IDENTICAL to the Rego ``_norm_session`` twin (OPA ``lower`` over
+    ASCII == Python ``casefold`` over ASCII); a non-ASCII id such as ``'ß'``
+    (which ``casefold`` folds to ``'ss'`` but Rego ``lower`` does not) collapses
+    to ``""`` in BOTH, closing the casefold/lower drift. Phase B additionally
+    rejects any id absent from the trusted ledger.
     """
     if not isinstance(value, str):
         return ""
-    return value.strip().casefold()
+    s = value.strip()
+    if not s or not s.isascii():
+        return ""
+    return s.casefold()  # == lower() for ASCII; matches the Rego twin
 
 
 def _evidence_complete(item: Dict[str, Any]) -> bool:

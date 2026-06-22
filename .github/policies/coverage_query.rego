@@ -104,15 +104,25 @@ _distinct_sessions(ev) if {
 }
 
 # Normalize an UNTRUSTED session id before the distinctness comparison: strip
-# surrounding whitespace, then lower-case. This closes the near-duplicate
-# forgery class (e.g. "i" vs " i ", or "I" vs "i") where an implementer dodges
-# the self-grading check via a whitespace-/case-variant verifier id. A
-# non-string id (object.get default) normalizes to "" and is treated as absent.
-# Twin of coverage_gate._norm_session. Phase B additionally rejects ids absent
-# from the trusted ledger.
-_norm_session(value) := lower(trim_space(value)) if is_string(value)
+# surrounding whitespace, REJECT non-ASCII (-> ""), then lower-case. This closes
+# the near-duplicate forgery class ("i" vs " i " vs "I") AND keeps this helper
+# IDENTICAL to the Python twin coverage_gate._norm_session / evidence_gate
+# (which case-fold): over ASCII, OPA `lower` == Python `casefold`, and any
+# non-ASCII id (e.g. "ß", which Python casefold folds to "ss" but OPA lower does
+# NOT) normalizes to "" in BOTH and is treated as absent — closing the
+# casefold/lower twin-drift. A non-string id normalizes to "". Phase B
+# additionally rejects ids absent from the trusted ledger.
+_norm_session(value) := lower(trim_space(value)) if {
+	is_string(value)
+	regex.match(`^[\x00-\x7f]+$`, trim_space(value))
+}
 
 _norm_session(value) := "" if not is_string(value)
+
+_norm_session(value) := "" if {
+	is_string(value)
+	not regex.match(`^[\x00-\x7f]+$`, trim_space(value))
+}
 
 # ── Helper: a field is missing or empty on an evidence object ─────────────────
 # True when the field is absent, or present but an empty/blank string.
