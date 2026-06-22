@@ -172,6 +172,19 @@ def deny_merge(feature_list: Dict[str, Any]) -> Dict[str, Any]:
                     f"its Evidence_Record is missing/empty field(s): {missing}."
                 )
 
+            # Rule 3 — actor-separation (provenance). A proven item's evidence
+            # must name DISTINCT implementer/verifier sessions (zero-trust: an
+            # implementer may not self-verify). Phase A trusts the ids; Phase B
+            # adds cryptographic attestation + ledger cross-check at CI.
+            ev = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
+            vs, is_ = ev.get("verifier_session_id"), ev.get("implementer_session_id")
+            if not vs or not is_:
+                reasons.append(f"Merge denied: in-scope item {item_id!r} is 'proven' but its "
+                               f"evidence lacks verifier_session_id / implementer_session_id.")
+            elif vs == is_:
+                reasons.append(f"Merge denied: in-scope item {item_id!r} evidence has the same "
+                               f"verifier and implementer session (self-grading).")
+
         return {"deny": bool(reasons), "reasons": reasons}
 
     except Exception as exc:  # noqa: BLE001 — fail CLOSED on any error.

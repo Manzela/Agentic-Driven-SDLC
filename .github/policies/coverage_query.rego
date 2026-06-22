@@ -82,6 +82,27 @@ deny contains msg if {
 	msg := "Merge denied: feature_list.json has zero in-scope items. A zero-item coverage model is a valid INIT state but never a valid COMPLETE/merge state."
 }
 
+# ── Rule 4: actor-separation (provenance) ────────────────────────────────────
+# A proven in-scope item's evidence must name DISTINCT implementer/verifier
+# sessions (zero-trust: an implementer may not self-verify). Phase A trusts the
+# ids; Phase B adds cryptographic attestation + ledger cross-check at CI. This
+# is the Rego twin of coverage_gate.deny_merge's Rule 3.
+deny contains msg if {
+	some item in in_scope_items
+	item.status == "proven"
+	item.evidence
+	not _distinct_sessions(item.evidence)
+	msg := sprintf("Merge denied: in-scope item %q evidence lacks distinct verifier/implementer sessions (self-grading or missing provenance).", [object.get(item, "id", "<no-id>")])
+}
+
+_distinct_sessions(ev) if {
+	v := ev.verifier_session_id
+	i := ev.implementer_session_id
+	v != ""
+	i != ""
+	v != i
+}
+
 # ── Helper: a field is missing or empty on an evidence object ─────────────────
 # True when the field is absent, or present but an empty/blank string.
 field_missing_or_empty(evidence, field) if {
