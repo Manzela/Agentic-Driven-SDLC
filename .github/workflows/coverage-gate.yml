@@ -120,3 +120,6 @@ jobs:
           print("coverage-gate: PASS — every in-scope item is proven with complete evidence.")
           sys.exit(0)
           PY
+
+      - name: Evidence re-derivation + ledger cross-check (Phase A)
+        run: python3 tools/ci_evidence_check.py feature_list.json artifacts dispatch_ledger.json
