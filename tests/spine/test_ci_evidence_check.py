@@ -1,29 +1,233 @@
 # tests/spine/test_ci_evidence_check.py
-import importlib.util, hashlib, json, pathlib
+"""End-to-end CI-level tests for ci_evidence_check.run().
+
+Covers the integration path from feature_list.json → evidence_gate, including
+all red-team cases that must be caught at the CI entrypoint (not just in the
+unit-level test_evidence_gate.py tests).
+"""
+import hashlib
+import importlib.util
+import json
+import pathlib
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+
 def _load():
-    spec = importlib.util.spec_from_file_location("cec", ROOT / "tools/ci_evidence_check.py")
-    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
+    spec = importlib.util.spec_from_file_location(
+        "cec", ROOT / "tools/ci_evidence_check.py"
+    )
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def _sha(text: str) -> str:
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _write_fl(path, items):
+    path.write_text(json.dumps({"items": items}), encoding="utf-8")
+
+
+def _write_led(path, sessions):
+    path.write_text(json.dumps({"sessions": sessions}), encoding="utf-8")
+
+
+def _good_evidence(test_file, artifact_text, impl="impl", verif="verif"):
+    return {
+        "test_file": test_file,
+        "test_name": "t",
+        "output_hash": _sha(artifact_text),
+        "collected_at": "2026-06-22T00:00:00+00:00",
+        "implementer_session_id": impl,
+        "verifier_session_id": verif,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Original two scenarios (preserved)
+# ---------------------------------------------------------------------------
+
 def test_rejects_hash_mismatch_at_ci(tmp_path):
     cec = _load()
-    art = tmp_path / "arts"; art.mkdir()
-    (art / "A.txt").write_text("real")
-    h = "sha256:" + hashlib.sha256(b"FORGED").hexdigest()   # declared hash of different bytes
-    fl = tmp_path / "feature_list.json"; fl.write_text(json.dumps({"items":[
-        {"id":"A","in_scope":True,"status":"proven","evidence":{
-            "test_file":"A.txt","test_name":"n","output_hash":h,
-            "collected_at":"2026-06-22T00:00:00+00:00",
-            "implementer_session_id":"i","verifier_session_id":"v"}}]}))
-    led = tmp_path / "ledger.json"; led.write_text(json.dumps({"sessions":["i","v"]}))
+    art = tmp_path / "arts"
+    art.mkdir()
+    (art / "A.txt").write_text("real", encoding="utf-8")
+    h = _sha("FORGED")  # declared hash of different bytes
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven", "evidence": {
+        "test_file": "A.txt", "test_name": "n", "output_hash": h,
+        "collected_at": "2026-06-22T00:00:00+00:00",
+        "implementer_session_id": "i", "verifier_session_id": "v",
+    }}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, ["i", "v"])
     assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 1
+
+
 def test_accepts_matching_hash(tmp_path):
     cec = _load()
-    art = tmp_path / "arts"; art.mkdir(); (art / "A.txt").write_text("real")
-    h = "sha256:" + hashlib.sha256(b"real").hexdigest()
-    fl = tmp_path / "feature_list.json"; fl.write_text(json.dumps({"items":[
-        {"id":"A","in_scope":True,"status":"proven","evidence":{
-            "test_file":"A.txt","test_name":"n","output_hash":h,
-            "collected_at":"2026-06-22T00:00:00+00:00",
-            "implementer_session_id":"i","verifier_session_id":"v"}}]}))
-    led = tmp_path / "ledger.json"; led.write_text(json.dumps({"sessions":["i","v"]}))
+    art = tmp_path / "arts"
+    art.mkdir()
+    (art / "A.txt").write_text("real", encoding="utf-8")
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven",
+                    "evidence": _good_evidence("A.txt", "real")}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, ["impl", "verif"])
     assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 0
+
+
+# ---------------------------------------------------------------------------
+# Red-team: same-session self-grade (end-to-end through run())
+# ---------------------------------------------------------------------------
+
+def test_rejects_same_session_at_ci(tmp_path):
+    """Implementer and verifier with the same id must be rejected end-to-end."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    (art / "A.txt").write_text("data", encoding="utf-8")
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven",
+                    "evidence": _good_evidence("A.txt", "data", impl="s1", verif="s1")}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, ["s1"])
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 1
+
+
+def test_rejects_same_session_case_variant_at_ci(tmp_path):
+    """Case-variant ids ('impl' vs 'IMPL') must collapse to the same session."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    (art / "A.txt").write_text("data", encoding="utf-8")
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven",
+                    "evidence": _good_evidence("A.txt", "data", impl="impl", verif="IMPL")}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, ["impl", "IMPL"])
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 1
+
+
+# ---------------------------------------------------------------------------
+# Red-team: ghost / spoofed verifier session not in ledger
+# ---------------------------------------------------------------------------
+
+def test_rejects_ghost_verifier_session_at_ci(tmp_path):
+    """A verifier session id not present in the dispatch ledger must be rejected."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    (art / "A.txt").write_text("data", encoding="utf-8")
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven",
+                    "evidence": _good_evidence("A.txt", "data", impl="i", verif="ghost")}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, ["i"])  # "ghost" absent from ledger
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 1
+
+
+# ---------------------------------------------------------------------------
+# Proven item with evidence=None must be rejected
+# ---------------------------------------------------------------------------
+
+def test_rejects_proven_with_no_evidence_at_ci(tmp_path):
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven", "evidence": None}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, [])
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 1
+
+
+# ---------------------------------------------------------------------------
+# In-scope item with status != proven must be rejected
+# ---------------------------------------------------------------------------
+
+def test_rejects_in_scope_unproven_at_ci(tmp_path):
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "unproven", "evidence": None}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, [])
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 1
+
+
+# ---------------------------------------------------------------------------
+# Graceful-skip contract — absent inputs must not fail CI
+# ---------------------------------------------------------------------------
+
+def test_skips_gracefully_when_feature_list_absent(tmp_path):
+    """Absent feature_list.json is pre-delivery state — must exit 0."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    led = tmp_path / "ledger.json"
+    _write_led(led, [])
+    fl = tmp_path / "feature_list.json"  # NOT written — does not exist
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 0
+
+
+def test_skips_gracefully_when_ledger_absent(tmp_path):
+    """Absent dispatch_ledger.json is pre-delivery state — must exit 0."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [])
+    led = tmp_path / "ledger.json"  # NOT written — does not exist
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 0
+
+
+# ---------------------------------------------------------------------------
+# Path-traversal guard
+# ---------------------------------------------------------------------------
+
+def test_rejects_path_traversal_in_test_file(tmp_path):
+    """A test_file value that escapes artifacts_dir must cause rejection (not a bypass)."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    # Create a file outside artifacts_dir that the attacker claims as their artifact.
+    outside = tmp_path / "secret.txt"
+    outside.write_text("secret", encoding="utf-8")
+    # Attacker computes the real sha256 of that file to forge valid-looking evidence.
+    h = _sha("secret")
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven", "evidence": {
+        "test_file": "../secret.txt",  # traversal
+        "test_name": "t",
+        "output_hash": h,
+        "collected_at": "2026-06-22T00:00:00+00:00",
+        "implementer_session_id": "i",
+        "verifier_session_id": "v",
+    }}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, ["i", "v"])
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 1
+
+
+def test_rejects_absolute_path_traversal_in_test_file(tmp_path):
+    """An absolute test_file path escaping artifacts_dir must also be rejected."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    h = _sha("irrelevant")
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven", "evidence": {
+        "test_file": "/etc/hostname",
+        "test_name": "t",
+        "output_hash": h,
+        "collected_at": "2026-06-22T00:00:00+00:00",
+        "implementer_session_id": "i",
+        "verifier_session_id": "v",
+    }}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, ["i", "v"])
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 1

@@ -121,5 +121,11 @@ jobs:
           sys.exit(0)
           PY
 
+      # Evidence re-derivation + ledger cross-check (Phase A).
+      # Consistent with the deny_merge step above, this step skips gracefully
+      # when feature_list.json or dispatch_ledger.json is absent — both are
+      # runtime artifacts whose absence is valid in the pre-delivery state.
+      # ci_evidence_check.run() enforces this contract internally (exit 0 on
+      # absent inputs); invoking it unconditionally is therefore safe.
       - name: Evidence re-derivation + ledger cross-check (Phase A)
         run: python3 tools/ci_evidence_check.py feature_list.json artifacts dispatch_ledger.json
