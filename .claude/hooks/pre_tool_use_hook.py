@@ -292,7 +292,10 @@ def main() -> int:
         human_signed=_resolve_human_signed(event),
     )
     if decision["decision"] == "allow":
-        print(json.dumps(decision))
+        # Claude Code hook-output schema: PreToolUse has NO valid top-level
+        # "decision". An allow is exit 0 with NO stdout (a bare
+        # {"decision":"allow"} is INVALID INPUT and spams "Invalid input" on
+        # every tool call). The implicit-allow path is the conformant one.
         return 0
     # Block: the reason is read only on stderr (stdout JSON is ignored on exit 2).
     print(decision["reason"], file=sys.stderr)

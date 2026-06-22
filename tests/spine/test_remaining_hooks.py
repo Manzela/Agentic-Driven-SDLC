@@ -123,12 +123,16 @@ def test_post_tool_use_no_paths_yields_empty_feedback_but_non_block():
 
 
 def test_post_tool_use_main_shell_exits_nonblocking():
-    """The stdin shell must NEVER return exit code 2 (the blocking channel)."""
+    """The stdin shell must NEVER return exit code 2 (the blocking channel).
+
+    Per Claude Code's hook-output schema (Task 7c), PostToolUse's no-issue /
+    feedback path is exit 0 — feedback rides hookSpecificOutput.additionalContext,
+    NOT an exit code. Exit 1 was the old homegrown convention; the conformant
+    non-blocking code is 0 (and is never 2, the blocking channel)."""
     code = post_hook.main.__code__
-    # main() returns 1 (non-blocking feedback channel), never 2.
     rc = _run_main_with_stdin(post_hook, json.dumps(_edit_event()))
     assert rc != 2, f"PostToolUse main exited with blocking code {rc}"
-    assert rc == 1, rc
+    assert rc == 0, rc
     assert code is not None
 
 

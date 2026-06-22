@@ -297,7 +297,14 @@ def main(argv: list[str] | None = None) -> int:
 
     decision = evaluate_stop(run_state or {}, feature_list or {})
     if decision["decision"] == "allow":
-        print(decision["reason"])
+        # Claude Code hook-output schema: Stop has NO valid top-level "decision"
+        # for an allow (a bare reason / {"decision":"allow"} is INVALID INPUT).
+        # The COMPLETE/HANDOFF steering still reaches the agent — via the only
+        # schema-valid channel, hookSpecificOutput.additionalContext.
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "Stop",
+            "additionalContext": decision["reason"],
+        }}))
         return 0
     # Block reason on STDERR (Claude Code ignores stdout on exit 2).
     print(decision["reason"], file=sys.stderr)

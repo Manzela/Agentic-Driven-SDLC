@@ -204,18 +204,77 @@ def _default_runners() -> dict:
     return {"lint": _real_lint, "sast": _real_sast, "wiring": _real_wiring}
 
 
+# Substrings that mark a runner could not run (binary or target missing), not a
+# real code finding. Per the Claude Code contract these are SKIPPED SILENTLY —
+# an absent linter / missing target must not surface "os error 2" noise.
+_SKIP_SUBSTRINGS = ("os error 2", "No such file or directory",
+                    "command not found")
+
+
+def _is_tooling_noise(f: dict) -> bool:
+    msg = str(f.get("message", "")).lower()
+    rule = str(f.get("rule", "")).lower()
+    if rule == "runner-error":
+        return True
+    return any(s.lower() in msg for s in _SKIP_SUBSTRINGS)
+
+
+def _format_feedback(feedback: list[dict]) -> str:
+    """Render the finding records into a single additionalContext block.
+
+    One line per finding: `[<source>/<severity>] <path>:<line> <rule> — <message>`.
+    Empty/whitespace-only fields are elided so a finding with no path/line/rule
+    still reads cleanly. Tooling-noise findings (absent binary / missing target /
+    runner error) are dropped so an absent linter is skipped silently.
+    """
+    lines: list[str] = []
+    for f in feedback:
+        if not isinstance(f, dict):
+            continue
+        if _is_tooling_noise(f):
+            continue
+        src = str(f.get("source", "")).strip()
+        sev = str(f.get("severity", "")).strip()
+        path = str(f.get("path", "")).strip()
+        line = f.get("line")
+        rule = str(f.get("rule", "")).strip()
+        msg = str(f.get("message", "")).strip()
+        loc = path + (f":{line}" if path and line is not None else "")
+        head = f"[{src}/{sev}]" if (src or sev) else ""
+        parts = [p for p in (head, loc, rule, ("— " + msg) if msg else "") if p]
+        lines.append(" ".join(parts))
+    return "\n".join(lines)
+
+
 def main() -> int:
-    """Thin stdin shell. Prints feedback JSON; ALWAYS exits 1 (non-blocking)."""
+    """Thin stdin shell. Conforms to Claude Code's PostToolUse output schema.
+
+    PostToolUse's only valid top-level "decision" is "block" — which this hook
+    NEVER emits (the never-blocks invariant, design.md:845). So:
+      * no findings  → exit 0, NO stdout (a bare {"decision":"non_block"} is
+        INVALID INPUT and spams "Invalid input" on every edit);
+      * findings     → surface them ONLY via
+        {"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":…}}.
+    A missing linter binary is skipped silently upstream (_run_subprocess's
+    shutil.which guard), so an absent tool produces no os-error feedback.
+    """
     raw = sys.stdin.read()
     try:
         event = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
         event = {}
     result = post_tool_use(event)
-    print(json.dumps(result))
-    # Exit 1 = non-blocking feedback channel. NEVER 2 (which would block) and
-    # NEVER 0-with-block — the PostToolUse never-blocks invariant (design.md:845).
-    return 1
+    feedback = result.get("feedback") or []
+    if feedback:
+        rendered = _format_feedback(feedback)
+        if rendered.strip():
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": rendered,
+            }}))
+    # Exit 0 — PostToolUse never blocks; the feedback (if any) is conveyed via
+    # additionalContext above, not via an exit code or a top-level decision.
+    return 0
 
 
 if __name__ == "__main__":

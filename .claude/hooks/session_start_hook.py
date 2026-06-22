@@ -372,8 +372,8 @@ def main() -> int:
         )
 
         # ── Spine self-check (D11): loud on un-wiring / wrong-script / ralph
-        #    shadow. NON-BLOCKING — append the summary to the structured payload
-        #    and, on FAIL, surface it to the operator via additionalContext.
+        #    shadow. NON-BLOCKING — fold the self-check summary into the
+        #    context the A5 self-check surfaces to the operator.
         try:
             settings = _read_settings(root / SETTINGS_FILE)
             status = spine_status(
@@ -385,18 +385,22 @@ def main() -> int:
             result["spine_ok"] = status["ok"]
             result["spine_summary"] = status["summary"]
             result["summary"] = result["summary"] + " " + status["summary"]
-            if not status["ok"]:
-                result["hookSpecificOutput"] = {
-                    "hookEventName": "SessionStart",
-                    "additionalContext": status["summary"],
-                }
         except Exception as exc:  # noqa: BLE001 — non-blocking; never vanish silently.
             result["spine_summary"] = (
                 f"GOVERNANCE SPINE: self-check did not complete "
                 f"({type(exc).__name__}: {exc})."
             )
+            result["summary"] = result["summary"] + " " + result["spine_summary"]
 
-        print(json.dumps(result))
+        # Claude Code hook-output schema: SessionStart injects context ONLY via
+        # {"hookSpecificOutput":{"hookEventName":"SessionStart",
+        #   "additionalContext":…}}. Emitting the raw result dict (bare
+        # top-level "summary"/"unproven_count"/… keys) is INVALID INPUT — the
+        # A5 self-check summary must ride additionalContext, never a bare field.
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": result["summary"],
+        }}))
     except Exception as exc:  # noqa: BLE001 — non-blocking by contract.
         print(f"session_start_hook: warning: {type(exc).__name__}: {exc}", file=sys.stderr)
     return 0  # ALWAYS non-blocking.
