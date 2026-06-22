@@ -39,6 +39,123 @@ from typing import Any
 
 PROGRESS_FILE = "claude-progress.txt"
 FEATURE_LIST_FILE = "feature_list.json"
+SETTINGS_FILE = ".claude/settings.json"
+
+# The governance events whose registration the spine self-check asserts, paired
+# with the expected hook-script basename for each. An event registered but
+# pointing at a foreign script is a FALSE GREEN (A-HOOK-01): the slot exists yet
+# an unrelated plugin owns it, so we match the registered command against the
+# expected basename, not merely against the event's presence.
+DEFAULT_EVENT_SCRIPTS = {
+    "PreToolUse": "pre_tool_use_hook.py",
+    "PostToolUse": "post_tool_use_hook.py",
+    "Stop": "stop_hook.py",
+    "SubagentStop": "subagent_stop_hook.py",
+    "SessionStart": "session_start_hook.py",
+    "PreCompact": "pre_compact_hook.py",
+}
+
+# The plugin whose Stop hook runs IN PARALLEL with this spine's Stop hook and
+# shadows the governance HANDOFF/ALLOW gate unless explicitly disabled in
+# settings.enabledPlugins. It is a shadow risk whenever it is NOT pinned to False.
+SHADOWING_PLUGIN = "ralph-loop@claude-plugins-official"
+
+
+# ── Spine self-check (D11) — loud on un-wiring / wrong-script / ralph shadow ──
+
+def registered_commands(settings: dict | None) -> dict[str, list[str]]:
+    """Return {event: [command-string, …]} for every event registered with at
+    least one ``type:"command"`` hook in settings.json. Keys on the settings
+    *shape* (hooks.<Event>[].hooks[].type/command), never on product content, so
+    it generalizes to any roster. Capturing the command strings (not just the
+    event name) lets the canary verify the slot points at THIS spine's hook
+    rather than an unrelated plugin's (A-HOOK-01)."""
+    out: dict[str, list[str]] = {}
+    if not settings:
+        return out
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        return out
+    for event, groups in hooks.items():
+        if not isinstance(groups, list):
+            continue
+        cmds: list[str] = []
+        for group in groups:
+            inner = (group or {}).get("hooks") if isinstance(group, dict) else None
+            if not isinstance(inner, list):
+                continue
+            for h in inner:
+                if isinstance(h, dict) and h.get("type") == "command":
+                    cmds.append(str(h.get("command") or ""))
+        if cmds:
+            out[event] = cmds
+    return out
+
+
+def spine_status(
+    settings: dict | None,
+    required: list[str],
+    event_scripts: dict[str, str],
+    shadowing_plugin: str,
+) -> dict:
+    """Pure spine self-check over durable settings.json state. NON-BLOCKING.
+
+    Asserts each ``required`` event is registered as a ``type:"command"`` hook
+    AND that the registered command references the expected hook-script basename
+    (so a foreign plugin silently owning a slot is caught, not read as GREEN).
+    The shadowing plugin is a risk unless it is explicitly pinned to ``False`` in
+    ``enabledPlugins`` (``enabledPlugins.get(plugin) is not False``).
+
+    Returns ``{"ok", "missing", "wrong_script", "ralph_shadow_risk", "summary"}``.
+    """
+    cmds = registered_commands(settings)
+    present = set(cmds.keys())
+
+    missing = [e for e in required if e not in present]
+
+    # An event registered but pointing at the wrong script is a FALSE GREEN.
+    wrong_script: dict[str, str] = {}
+    for ev in required:
+        if ev in cmds and ev in event_scripts:
+            expected = event_scripts[ev]
+            if not any(expected in c for c in cmds[ev]):
+                wrong_script[ev] = expected
+
+    enabled = (settings or {}).get("enabledPlugins")
+    enabled = enabled if isinstance(enabled, dict) else {}
+    ralph_shadow_risk = enabled.get(shadowing_plugin) is not False
+
+    ok = not missing and not wrong_script and not ralph_shadow_risk
+
+    if ok:
+        summary = (
+            f"GOVERNANCE SPINE: PASS — {len(present & set(required))} required "
+            f"event(s) registered to the expected scripts; {shadowing_plugin} "
+            f"disabled."
+        )
+    else:
+        parts = []
+        if missing:
+            parts.append(f"{len(missing)} event(s) not registered: {missing}")
+        if wrong_script:
+            parts.append(
+                f"{len(wrong_script)} event(s) on the WRONG script: {wrong_script}"
+            )
+        if ralph_shadow_risk:
+            parts.append(
+                f"SHADOW RISK: {shadowing_plugin} not pinned False in enabledPlugins"
+            )
+        summary = "GOVERNANCE SPINE: FAIL — " + "; ".join(parts) + (
+            f". Fix {SETTINGS_FILE} before relying on any gate."
+        )
+
+    return {
+        "ok": ok,
+        "missing": missing,
+        "wrong_script": wrong_script,
+        "ralph_shadow_risk": ralph_shadow_risk,
+        "summary": summary,
+    }
 
 
 # ── Resumed-state hash (Phase-0 shape of the Phase-2 state_integrity compute) ─
@@ -208,6 +325,19 @@ def _read_feature_list(path: Path) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def _read_settings(path: Path) -> dict | None:
+    """Best-effort read of settings.json. None on absence or parse error — both
+    are spine-self-check signals (absent/malformed → no hooks registered)."""
+    raw = _read_text(path)
+    if raw is None:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 def main() -> int:
     """Claude-Code SessionStart entrypoint. Loads on-disk state, prints the
     structured-JSON summary to stdout, and ALWAYS exits 0 (non-blocking).
@@ -240,6 +370,32 @@ def main() -> int:
             git_status=git_status,
             durable_hash=durable_hash,
         )
+
+        # ── Spine self-check (D11): loud on un-wiring / wrong-script / ralph
+        #    shadow. NON-BLOCKING — append the summary to the structured payload
+        #    and, on FAIL, surface it to the operator via additionalContext.
+        try:
+            settings = _read_settings(root / SETTINGS_FILE)
+            status = spine_status(
+                settings,
+                list(DEFAULT_EVENT_SCRIPTS.keys()),
+                DEFAULT_EVENT_SCRIPTS,
+                SHADOWING_PLUGIN,
+            )
+            result["spine_ok"] = status["ok"]
+            result["spine_summary"] = status["summary"]
+            result["summary"] = result["summary"] + " " + status["summary"]
+            if not status["ok"]:
+                result["hookSpecificOutput"] = {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": status["summary"],
+                }
+        except Exception as exc:  # noqa: BLE001 — non-blocking; never vanish silently.
+            result["spine_summary"] = (
+                f"GOVERNANCE SPINE: self-check did not complete "
+                f"({type(exc).__name__}: {exc})."
+            )
+
         print(json.dumps(result))
     except Exception as exc:  # noqa: BLE001 — non-blocking by contract.
         print(f"session_start_hook: warning: {type(exc).__name__}: {exc}", file=sys.stderr)
