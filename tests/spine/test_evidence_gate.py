@@ -70,3 +70,32 @@ def test_check_model_collects_rejections():
     r = eg.check_model(model=model, ledger=LEDGER, artifacts={"A": ART, "B": ART})
     assert r["accepted"] is False
     assert [x["id"] for x in r["rejections"]] == ["B"]   # only the self-grade; C is out-of-scope
+
+# ---- check_model fail-closed red team (a malformed model must NEVER vacuously accept) ----
+
+def test_check_model_none_fails_closed():     # RED-TEAM: model is None (was uncaught AttributeError)
+    eg = _load()
+    r = eg.check_model(model=None, ledger=LEDGER, artifacts={})
+    assert r["accepted"] is False and r["rejections"][0]["code"] == "MODEL_MALFORMED"
+
+def test_check_model_items_non_int_fails_closed():  # RED-TEAM: items is an int (was uncaught TypeError)
+    eg = _load()
+    r = eg.check_model(model={"items": 5}, ledger=LEDGER, artifacts={})
+    assert r["accepted"] is False and r["rejections"][0]["code"] == "MODEL_MALFORMED"
+
+def test_check_model_items_string_not_vacuous_accept():  # RED-TEAM: the dangerous silent-pass case
+    eg = _load()
+    r = eg.check_model(model={"items": "x"}, ledger=LEDGER, artifacts={})
+    assert r["accepted"] is False and r["rejections"][0]["code"] == "MODEL_MALFORMED"
+
+def test_check_model_non_dict_item_fails_closed():  # RED-TEAM: list with a non-dict element
+    eg = _load()
+    r = eg.check_model(model={"items": [{"id": "A", "in_scope": True, "status": "proven",
+                                        "evidence": _ev()}, "junk"]},
+                       ledger=LEDGER, artifacts={"A": ART})
+    assert r["accepted"] is False and r["rejections"][0]["code"] == "MODEL_MALFORMED"
+
+def test_check_model_empty_items_accepts():   # nothing in scope is a legitimate accept (not vacuous-malformed)
+    eg = _load()
+    r = eg.check_model(model={"items": []}, ledger=LEDGER, artifacts={})
+    assert r["accepted"] is True and r["rejections"] == []

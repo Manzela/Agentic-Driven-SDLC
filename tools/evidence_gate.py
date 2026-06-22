@@ -55,19 +55,43 @@ def check_slice(*, evidence: dict | None, artifact: str | None, ledger: dict) ->
         return _reject("EVIDENCE_MALFORMED", f"evidence_gate raised {type(exc).__name__}: {exc}")
 
 def check_model(*, model: dict, ledger: dict, artifacts: dict) -> dict:
-    """Run check_slice for every in-scope PROVEN item; collect rejections (by id)."""
-    rejections = []
-    for item in sorted([i for i in model.get("items", []) if isinstance(i, dict) and i.get("in_scope")],
-                       key=lambda i: str(i.get("id", ""))):
-        if item.get("status") != "proven":
-            rejections.append({"id": item.get("id"), "code": "EVIDENCE_MISSING",
-                               "reason": f"in-scope item is {item.get('status')!r}, not proven"})
-            continue
-        r = check_slice(evidence=item.get("evidence"),
-                        artifact=artifacts.get(item.get("id")), ledger=ledger)
-        if not r["accepted"]:
-            rejections.append({"id": item.get("id"), **r})
-    return {"accepted": not rejections, "rejections": rejections}
+    """Run check_slice for every in-scope PROVEN item; collect rejections (by id).
+
+    Fails CLOSED: a malformed `model` (not a dict, or `items` not a list of
+    dicts) is a MODEL_MALFORMED reject — never a vacuous accept. A non-list
+    `items` (e.g. a string) must NOT be treated as 'nothing to reject': an
+    adversarial feature_list that silently passes is the exact hole this guards.
+    """
+    try:
+        if not isinstance(model, dict):
+            return {"accepted": False, "rejections": [
+                {"id": None, "code": "MODEL_MALFORMED",
+                 "reason": f"model is {type(model).__name__}, not a dict"}]}
+        items = model.get("items", [])
+        if not isinstance(items, (list, tuple)):
+            return {"accepted": False, "rejections": [
+                {"id": None, "code": "MODEL_MALFORMED",
+                 "reason": f"model['items'] is {type(items).__name__}, not a list"}]}
+        if any(not isinstance(i, dict) for i in items):
+            return {"accepted": False, "rejections": [
+                {"id": None, "code": "MODEL_MALFORMED",
+                 "reason": "model['items'] contains a non-dict element"}]}
+        rejections = []
+        for item in sorted([i for i in items if i.get("in_scope")],
+                           key=lambda i: str(i.get("id", ""))):
+            if item.get("status") != "proven":
+                rejections.append({"id": item.get("id"), "code": "EVIDENCE_MISSING",
+                                   "reason": f"in-scope item is {item.get('status')!r}, not proven"})
+                continue
+            r = check_slice(evidence=item.get("evidence"),
+                            artifact=artifacts.get(item.get("id")), ledger=ledger)
+            if not r["accepted"]:
+                rejections.append({"id": item.get("id"), **r})
+        return {"accepted": not rejections, "rejections": rejections}
+    except Exception as exc:  # noqa: BLE001 — fail closed.
+        return {"accepted": False, "rejections": [
+            {"id": None, "code": "MODEL_MALFORMED",
+             "reason": f"check_model raised {type(exc).__name__}: {exc}"}]}
 
 # Action-directive remediation (each names the ONE sanctioned next step — the
 # self-heal prompt fed back to the agent on a local reject).
