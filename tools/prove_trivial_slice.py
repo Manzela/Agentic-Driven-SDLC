@@ -25,6 +25,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+sys.path.insert(0, str(ROOT))
+from tools.spine_roles import VERIFIER_ROLE  # noqa: E402  (single-source role constant)
+
 
 def _load(modpath: str, name: str):
     spec = importlib.util.spec_from_file_location(name, ROOT / modpath)
@@ -52,13 +55,13 @@ def main(html_path: str, fl_path: str) -> int:
         output=html,
     )
     # (4) verifier identity + DISTINCT sessions (fix #1/#2).
-    record["actor_agent"] = "verifier.md"
+    record["actor_agent"] = VERIFIER_ROLE
     record["verifier_session_id"] = "sess-verifier-1"
     record["implementer_session_id"] = "sess-implementer-1"
     record["evidence_kind"] = "behavioral"
 
     gate = subagent_stop.evaluate(
-        record=record, output=html, resolved_actor="verifier.md",
+        record=record, output=html, resolved_actor=VERIFIER_ROLE,
         omission_declaration="[Gap] only the happy-path render is checked in this slice.",
     )
     if gate["decision"] != "approve":
@@ -67,7 +70,7 @@ def main(html_path: str, fl_path: str) -> int:
 
     # (5) transition under authority, then write.
     coverage.assert_transition("unproven", "proven")
-    coverage.assert_field_authority(field="status", actor_agent="verifier.md", human_signed=False)
+    coverage.assert_field_authority(field="status", actor_agent=VERIFIER_ROLE, human_signed=False)
     model = json.loads(Path(fl_path).read_text())
     for item in model["items"]:
         if item["id"] == "HOME-RND-001":

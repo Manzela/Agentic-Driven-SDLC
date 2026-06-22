@@ -4,7 +4,7 @@
 The only true prevention gate (exit 2 blocks before a write lands). Enforces:
 
   * the coverage model's ``status`` field is writable ONLY by the verifier
-    (a runtime-resolved actor of ``verifier.md``);
+    (a runtime-resolved actor of ``verifier``);
   * the coverage model's ``in_scope`` field is mutable ONLY by a human-signed
     change (an autonomous agent cannot self-exempt an item to fake COMPLETE);
   * protected artifacts (tests, schema, CI, hooks, coverage schema) may not be
@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-VERIFIER_AGENT = "verifier.md"
+from tools.spine_roles import VERIFIER_ROLE  # noqa: E402  (single-source role constant)
 
 PROTECTED_PREFIXES = (
     "tests/", "schema/", ".github/workflows/", ".github/policies/",
@@ -38,9 +38,9 @@ def evaluate(*, tool_input: dict, resolved_actor: str, human_signed: bool) -> di
 
         # Coverage-model field authority.
         if path.endswith("feature_list.json"):
-            if field == "status" and resolved_actor != VERIFIER_AGENT:
+            if field == "status" and resolved_actor != VERIFIER_ROLE:
                 return {"decision": "block",
-                        "reason": f"status is writable only by {VERIFIER_AGENT} (actor={resolved_actor})"}
+                        "reason": f"status is writable only by {VERIFIER_ROLE} (actor={resolved_actor})"}
             if field == "in_scope" and not human_signed:
                 return {"decision": "block",
                         "reason": "in_scope is mutable only via a human-signed change"}

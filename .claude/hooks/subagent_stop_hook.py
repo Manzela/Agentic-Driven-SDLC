@@ -26,8 +26,7 @@ from pathlib import Path
 # builder enforce exactly the same contract.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.evidence_collector import validate_evidence_record  # noqa: E402
-
-VERIFIER_AGENT = "verifier.md"
+from tools.spine_roles import VERIFIER_ROLE  # noqa: E402  (single-source role constant)
 
 
 def _rederive(output: str) -> str:
@@ -54,9 +53,9 @@ def evaluate(record: dict, output: str, resolved_actor: str,
 
         # (fix #1) only the verifier may flip; the record's actor must equal the
         # runtime-resolved actor (no forged actor_agent promotes a self-grade).
-        if resolved_actor != VERIFIER_AGENT:
+        if resolved_actor != VERIFIER_ROLE:
             return {"decision": "block",
-                    "reason": f"only {VERIFIER_AGENT} may flip to proven; resolved actor={resolved_actor}"}
+                    "reason": f"only {VERIFIER_ROLE} may flip to proven; resolved actor={resolved_actor}"}
         if record.get("actor_agent") != resolved_actor:
             return {"decision": "block",
                     "reason": "record actor_agent does not match the runtime-resolved actor (forgery)"}
