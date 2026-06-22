@@ -17,10 +17,18 @@ from __future__ import annotations
 def baseline_gate(*, baseline: dict | None, feature_list: dict | None) -> dict:
     reasons: list[str] = []
     try:
-        # No baseline (or an empty one) => no delivery expected => the existing
-        # absent-input "pre-delivery skip" is safe. Allow.
-        if not isinstance(baseline, dict):
+        # A genuinely ABSENT baseline (None) => no delivery expected => the
+        # existing absent-input "pre-delivery skip" is safe. Allow.
+        if baseline is None:
             return {"deny": False, "reasons": []}
+        # A PRESENT-but-malformed baseline (non-dict: list / str / number) is a
+        # CORRUPTED trusted input. Fail CLOSED — any ambiguity must deny, never a
+        # silent allow that would reopen RT-01/RT-02 on baseline corruption.
+        # (Phase B's signature check additionally rejects a tampered baseline.)
+        if not isinstance(baseline, dict):
+            return {"deny": True, "reasons": [
+                "Merge denied: baseline is present but not an object "
+                f"(got {type(baseline).__name__}). Corrupted trusted baseline — fail closed."]}
         required = baseline.get("required_in_scope")
         if required is None:
             return {"deny": False, "reasons": []}
