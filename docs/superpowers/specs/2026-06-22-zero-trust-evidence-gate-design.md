@@ -92,6 +92,8 @@ Provenance metadata is worthless if the untrusted actor shares a filesystem with
 | **Dispatcher compromise** (root of trust) | Keep the TCB **minimal and auditable**; formally check its attestation logic; CI re-derives independently where it can so a single bug doesn't silently pass. |
 | **Self-heal infinite loop** (re-introducing C-LOOP-04) | Bounded attempts → HANDOFF, reusing the escalation discipline. |
 | **Bypass via direct push** | Branch ruleset makes Pillar 1 a *required* status check; no merge path skips it. |
+| **Coverage-model omission (RT-01, Gemini red-team — confirmed)** | The "absent `feature_list.json`/`dispatch_ledger.json` → skip (exit 0)" pre-delivery contract is bypassable: an agent that omits/deletes the coverage model from the hostile payload makes *both* CI gate steps skip. → **Phase A.5 protected baseline** — a delivery PR MUST carry the dispatcher-attested coverage model; absence-when-a-delivery-is-expected fails CLOSED. |
+| **In-scope shrinking (RT-02, Gemini red-team — confirmed)** | The gate audits only `in_scope:true` items and trusts the agent-supplied `in_scope` field; flipping a target to `in_scope:false` (keeping one dummy proven item to clear the empty-model block) excludes it from all auditing. → **Phase A.5 protected baseline** — CI verifies the payload's in-scope set is not a subset of the dispatcher-attested baseline. |
 
 ---
 
@@ -136,7 +138,8 @@ The binding gate is now **pure deterministic logic** (re-derivation, signature v
 
 This is larger than one implementation plan. Proposed phasing (each its own plan):
 
-- **Phase A — Evidence-as-source-of-truth (no crypto yet):** local pre-advance gate + bounded self-heal + CI rego completeness + actor-separation from the (still-trusted) ledger. Closes the *enforcement-layer* gap; defers the crypto.
+- **Phase A — Evidence-as-source-of-truth (no crypto yet):** local pre-advance gate + bounded self-heal + CI rego completeness + actor-separation from the (still-trusted) ledger. Closes the *enforcement-layer* gap; defers the crypto. **[DONE + verified 2026-06-22.]**
+- **Phase A.5 — Protected-baseline coverage model (closes Gemini RT-01/RT-02):** the gate hardens *what it audits* but Phase A still trusts the agent-controlled *scope* — the coverage model's PRESENCE and its in-scope item set — which decides *whether* it audits. Fix: the model's presence + in-scope set are attested by a trusted **baseline** the agent does not control (dispatcher-owned, out-of-band like the ledger), not self-declared in the hostile payload. CI loads the baseline and FAILS CLOSED when a delivery is expected but the model is absent (RT-01) or its in-scope set shrank relative to the baseline (RT-02). Deterministic + testable like Phase A; the baseline is trusted in A.5 and cryptographically signed in Phase B. **Plan: `docs/superpowers/plans/2026-06-22-evidence-gate-phase-a5.md`.**
 - **Phase B — Cryptographic chain of custody:** dispatcher signing (keyless), out-of-band/signed ledger, CI signature verification, TOCTOU binding.
 - **Phase C — Process isolation / sandbox:** sandboxed agent processes, TCB boundary, dispatcher-observes-across-boundary.
 - **Phase D — TCB hardening + red-team:** minimize/audit the dispatcher, forgery/tamper test suite, formal check of attestation logic.
