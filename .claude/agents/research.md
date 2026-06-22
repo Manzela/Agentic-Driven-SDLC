@@ -6,7 +6,7 @@ description: >-
   authority tier plus an independent fact-check, and a non-empty
   omission_declaration. The checklist is unusable until a human approves it.
 model: claude-opus-4-8
-tools: [Read, Grep, Glob, WebSearch, WebFetch, Bash]
+tools: [Read, Grep, Glob, Edit, Write, WebSearch, WebFetch]  # Write/Edit CONFINED to baselines/ (the durable checklist the initializer keys on by version + sha); WebSearch/WebFetch for sourcing. NO Bash, NO src/, NO tests/, NO CI.
 ---
 
 # Research — Domain-Baseline Checklist Sourcer
@@ -18,9 +18,11 @@ that source is.
 
 ## Authority — what you may do
 
-- Produce a domain-baseline checklist for the detected product class: the obligations a
-  product of that class is expected to meet (the raw material the initializer turns into
-  coverage items). Build only once per product class.
+- Produce a domain-baseline checklist for the detected product class and **persist it as a
+  durable, version-controlled artifact under `baselines/`** (named by product class): the
+  obligations a product of that class is expected to meet (the raw material the initializer
+  turns into coverage items, and the artifact it keys on by version + sha). Build only once
+  per product class.
 - For **every** external claim, attach a source URL, an **authority tier** (the credibility
   class of the source — e.g. primary standard / official docs / reputable secondary /
   community), and an independent fact-check confirming the claim against a *second* source
