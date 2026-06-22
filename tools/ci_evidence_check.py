@@ -36,6 +36,7 @@ ENCODING:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -51,6 +52,46 @@ _SKIP_MSG_LED = (
     "ci-evidence-check: dispatch_ledger.json not present — "
     "pre-delivery state, skipping gracefully (gate passes)."
 )
+
+
+class _BaselineTrustError(Exception):
+    """Raised when the baseline path violates the trust boundary (fail closed).
+
+    The baseline MUST reach CI from a source the agent cannot tamper with and is
+    NEVER read from the PR payload surface. The PR payload surface == the checkout
+    populated from PR HEAD, i.e. GITHUB_WORKSPACE. A baseline that resolves INSIDE
+    GITHUB_WORKSPACE is — by definition — a file the PR author could have committed,
+    so trusting it would neutralize RT-01/RT-02. We reject it fail-closed regardless
+    of what the YAML wiring did, so a workflow regression cannot silently re-open the
+    bypass.
+    """
+
+
+def _assert_baseline_out_of_band(baseline_path: Path) -> None:
+    """Fail closed if ``baseline_path`` lives inside the agent-controlled checkout.
+
+    Enforced ONLY when GITHUB_WORKSPACE is set (i.e. on a GitHub-hosted runner). The
+    baseline is trusted only when it is staged OUTSIDE the PR checkout (e.g. into
+    ``$RUNNER_TEMP/trusted-baseline``). If the resolved baseline path is the workspace
+    root or any descendant of it, the file is on the PR payload surface and is
+    untrustworthy — raise so ``run`` denies the merge.
+    """
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if not workspace:
+        return  # Not on a GitHub runner (unit tests, local) — no workspace surface.
+    try:
+        ws = Path(workspace).resolve()
+    except OSError:
+        return
+    resolved = baseline_path.resolve()
+    if resolved == ws or ws in resolved.parents:
+        raise _BaselineTrustError(
+            "baseline path "
+            f"{resolved} resolves INSIDE GITHUB_WORKSPACE ({ws}) — the agent-"
+            "controlled PR checkout. The protected baseline MUST be staged out-of-band "
+            "(e.g. $RUNNER_TEMP/trusted-baseline), NEVER read from the PR payload. "
+            "Fail closed (RT-01/RT-02 trust boundary)."
+        )
 
 
 def _safe_read_artifact(artifacts_dir: Path, test_file: str) -> str | None:
@@ -94,8 +135,18 @@ def run(
     # alongside feature_list.json (that is the very thing the agent controls). See
     # tools/baseline_gate.py and .github/workflows/coverage-gate.yml.
     baseline = None
-    if baseline_path is not None and Path(baseline_path).is_file():
-        baseline = json.loads(Path(baseline_path).read_text(encoding="utf-8"))
+    if baseline_path is not None:
+        bl_path = Path(baseline_path)
+        # TRUST-BOUNDARY ENFORCEMENT (defense in depth). Even if the workflow YAML
+        # regresses and points us at a PR-resident path, refuse to trust a baseline
+        # that lives inside the agent-controlled checkout. Fail CLOSED on violation.
+        try:
+            _assert_baseline_out_of_band(bl_path)
+        except _BaselineTrustError as exc:
+            print(f"DENY baseline: {exc}", file=sys.stderr)
+            return 1
+        if bl_path.is_file():
+            baseline = json.loads(bl_path.read_text(encoding="utf-8"))
 
     # The model may legitimately be absent (pre-delivery). Read it (or None) so the
     # baseline gate can decide whether that absence is acceptable.
@@ -136,16 +187,32 @@ def run(
     return 0
 
 
+def _default_baseline_path() -> str:
+    """Out-of-band default for the trusted baseline.
+
+    Prefer ``$RUNNER_TEMP/trusted-baseline/coverage_baseline.json`` — a path the CI
+    workflow stages OUTSIDE GITHUB_WORKSPACE (the agent-controlled PR checkout). When
+    RUNNER_TEMP is unset (local / unit runs) fall back to a relative filename; the
+    trust-boundary guard (``_assert_baseline_out_of_band``) is a no-op off-runner.
+    """
+    runner_temp = os.environ.get("RUNNER_TEMP")
+    if runner_temp:
+        return str(Path(runner_temp) / "trusted-baseline" / "coverage_baseline.json")
+    return "coverage_baseline.json"
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     # Positional args: feature_list.json artifacts dispatch_ledger.json [baseline].
-    # The baseline path defaults to "coverage_baseline.json" — the OUT-OF-BAND,
-    # TRUSTED location the dispatcher (TCB) wrote it to. The CI workflow stages this
-    # file from a protected source (artifact/branch/secret), NEVER from the PR
-    # checkout, before invoking this entrypoint (see coverage-gate.yml).
+    # The baseline path defaults to the OUT-OF-BAND, TRUSTED location the dispatcher
+    # (TCB) wrote it to ($RUNNER_TEMP/trusted-baseline/coverage_baseline.json). The CI
+    # workflow stages this file from a protected source (artifact/branch/secret) into a
+    # path OUTSIDE GITHUB_WORKSPACE, NEVER the PR checkout, before invoking this
+    # entrypoint (see coverage-gate.yml). run() additionally fails closed if the
+    # supplied baseline path resolves inside GITHUB_WORKSPACE.
     fl, arts, led, baseline = (
         list(argv)
-        + ["feature_list.json", "artifacts", "dispatch_ledger.json", "coverage_baseline.json"]
+        + ["feature_list.json", "artifacts", "dispatch_ledger.json", _default_baseline_path()]
     )[:4]
     return run(
         feature_list_path=fl,

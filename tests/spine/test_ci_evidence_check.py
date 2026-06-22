@@ -328,6 +328,104 @@ def test_empty_baseline_required_set_absent_inputs_skip(tmp_path):
     assert rc == 0
 
 
+# ---------------------------------------------------------------------------
+# Trust-boundary guard (Gemini RT-01/RT-02): a baseline inside the agent-
+# controlled checkout ($GITHUB_WORKSPACE) must NEVER be trusted — fail closed,
+# even though it is a perfectly well-formed, dict-shaped baseline file.
+# ---------------------------------------------------------------------------
+
+def _set_workspace(monkeypatch, path):
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(path))
+
+
+def test_baseline_inside_workspace_denies_even_if_wellformed(tmp_path, monkeypatch):
+    """The exact attack: a malicious PR commits a baseline into the checkout that
+    declares an EMPTY required set (which would otherwise skip RT-01/RT-02). With
+    GITHUB_WORKSPACE pointing at the checkout, run() must fail CLOSED rather than
+    read that PR-resident file as 'trusted'."""
+    cec = _load()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _set_workspace(monkeypatch, workspace)
+    # Attacker-planted baseline INSIDE the checkout, empty required set => would
+    # otherwise neutralize the gate.
+    bl = workspace / ".trusted-baseline" / "coverage_baseline.json"
+    bl.parent.mkdir(parents=True)
+    bl.write_text('{"required_in_scope":[]}', encoding="utf-8")
+    rc = cec.run(
+        feature_list_path=workspace / "nope.json",
+        artifacts_dir=workspace,
+        ledger_path=workspace / "nope2.json",
+        baseline_path=bl,
+    )
+    assert rc == 1  # trust boundary: PR-resident baseline => fail closed
+
+
+def test_baseline_at_workspace_root_path_denies(tmp_path, monkeypatch):
+    """A baseline path equal to the workspace root itself is also rejected."""
+    cec = _load()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _set_workspace(monkeypatch, workspace)
+    bl = workspace / "coverage_baseline.json"
+    bl.write_text('{"required_in_scope":["A"]}', encoding="utf-8")
+    rc = cec.run(
+        feature_list_path=workspace / "feature_list.json",
+        artifacts_dir=workspace,
+        ledger_path=workspace / "ledger.json",
+        baseline_path=bl,
+    )
+    assert rc == 1
+
+
+def test_baseline_outside_workspace_is_trusted(tmp_path, monkeypatch):
+    """A baseline staged OUTSIDE $GITHUB_WORKSPACE (the $RUNNER_TEMP pattern) is
+    honored: RT-01 still denies an absent model when the out-of-band baseline
+    expects a delivery."""
+    cec = _load()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _set_workspace(monkeypatch, workspace)
+    # Out-of-band staging dir — a sibling of the workspace, NOT inside it.
+    runner_temp = tmp_path / "runner_temp" / "trusted-baseline"
+    runner_temp.mkdir(parents=True)
+    bl = runner_temp / "coverage_baseline.json"
+    bl.write_text('{"required_in_scope":["A"]}', encoding="utf-8")
+    rc = cec.run(
+        feature_list_path=workspace / "nope.json",  # model absent
+        artifacts_dir=workspace,
+        ledger_path=workspace / "nope2.json",
+        baseline_path=bl,
+    )
+    assert rc == 1  # RT-01 fires from a TRUSTED out-of-band baseline
+
+
+def test_no_workspace_env_baseline_path_unrestricted(tmp_path, monkeypatch):
+    """Off-runner (no GITHUB_WORKSPACE) the guard is a no-op so local/unit runs and
+    the existing tmp_path-based tests keep working."""
+    cec = _load()
+    monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+    bl = tmp_path / "coverage_baseline.json"
+    bl.write_text('{"required_in_scope":["A"]}', encoding="utf-8")
+    rc = cec.run(
+        feature_list_path=tmp_path / "nope.json",
+        artifacts_dir=tmp_path,
+        ledger_path=tmp_path / "nope2.json",
+        baseline_path=bl,
+    )
+    assert rc == 1  # honored as trusted (no workspace surface to violate)
+
+
+def test_default_baseline_path_uses_runner_temp(monkeypatch, tmp_path):
+    """main()'s default baseline path is the out-of-band $RUNNER_TEMP location."""
+    cec = _load()
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    expected = str(tmp_path / "trusted-baseline" / "coverage_baseline.json")
+    assert cec._default_baseline_path() == expected
+    monkeypatch.delenv("RUNNER_TEMP", raising=False)
+    assert cec._default_baseline_path() == "coverage_baseline.json"
+
+
 def test_rejects_absolute_path_traversal_in_test_file(tmp_path):
     """An absolute test_file path escaping artifacts_dir must also be rejected."""
     cec = _load()

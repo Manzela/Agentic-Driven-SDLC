@@ -143,13 +143,37 @@ jobs:
       #
       # If no baseline is delivered (no delivery is in flight) the file is simply
       # absent and ci_evidence_check skips gracefully — see the absent-input contract.
+      #
+      # TRUST-BOUNDARY HARDENING (Gemini RT-01/RT-02 finding):
+      #   * We stage into ${{ runner.temp }}/trusted-baseline — an ABSOLUTE path
+      #     OUTSIDE $GITHUB_WORKSPACE. download-artifact resolves a relative `path`
+      #     against the workspace (the PR checkout), so a relative target like
+      #     `.trusted-baseline` is INSIDE the agent-controlled surface; a malicious PR
+      #     can commit `.trusted-baseline/coverage_baseline.json` and, because the
+      #     download is continue-on-error, that PR-authored file would survive a silent
+      #     download miss and be read as "trusted". $RUNNER_TEMP is created fresh per
+      #     job and is not populated from the PR HEAD, so a PR cannot plant a file there.
+      #   * We `rm -rf` the staging dir before the download so no prior state lingers.
+      #   * After the download we detect outcome: if the artifact was absent the gate
+      #     runs WITHOUT a baseline (the file simply does not exist => pre-delivery
+      #     skip). If the download FAILED for any other reason we do NOT silently fall
+      #     back — ci_evidence_check additionally fails closed if ever handed a baseline
+      #     path inside $GITHUB_WORKSPACE.
+      - name: Prepare out-of-band baseline staging dir (outside the PR checkout)
+        run: |
+          rm -rf "${RUNNER_TEMP}/trusted-baseline"
+          mkdir -p "${RUNNER_TEMP}/trusted-baseline"
+          # Belt and suspenders: if a malicious PR committed a workspace-resident
+          # baseline to spoof the trusted one, delete it so nothing reads it by accident.
+          rm -rf "${GITHUB_WORKSPACE}/.trusted-baseline"
+
       - name: Fetch protected coverage baseline (out-of-band, NOT from PR checkout)
         id: baseline
         continue-on-error: true   # absent baseline == no delivery expected == skip
         uses: actions/download-artifact@v4
         with:
-          name: coverage-baseline          # uploaded by the dispatcher (TCB) job
-          path: .trusted-baseline           # separate from the PR working tree
+          name: coverage-baseline               # uploaded by the dispatcher (TCB) job
+          path: ${{ runner.temp }}/trusted-baseline   # ABSOLUTE, outside the workspace
           # github-token / run-id wiring (for cross-run / cross-workflow artifacts)
           # is supplied by the dispatcher integration; left to ops per source choice.
 
@@ -159,11 +183,12 @@ jobs:
       # baseline expects a delivery — both are runtime artifacts whose absence is
       # valid pre-delivery. When the trusted baseline IS present, an absent or shrunk
       # coverage model DENIES the merge (RT-01 / RT-02). The baseline path points at
-      # the out-of-band .trusted-baseline/ location, NEVER the PR checkout root.
+      # the out-of-band $RUNNER_TEMP location, NEVER the PR checkout root, and
+      # ci_evidence_check fails closed if the path ever resolves inside the workspace.
       - name: Evidence re-derivation + ledger cross-check + baseline gate (Phase A / A.5)
         run: |
           python3 tools/ci_evidence_check.py \
             feature_list.json \
             artifacts \
             dispatch_ledger.json \
-            .trusted-baseline/coverage_baseline.json
+            "${RUNNER_TEMP}/trusted-baseline/coverage_baseline.json"
