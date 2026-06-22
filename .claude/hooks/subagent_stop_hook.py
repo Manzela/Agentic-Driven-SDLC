@@ -27,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.evidence_collector import validate_evidence_record  # noqa: E402
 from tools.spine_roles import VERIFIER_ROLE  # noqa: E402  (single-source role constant)
+from tools.hook_telemetry import record_fire  # noqa: E402
 
 
 def _rederive(output: str) -> str:
@@ -93,6 +94,8 @@ def main() -> int:
     except json.JSONDecodeError:
         print("unparseable SubagentStop event JSON. Fail closed.", file=sys.stderr)
         return 2
+    record_fire("SubagentStop", event.get("session_id", ""),
+                agent_type=event.get("agent_type", ""))
     from tools.actor_identity import resolve_identity
     try:
         actor = resolve_identity(event).actor_agent

@@ -35,6 +35,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tools.hook_telemetry import record_fire  # noqa: E402
+
 # ── Module constants ────────────────────────────────────────────────────────
 
 PROGRESS_FILE = "claude-progress.txt"
@@ -358,6 +361,7 @@ def main() -> int:
         event = {}
 
     durable_hash = event.get("durable_hash") or event.get("resume_state_hash")
+    record_fire("SessionStart", event.get("session_id", ""))
 
     try:
         root = _project_root()

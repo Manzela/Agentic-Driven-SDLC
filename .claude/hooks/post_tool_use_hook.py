@@ -35,6 +35,9 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tools.hook_telemetry import record_fire  # noqa: E402
+
 # Tool calls whose completion carries changed file paths worth checking.
 _EDIT_TOOLS = ("Write", "Edit", "MultiEdit")
 
@@ -263,6 +266,7 @@ def main() -> int:
         event = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
         event = {}
+    record_fire("PostToolUse", event.get("session_id", ""))
     result = post_tool_use(event)
     feedback = result.get("feedback") or []
     if feedback:

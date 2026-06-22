@@ -48,6 +48,7 @@ from tools.spine_roles import (  # noqa: E402  (single-source role + path consta
     PROTECTED_PREFIXES,
     VERIFIER_ROLE,
 )
+from tools.hook_telemetry import record_fire  # noqa: E402
 
 COVERAGE_MODEL_PATHS = ("feature_list.json",)
 
@@ -272,6 +273,8 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    record_fire("PreToolUse", event.get("session_id", ""),
+                agent_type=event.get("agent_type", ""))
     from tools.actor_identity import resolve_identity
     try:
         actor = resolve_identity(event).actor_agent

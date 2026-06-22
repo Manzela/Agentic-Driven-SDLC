@@ -41,6 +41,7 @@ from tools.execution_bounds import (  # noqa: E402
     SPEC_COMPLETION_HARD_CAP,
     BLOCK_STREAK_HANDOFF,
 )
+from tools.hook_telemetry import record_fire  # noqa: E402
 
 
 # ── Decision constructors ───────────────────────────────────────────────────
@@ -245,6 +246,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Stop blocked: unparseable Stop event JSON. Fail closed.",
               file=sys.stderr)
         return 2
+
+    record_fire("Stop", event.get("session_id", ""),
+                stop_hook_active=bool(event.get("stop_hook_active")))
 
     # Reentrancy: a forced continuation is NOT a fresh task. When the harness
     # re-fires Stop because the previous block injected a continuation,
