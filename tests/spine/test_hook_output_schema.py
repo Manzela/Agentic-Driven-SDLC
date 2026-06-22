@@ -9,8 +9,12 @@ Code's hook-output schema accepts (https://code.claude.com/docs/en/hooks):
   * PostToolUse no-issue→ exit 0, NO stdout; feedback only via
                          hookSpecificOutput.additionalContext; NEVER {"decision":"non_block"}.
                          A missing linter binary is SKIPPED SILENTLY (no os-error feedback).
-  * Stop        allow  → exit 0; reason (if any) only via hookSpecificOutput.additionalContext;
-                         NEVER a bare top-level "decision".
+  * Stop        allow  → exit 0, NO conversation-continuing control output on
+                         stdout (no hookSpecificOutput.additionalContext — that
+                         CONTINUES the conversation and would PREVENT the stop,
+                         defeating COMPLETE/HANDOFF termination); reason, if any,
+                         only on STDERR (non-controlling on exit 0). NEVER a bare
+                         top-level "decision".
   * SubagentStop accept→ exit 0, NO stdout (already correct — guarded here).
   * SessionStart       → exit 0; context ONLY via hookSpecificOutput.additionalContext;
                          NEVER bare top-level "summary"/"decision".
@@ -116,22 +120,36 @@ def test_posttooluse_missing_linter_skipped_silently():
 
 # ── Stop ─────────────────────────────────────────────────────────────────────
 
-def test_stop_allow_emits_no_bare_decision():
+def test_stop_allow_emits_no_continuing_control_output():
+    """Stop-ALLOW (here: HANDOFF via block_streak >= cap) must let the stop
+    PROCEED — exit 0 with NO conversation-continuing control output. Per the
+    Claude Code hook contract, a Stop hook's hookSpecificOutput.additionalContext
+    CONTINUES the conversation (PREVENTS the stop); emitting it on an ALLOW would
+    force the agent past its cap and defeat the HANDOFF escape. So stdout must be
+    empty (no hookSpecificOutput, no bare decision); the reason, if any, is
+    surfaced only on STDERR, which is non-controlling on exit 0."""
     rc, out, err = _run("stop_hook.py", {
         "run_state": {"violation_count": 1, "block_streak": 5},
         "feature_list": {"items": [{"id": "X", "in_scope": True, "status": "unproven"}]}})
     assert rc == 0
+    # No control channel on stdout: no continuing additionalContext, no bare decision.
+    assert out == "", f"Stop-allow must emit no stdout control output, got: {out!r}"
+    assert '"hookSpecificOutput"' not in out
     assert '"decision"' not in out
-    # The HANDOFF steering must still reach the agent — via additionalContext.
-    assert "HANDOFF" in (out + err)
     _assert_schema_valid_or_empty(out)
+    # The HANDOFF reason is still surfaced — but only as non-controlling stderr.
+    assert "HANDOFF" in err
 
 
-def test_stop_complete_emits_schema_valid():
+def test_stop_complete_emits_no_continuing_control_output():
+    """Stop-ALLOW (here: COMPLETE — loop finished) must likewise let the stop
+    proceed with no continuing control output on stdout."""
     rc, out, err = _run("stop_hook.py", {
         "run_state": {"violation_count": 0},
         "feature_list": {"items": [{"id": "X", "in_scope": True, "status": "proven"}]}})
     assert rc == 0
+    assert out == "", f"Stop-allow must emit no stdout control output, got: {out!r}"
+    assert '"hookSpecificOutput"' not in out
     assert '"decision"' not in out
     _assert_schema_valid_or_empty(out)
 

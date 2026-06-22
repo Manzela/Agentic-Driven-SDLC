@@ -297,14 +297,21 @@ def main(argv: list[str] | None = None) -> int:
 
     decision = evaluate_stop(run_state or {}, feature_list or {})
     if decision["decision"] == "allow":
-        # Claude Code hook-output schema: Stop has NO valid top-level "decision"
-        # for an allow (a bare reason / {"decision":"allow"} is INVALID INPUT).
-        # The COMPLETE/HANDOFF steering still reaches the agent — via the only
-        # schema-valid channel, hookSpecificOutput.additionalContext.
-        print(json.dumps({"hookSpecificOutput": {
-            "hookEventName": "Stop",
-            "additionalContext": decision["reason"],
-        }}))
+        # Stop-ALLOW must let the stop PROCEED: exit 0 with NO conversation-
+        # continuing control output. Per the Claude Code hook-output contract
+        # (https://code.claude.com/docs/en/hooks), a Stop hook's
+        # hookSpecificOutput.additionalContext is non-error feedback that
+        # CONTINUES the conversation — i.e. it PREVENTS the stop. Both terminal
+        # states here (COMPLETE = loop finished; HANDOFF = cap/budget/no-progress/
+        # block-streak/external-blocker → escalate to a human and stop working
+        # past the cap) are designed to ALLOW termination, so emitting
+        # additionalContext would force a continuation and reintroduce the exact
+        # past-cap / non-terminating loop the no-progress watchdog exists to
+        # prevent (design.md ~952-1039), defeating the HANDOFF escape. The reason
+        # is surfaced as PLAIN diagnostic text on STDERR, which is non-controlling
+        # on an exit-0 Stop and does not block the stop.
+        if decision.get("reason"):
+            print(decision["reason"], file=sys.stderr)
         return 0
     # Block reason on STDERR (Claude Code ignores stdout on exit 2).
     print(decision["reason"], file=sys.stderr)
