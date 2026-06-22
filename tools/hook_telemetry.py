@@ -10,5 +10,5 @@ def record_fire(hook_event: str, session_id: str, **extra) -> None:
     try:
         with open(sink, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec) + "\n")
-    except OSError:
+    except Exception:  # noqa: BLE001 — never raises: non-JSON-serializable extras, OS errors, etc.
         pass
