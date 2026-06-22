@@ -38,12 +38,44 @@ QUEUE = HERE / ".agent_queue.jsonl"
 STATE = HERE / ".dispatcher_state.json"
 AUDIT = HERE / ".dispatch_audit.jsonl"
 
+# TRUSTED BASELINE — written by the dispatcher (TCB) to an out-of-band location
+# that is NEVER part of the agent's PR payload or workspace. CI fetches it from
+# this protected path; an agent controlling feature_list.json cannot tamper with it.
+# Phase B will sign this file; Phase A.5 trusts it by delivery path alone.
+BASELINE_PATH = HERE / "coverage_baseline.json"
+
 VALID_ROLES = {"initializer", "implementer", "verifier"}
 MAX_ATTEMPTS = 3
 
 
 def _log(*a):
     print("[dispatcher]", *a, file=sys.stderr, flush=True)
+
+
+# ---------------------------------------------------------------- trusted baseline writer
+def _maybe_write_baseline(issue_ids: list, out_path=None) -> None:
+    """Write the trusted coverage baseline for dispatched item ids (fail-safe).
+
+    The output is the TRUSTED baseline the merge gate checks the PR payload against.
+    It MUST be delivered to CI out-of-band (protected artifact / protected branch /
+    secret) — NEVER read from the PR payload alongside feature_list.json. An agent
+    controlling feature_list.json cannot tamper with a file written here.
+    Phase B signs this output; Phase A.5 trusts it by delivery path alone.
+
+    This is fail-safe: any error is logged and suppressed so baseline writing
+    never breaks dispatch.
+    """
+    if not issue_ids:
+        return
+    path = pathlib.Path(out_path) if out_path is not None else BASELINE_PATH
+    try:
+        if str(ROOT / "tools") not in sys.path:
+            sys.path.insert(0, str(ROOT / "tools"))
+        import baseline_writer
+        baseline_writer.write_baseline(required_in_scope=issue_ids, out_path=path)
+        _log(f"trusted baseline written → {path} ({len(issue_ids)} item(s))")
+    except Exception as exc:  # noqa: BLE001 — fail-safe, never break dispatch
+        _log(f"baseline write skipped ({type(exc).__name__}: {exc})")
 
 
 # ---------------------------------------------------------------- audit producer
@@ -193,12 +225,20 @@ def default_invoker(job):
 
 
 # ---------------------------------------------------------------- drain loop
-def drain(invoker=default_invoker, max_attempts=MAX_ATTEMPTS):
-    """Process all new agent_dispatch jobs once. Returns the number dispatched."""
+def drain(invoker=default_invoker, max_attempts=MAX_ATTEMPTS, baseline_path=None):
+    """Process all new agent_dispatch jobs once. Returns the number dispatched.
+
+    After all jobs are processed, writes the trusted coverage baseline for every
+    successfully dispatched issue id. The baseline is written to BASELINE_PATH (an
+    out-of-band trusted location — NOT the agent workspace / PR payload). CI fetches
+    it from there; an agent controlling feature_list.json cannot tamper with it.
+    Phase B signs this file; Phase A.5 trusts it by delivery path alone.
+    """
     st = load_state()
     seen = set(st.get("seen", []))
     attempts = dict(st.get("attempts", {}))
     dispatched = 0
+    dispatched_ids: list = []
 
     for job in read_jobs():
         if job.get("kind") != "agent_dispatch":
@@ -220,6 +260,8 @@ def drain(invoker=default_invoker, max_attempts=MAX_ATTEMPTS):
             seen.add(key)
             attempts.pop(key, None)
             dispatched += 1
+            if issue_id:
+                dispatched_ids.append(str(issue_id))
         except Exception as e:
             n = attempts.get(key, 0) + 1
             attempts[key] = n
@@ -233,6 +275,12 @@ def drain(invoker=default_invoker, max_attempts=MAX_ATTEMPTS):
     st["seen"] = list(seen)
     st["attempts"] = attempts
     save_state(st)
+
+    # Write the trusted coverage baseline for all dispatched item ids.
+    # Fail-safe: any error is logged and suppressed — never breaks dispatch.
+    if dispatched_ids:
+        _maybe_write_baseline(dispatched_ids, out_path=baseline_path)
+
     return dispatched
 
 
