@@ -17,6 +17,7 @@ Completion-gate invariant (mirrors evaluate_stop): an item may only reach `Done`
 which is a terminal state distinct from Done.
 """
 import sys, json, time, pathlib
+import importlib.util as _ilu
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import plane_client as pc
 
@@ -94,6 +95,38 @@ def prove(issue_id, test_file, test_name, output_hash):
     pc.transition(issue_id, "Done", "verifier")
     print(json.dumps({"proven": issue_id, "evidence": {"test_file": test_file,
           "test_name": test_name, "output_hash": output_hash, "collected_at": collected}, "state": "Done"}))
+
+def _loop_gate():
+    spec = _ilu.spec_from_file_location(
+        "loop_gate", pathlib.Path(__file__).resolve().parents[1] / "tools/loop_gate.py"
+    )
+    m = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def gated_prove(*, issue_id, evidence, artifact, ledger, root):
+    """Gate a proven transition: only set Done when the evidence gate ACCEPTS.
+
+    On reject -> return the self-heal/HANDOFF decision; the board is NOT moved to Done.
+    On handoff -> post a HANDOFF comment and transition to HANDOFF state.
+    On self_heal -> no board change; caller feeds decision['prompt'] back to the verifier.
+    """
+    decision = _loop_gate().gated_advance(
+        root=root, evidence=evidence, artifact=artifact, ledger=ledger
+    )
+    if decision["action"] == "advance":
+        pc.post_evidence(
+            issue_id, evidence["test_file"], evidence["test_name"],
+            evidence["output_hash"], evidence["collected_at"], "verifier",
+        )
+        pc.transition(issue_id, "Done", "verifier")
+    elif decision["action"] == "handoff":
+        pc.comment(issue_id, f"<p><b>HANDOFF</b> — evidence gate: {decision['reason']}</p>")
+        pc.transition(issue_id, "HANDOFF", "verifier")
+    # self_heal -> no board change; caller feeds decision['prompt'] back to the verifier
+    return decision
+
 
 def handoff(issue_id, reason, role="verifier"):
     pc.comment(issue_id, f"<p><b>HANDOFF</b> — reason: {reason} (a human picks this up; not Done)</p>")
