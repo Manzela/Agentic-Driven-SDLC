@@ -140,7 +140,7 @@ def test_store_evidence_complete_flips_to_proven_and_is_retrievable(store):
     assert _status_of(store, "REQ-B-001") == "unproven", "precondition: not yet proven"
 
     record = _complete_record("b1")
-    store.store_evidence("REQ-B-001", record)  # actor defaults to verifier.md
+    store.store_evidence("REQ-B-001", record)  # actor defaults to verifier
 
     # The flip happened.
     assert _status_of(store, "REQ-B-001") == "proven", "complete record must flip to proven"

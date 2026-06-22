@@ -36,9 +36,9 @@ def _export(log: AuditLog) -> list[dict]:
 def _build_chain(n: int = 3) -> AuditLog:
     """Mint a valid n-entry chain with the real producer (distinct rows 1..n)."""
     log = AuditLog()
-    log.append("PreToolUse", "Write", "allow", "first", "REQ-AUDIT-001", "implementer.md")
+    log.append("PreToolUse", "Write", "allow", "first", "REQ-AUDIT-001", "implementer")
     if n >= 2:
-        log.append("PreToolUse", "Edit", "block", "second", "REQ-AUDIT-002", "implementer.md")
+        log.append("PreToolUse", "Edit", "block", "second", "REQ-AUDIT-002", "implementer")
     if n >= 3:
         log.append("Stop", None, "allow", "third", None, "main")
     return log

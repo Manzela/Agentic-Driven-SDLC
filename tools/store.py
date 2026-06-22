@@ -610,7 +610,8 @@ class Store:
         and writes nothing — the proven transition is refused.
 
         Provenance (Property 24): ``actor_agent`` defaults to and is asserted to
-        be the Verifier (``verifier.md``). Implementer-authored evidence is
+        be the Verifier (``VERIFIER_ROLE`` == ``"verifier"``, suffix-less).
+        Implementer-authored evidence is
         rejected — evidence is captured only by the Verifier, never the
         Implementer.
 
