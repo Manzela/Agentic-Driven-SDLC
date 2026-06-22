@@ -213,6 +213,121 @@ def test_rejects_path_traversal_in_test_file(tmp_path):
     assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led) == 1
 
 
+# ---------------------------------------------------------------------------
+# Protected baseline (Phase A.5) — RT-01 / RT-02 enforced at the CI entrypoint
+# ---------------------------------------------------------------------------
+
+def test_baseline_present_but_model_absent_denies(tmp_path):
+    """RT-01: a delivery is expected (baseline declares required in-scope) but the
+    PR payload omits feature_list.json — the absent-input skip must NOT fire; deny."""
+    cec = _load()
+    bl = tmp_path / "coverage_baseline.json"
+    bl.write_text('{"required_in_scope":["A"]}', encoding="utf-8")
+    rc = cec.run(
+        feature_list_path=tmp_path / "nope.json",
+        artifacts_dir=tmp_path,
+        ledger_path=tmp_path / "nope2.json",
+        baseline_path=bl,
+    )
+    assert rc == 1  # RT-01 closed: absent model when a delivery is expected
+
+
+def test_baseline_required_item_flipped_out_of_scope_denies(tmp_path):
+    """RT-02: a baseline-required item flipped to in_scope:false must deny — the
+    baseline gate runs before any other check."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    (art / "A.txt").write_text("real", encoding="utf-8")
+    fl = tmp_path / "feature_list.json"
+    # Item A is present but flipped out of scope to dodge auditing.
+    _write_fl(fl, [{"id": "A", "in_scope": False, "status": "proven",
+                    "evidence": _good_evidence("A.txt", "real")}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, ["impl", "verif"])
+    bl = tmp_path / "coverage_baseline.json"
+    bl.write_text('{"required_in_scope":["A"]}', encoding="utf-8")
+    rc = cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led, baseline_path=bl)
+    assert rc == 1  # RT-02 closed: in-scope shrinking denied
+
+
+def test_baseline_required_item_removed_denies(tmp_path):
+    """RT-02: a baseline-required item removed from the payload entirely must deny."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [])  # required item "A" no longer present at all
+    led = tmp_path / "ledger.json"
+    _write_led(led, [])
+    bl = tmp_path / "coverage_baseline.json"
+    bl.write_text('{"required_in_scope":["A"]}', encoding="utf-8")
+    rc = cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led, baseline_path=bl)
+    assert rc == 1
+
+
+def test_baseline_satisfied_passes_through_to_evidence_gate(tmp_path):
+    """A baseline whose required items are all in-scope+proven must pass (exit 0):
+    the baseline gate is additive and does not block a well-formed delivery."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    (art / "A.txt").write_text("real", encoding="utf-8")
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven",
+                    "evidence": _good_evidence("A.txt", "real")}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, ["impl", "verif"])
+    bl = tmp_path / "coverage_baseline.json"
+    bl.write_text('{"required_in_scope":["A"]}', encoding="utf-8")
+    assert cec.run(feature_list_path=fl, artifacts_dir=art, ledger_path=led, baseline_path=bl) == 0
+
+
+def test_malformed_baseline_required_fails_closed(tmp_path):
+    """A malformed baseline (required_in_scope not a list) must fail closed (deny)."""
+    cec = _load()
+    bl = tmp_path / "coverage_baseline.json"
+    bl.write_text('{"required_in_scope":"A"}', encoding="utf-8")  # str, not list
+    fl = tmp_path / "feature_list.json"
+    _write_fl(fl, [{"id": "A", "in_scope": True, "status": "proven",
+                    "evidence": None}])
+    led = tmp_path / "ledger.json"
+    _write_led(led, [])
+    rc = cec.run(feature_list_path=fl, artifacts_dir=tmp_path, ledger_path=led, baseline_path=bl)
+    assert rc == 1
+
+
+def test_no_baseline_absent_inputs_still_skip(tmp_path):
+    """No baseline (or no baseline file) + absent inputs => pre-delivery skip (exit 0)."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    # baseline_path points at a non-existent file => treated as no baseline.
+    rc = cec.run(
+        feature_list_path=tmp_path / "nope.json",
+        artifacts_dir=art,
+        ledger_path=tmp_path / "nope2.json",
+        baseline_path=tmp_path / "absent_baseline.json",
+    )
+    assert rc == 0
+
+
+def test_empty_baseline_required_set_absent_inputs_skip(tmp_path):
+    """A baseline with an empty required_in_scope expects no delivery => skip (exit 0)."""
+    cec = _load()
+    art = tmp_path / "arts"
+    art.mkdir()
+    bl = tmp_path / "coverage_baseline.json"
+    bl.write_text('{"required_in_scope":[]}', encoding="utf-8")
+    rc = cec.run(
+        feature_list_path=tmp_path / "nope.json",
+        artifacts_dir=art,
+        ledger_path=tmp_path / "nope2.json",
+        baseline_path=bl,
+    )
+    assert rc == 0
+
+
 def test_rejects_absolute_path_traversal_in_test_file(tmp_path):
     """An absolute test_file path escaping artifacts_dir must also be rejected."""
     cec = _load()

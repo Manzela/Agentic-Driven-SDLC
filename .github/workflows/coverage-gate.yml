@@ -121,11 +121,49 @@ jobs:
           sys.exit(0)
           PY
 
-      # Evidence re-derivation + ledger cross-check (Phase A).
-      # Consistent with the deny_merge step above, this step skips gracefully
-      # when feature_list.json or dispatch_ledger.json is absent — both are
-      # runtime artifacts whose absence is valid in the pre-delivery state.
-      # ci_evidence_check.run() enforces this contract internally (exit 0 on
-      # absent inputs); invoking it unconditionally is therefore safe.
-      - name: Evidence re-derivation + ledger cross-check (Phase A)
-        run: python3 tools/ci_evidence_check.py feature_list.json artifacts dispatch_ledger.json
+      # PROTECTED COVERAGE BASELINE (Phase A.5) — TRUST BOUNDARY.
+      # --------------------------------------------------------------------------
+      # The baseline (coverage_baseline.json) declares which item ids the dispatcher
+      # (the TCB) put in-scope for this delivery. The merge gate checks the PR's
+      # feature_list.json AGAINST it, so that the agent — which controls the PR
+      # payload — cannot dodge auditing by DELETING feature_list.json (RT-01) or by
+      # flipping a target item to in_scope:false / removing it (RT-02).
+      #
+      # CRITICAL: the baseline MUST be fetched from a TRUSTED, OUT-OF-BAND source the
+      # agent cannot tamper with. It is NEVER taken from the PR checkout (that is the
+      # very surface the agent owns). Acceptable A.5 sources, in order of preference:
+      #   1. A protected workflow artifact uploaded by the dispatcher job (the TCB),
+      #      downloaded here with actions/download-artifact — the artifact is written
+      #      by a job the PR author cannot influence.
+      #   2. A protected branch / ref the PR cannot push to (checked out into a
+      #      SEPARATE path, e.g. ./.trusted, NOT the workspace root).
+      #   3. A repository/organization secret materialized to disk.
+      # Phase A.5 treats the baseline as TRUSTED; Phase B signs it (then this step
+      # also verifies the signature before trusting the file).
+      #
+      # If no baseline is delivered (no delivery is in flight) the file is simply
+      # absent and ci_evidence_check skips gracefully — see the absent-input contract.
+      - name: Fetch protected coverage baseline (out-of-band, NOT from PR checkout)
+        id: baseline
+        continue-on-error: true   # absent baseline == no delivery expected == skip
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-baseline          # uploaded by the dispatcher (TCB) job
+          path: .trusted-baseline           # separate from the PR working tree
+          # github-token / run-id wiring (for cross-run / cross-workflow artifacts)
+          # is supplied by the dispatcher integration; left to ops per source choice.
+
+      # Evidence re-derivation + ledger cross-check (Phase A) + protected-baseline
+      # gate (Phase A.5). Consistent with the deny_merge step above, this skips
+      # gracefully when feature_list.json or dispatch_ledger.json is absent AND no
+      # baseline expects a delivery — both are runtime artifacts whose absence is
+      # valid pre-delivery. When the trusted baseline IS present, an absent or shrunk
+      # coverage model DENIES the merge (RT-01 / RT-02). The baseline path points at
+      # the out-of-band .trusted-baseline/ location, NEVER the PR checkout root.
+      - name: Evidence re-derivation + ledger cross-check + baseline gate (Phase A / A.5)
+        run: |
+          python3 tools/ci_evidence_check.py \
+            feature_list.json \
+            artifacts \
+            dispatch_ledger.json \
+            .trusted-baseline/coverage_baseline.json
