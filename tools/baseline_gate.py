@@ -13,12 +13,6 @@ Phase B signs it. Pure stdlib; fails CLOSED.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools.coverage import in_scope_items  # noqa: E402
-
 
 def baseline_gate(*, baseline: dict | None, feature_list: dict | None) -> dict:
     reasons: list[str] = []
@@ -30,7 +24,7 @@ def baseline_gate(*, baseline: dict | None, feature_list: dict | None) -> dict:
         required = baseline.get("required_in_scope")
         if required is None:
             return {"deny": False, "reasons": []}
-        if not isinstance(required, (list, tuple)):
+        if not isinstance(required, list | tuple):
             return {"deny": True, "reasons": [
                 "Merge denied: baseline.required_in_scope is not a list. Fail closed."]}
         required_set = {str(x) for x in required}
@@ -45,7 +39,23 @@ def baseline_gate(*, baseline: dict | None, feature_list: dict | None) -> dict:
                 "is absent or malformed. Fail closed (RT-01)."]}
 
         # RT-02: every required id must be present AND in_scope in the payload.
-        payload_in_scope = {str(i.get("id")) for i in in_scope_items(feature_list)}
+        # SECURITY: deduplicate by id before building the in-scope set. An agent can
+        # include the same id twice — once with in_scope:false (the real item, evading
+        # auditing) and once with in_scope:true (a ghost copy with fabricated evidence).
+        # Without deduplication the ghost's True entry would satisfy the gate while the
+        # real item is never audited. We resolve the id on FIRST OCCURRENCE in the
+        # items list: if an id appears multiple times and the first occurrence has
+        # in_scope:false, that id is treated as out-of-scope, regardless of any later
+        # ghost entry. This closes the duplicate-id bypass for RT-02.
+        seen_ids: set = set()
+        payload_in_scope: set = set()
+        for item in feature_list.get("items", []):
+            iid = str(item.get("id"))
+            if iid in seen_ids:
+                continue  # first-occurrence wins; ignore duplicates
+            seen_ids.add(iid)
+            if item.get("in_scope"):
+                payload_in_scope.add(iid)
         for rid in sorted(required_set):
             if rid not in payload_in_scope:
                 reasons.append(

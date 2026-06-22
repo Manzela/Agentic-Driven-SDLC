@@ -40,3 +40,15 @@ def test_malformed_inputs_fail_closed():
     bg = _load()
     assert bg.baseline_gate(baseline={"required_in_scope": ["A"]}, feature_list="x")["deny"] is True
     assert bg.baseline_gate(baseline={"required_in_scope": "A"}, feature_list=_fl("A"))["deny"] is True
+
+def test_duplicate_id_ghost_bypass_is_denied():
+    """Critical: an agent cannot satisfy RT-02 by adding a ghost in_scope:true duplicate
+    of a real out-of-scope item. First-occurrence wins; the ghost must not satisfy the gate."""
+    bg = _load()
+    # Real item A is out-of-scope (first occurrence); ghost A is in_scope:true (second).
+    fl = {"items": [
+        {"id": "A", "in_scope": False},   # real item — out of scope
+        {"id": "A", "in_scope": True},    # ghost — must be ignored (duplicate)
+    ]}
+    r = bg.baseline_gate(baseline={"required_in_scope": ["A"]}, feature_list=fl)
+    assert r["deny"] is True, "ghost duplicate must not satisfy RT-02 gate"

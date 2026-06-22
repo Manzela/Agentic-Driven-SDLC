@@ -53,8 +53,8 @@ def _log(*a):
 
 
 # ---------------------------------------------------------------- trusted baseline writer
-def _maybe_write_baseline(issue_ids: list, out_path=None) -> None:
-    """Write the trusted coverage baseline for dispatched item ids (fail-safe).
+def _write_baseline_fail_closed(issue_ids: list, out_path=None) -> None:
+    """Write the trusted coverage baseline for dispatched item ids (FAIL-CLOSED).
 
     The output is the TRUSTED baseline the merge gate checks the PR payload against.
     It MUST be delivered to CI out-of-band (protected artifact / protected branch /
@@ -62,20 +62,23 @@ def _maybe_write_baseline(issue_ids: list, out_path=None) -> None:
     controlling feature_list.json cannot tamper with a file written here.
     Phase B signs this output; Phase A.5 trusts it by delivery path alone.
 
-    This is fail-safe: any error is logged and suppressed so baseline writing
-    never breaks dispatch.
+    FAIL-CLOSED: any write failure raises so that drain() surfaces the error rather
+    than silently proceeding without a baseline. A silent skip would leave CI with no
+    baseline file, causing the download-artifact step to fail silently (continue-on-error)
+    and the gate to run without a baseline — permanently bypassing RT-01/RT-02. The spec
+    mandates fail-CLOSED throughout; this function upholds that contract.
+
+    Callers that need fail-safe behaviour (e.g. watch-mode) may catch the exception
+    themselves and decide whether to abort or continue.
     """
     if not issue_ids:
         return
     path = pathlib.Path(out_path) if out_path is not None else BASELINE_PATH
-    try:
-        if str(ROOT / "tools") not in sys.path:
-            sys.path.insert(0, str(ROOT / "tools"))
-        import baseline_writer
-        baseline_writer.write_baseline(required_in_scope=issue_ids, out_path=path)
-        _log(f"trusted baseline written → {path} ({len(issue_ids)} item(s))")
-    except Exception as exc:  # noqa: BLE001 — fail-safe, never break dispatch
-        _log(f"baseline write skipped ({type(exc).__name__}: {exc})")
+    if str(ROOT / "tools") not in sys.path:
+        sys.path.insert(0, str(ROOT / "tools"))
+    import baseline_writer  # noqa: PLC0415
+    baseline_writer.write_baseline(required_in_scope=issue_ids, out_path=path)
+    _log(f"trusted baseline written → {path} ({len(issue_ids)} item(s))")
 
 
 # ---------------------------------------------------------------- audit producer
@@ -276,10 +279,11 @@ def drain(invoker=default_invoker, max_attempts=MAX_ATTEMPTS, baseline_path=None
     st["attempts"] = attempts
     save_state(st)
 
-    # Write the trusted coverage baseline for all dispatched item ids.
-    # Fail-safe: any error is logged and suppressed — never breaks dispatch.
+    # Write the trusted coverage baseline for all dispatched item ids (fail-closed).
+    # A write failure raises so the caller sees the error rather than proceeding
+    # silently without a baseline — which would leave CI permanently gateless.
     if dispatched_ids:
-        _maybe_write_baseline(dispatched_ids, out_path=baseline_path)
+        _write_baseline_fail_closed(dispatched_ids, out_path=baseline_path)
 
     return dispatched
 

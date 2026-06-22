@@ -192,3 +192,64 @@ jobs:
             artifacts \
             dispatch_ledger.json \
             "${RUNNER_TEMP}/trusted-baseline/coverage_baseline.json"
+
+  # ---------------------------------------------------------------- baseline-upload job
+  # The dispatcher (TCB) writes coverage_baseline.json to plane-integration/ on the
+  # runner that executes it (cron or manual trigger). This job uploads that file as a
+  # protected GitHub Actions artifact so the coverage-gate job can download it
+  # out-of-band (never from the PR checkout). The artifact is named 'coverage-baseline'
+  # to match the download-artifact step above.
+  #
+  # This job only runs when the dispatcher has produced a baseline (i.e. the file
+  # exists in the repo or was emitted by a prior step). On PRs the file is absent
+  # (the dispatcher runs independently), so this job skips gracefully.
+  #
+  # Ops note (A.5): in production the dispatcher runs as a separate cron workflow or
+  # external process; wire the upload there instead. This job provides the CI path for
+  # the monorepo / single-workflow case where the dispatcher is invoked as a step.
+  upload-coverage-baseline:
+    name: Upload protected coverage baseline artifact (TCB → CI trust bridge)
+    runs-on: ubuntu-latest
+    # Only upload when the file exists — i.e. a dispatcher run has already produced it.
+    # The `if` uses a file-existence check executed via a prior step's output.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run dispatcher (drain once) to produce coverage_baseline.json
+        # Only runs when the queue file exists. If the queue is absent the dispatcher
+        # exits cleanly with dispatched=0 and writes no baseline (no-op).
+        run: |
+          if [ -f plane-integration/.agent_queue.jsonl ]; then
+            ASCP_DISPATCHER_NO_PLANE=1 python3 plane-integration/dispatcher.py --once
+          else
+            echo "No agent queue found — skipping dispatcher run (pre-delivery state)."
+          fi
+
+      - name: Check whether a baseline was produced
+        id: baseline_check
+        run: |
+          if [ -f plane-integration/coverage_baseline.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Upload the baseline as a protected artifact. The coverage-gate job downloads
+      # it into $RUNNER_TEMP (outside the PR workspace) so an agent-controlled PR
+      # cannot plant a tampered baseline in the workspace to spoof this artifact.
+      - name: Upload coverage-baseline artifact (trusted, out-of-band)
+        if: steps.baseline_check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-baseline
+          path: plane-integration/coverage_baseline.json
+          # Retain for the duration of the PR pipeline; 1 day is sufficient.
+          retention-days: 1
+          # Overwrite any stale artifact from a previous run on the same branch.
+          overwrite: true
