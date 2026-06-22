@@ -96,12 +96,23 @@ deny contains msg if {
 }
 
 _distinct_sessions(ev) if {
-	v := ev.verifier_session_id
-	i := ev.implementer_session_id
+	v := _norm_session(ev.verifier_session_id)
+	i := _norm_session(ev.implementer_session_id)
 	v != ""
 	i != ""
 	v != i
 }
+
+# Normalize an UNTRUSTED session id before the distinctness comparison: strip
+# surrounding whitespace, then lower-case. This closes the near-duplicate
+# forgery class (e.g. "i" vs " i ", or "I" vs "i") where an implementer dodges
+# the self-grading check via a whitespace-/case-variant verifier id. A
+# non-string id (object.get default) normalizes to "" and is treated as absent.
+# Twin of coverage_gate._norm_session. Phase B additionally rejects ids absent
+# from the trusted ledger.
+_norm_session(value) := lower(trim_space(value)) if is_string(value)
+
+_norm_session(value) := "" if not is_string(value)
 
 # ── Helper: a field is missing or empty on an evidence object ─────────────────
 # True when the field is absent, or present but an empty/blank string.

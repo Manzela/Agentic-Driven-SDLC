@@ -54,6 +54,24 @@ __all__ = [
 EVIDENCE_FIELDS = ("test_file", "test_name", "output_hash", "collected_at")
 
 
+def _norm_session(value: Any) -> str:
+    """Normalize a session id for distinctness comparison.
+
+    Session ids are UNTRUSTED inputs in Phase A. Two ids that differ only by
+    surrounding whitespace or letter-case are the SAME actor for the purpose of
+    the actor-separation gate — an implementer must not be able to dodge the
+    self-grading check by submitting ``' i '`` as the verifier when it
+    implemented as ``'i'``. We therefore strip surrounding whitespace and then
+    case-fold before comparing. A non-string, ``None``, or whitespace-only id
+    normalizes to ``""`` (treated as absent). Mirrors the Rego
+    ``_norm_session`` helper. Phase B (Task 5) additionally rejects any id
+    absent from the trusted ledger.
+    """
+    if not isinstance(value, str):
+        return ""
+    return value.strip().casefold()
+
+
 def _evidence_complete(item: Dict[str, Any]) -> bool:
     """Return True iff ``item`` carries a complete four-field Evidence_Record.
 
@@ -176,12 +194,21 @@ def deny_merge(feature_list: Dict[str, Any]) -> Dict[str, Any]:
             # must name DISTINCT implementer/verifier sessions (zero-trust: an
             # implementer may not self-verify). Phase A trusts the ids; Phase B
             # adds cryptographic attestation + ledger cross-check at CI.
+            #
+            # The distinctness comparison NORMALIZES both ids first (strip
+            # surrounding whitespace, then case-fold) so a whitespace-padded or
+            # case-variant near-duplicate (e.g. 'i' vs ' i ', or 'I' vs 'i')
+            # cannot masquerade as a distinct verifier. Emptiness is likewise
+            # checked on the NORMALIZED form, so a whitespace-only id counts as
+            # absent. Mirrors the Rego ``_norm_session`` / ``_distinct_sessions``
+            # twin.
             ev = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
-            vs, is_ = ev.get("verifier_session_id"), ev.get("implementer_session_id")
-            if not vs or not is_:
+            vs_norm = _norm_session(ev.get("verifier_session_id"))
+            is_norm = _norm_session(ev.get("implementer_session_id"))
+            if not vs_norm or not is_norm:
                 reasons.append(f"Merge denied: in-scope item {item_id!r} is 'proven' but its "
                                f"evidence lacks verifier_session_id / implementer_session_id.")
-            elif vs == is_:
+            elif vs_norm == is_norm:
                 reasons.append(f"Merge denied: in-scope item {item_id!r} evidence has the same "
                                f"verifier and implementer session (self-grading).")
 
