@@ -586,6 +586,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         default=".",
         help="Repo root to scan for implementation units (default: cwd).",
     )
+    parser.add_argument(
+        "--baseline-commit",
+        default=None,
+        help="Diff-aware mode: orphan-check ONLY the PR's changes against this base "
+             "(merge-base sha). CI fail-CLOSED if the merge-base is unreachable.",
+    )
+    parser.add_argument(
+        "--exempt-paths",
+        default=None,
+        help="Forward-orphan allowlist as a glob (e.g. 'tools/**'); a changed file under "
+             "it is exempt from the forward (no-req) orphan check. Diff-aware mode only.",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -628,9 +640,36 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     impl_units = _scan_repo_impl_units(args.root, set(DEFAULT_EXCLUDE_DIRS))
 
-    report = detect_orphans(impl_units, requirements)
+    if args.baseline_commit:
+        # Diff-aware mode (the traceability-gate CI check): orphan-check only the PR's
+        # changes vs the merge-base, CI fail-CLOSED on an unreachable base (§3.3/§3.4).
+        known_ids = {rid for r in requirements if (rid := _requirement_id(r))}
+        changed_files = set(_get_changed_files(args.baseline_commit, args.root))
+        allowlist_pattern = _exempt_glob_to_regex(args.exempt_paths) if args.exempt_paths else ""
+        # Scope the BACKWARD pass to the PR's model-delta (red-team I3): without this the
+        # backward pass checks ALL in-scope requirements, so any pre-existing un-evidenced
+        # item blocks UNRELATED PRs. An unreadable baseline model -> None -> conservative
+        # all-in-scope (the fail-closed direction), consistent with detect_orphans_diff.
+        baseline_model = _load_feature_list_from_commit(args.baseline_commit, args.root)
+        model_delta_ids = (
+            _get_model_delta_ids(baseline_model, feature_list) if baseline_model else None
+        )
+        report = detect_orphans_diff(
+            impl_units=impl_units, requirements=requirements, known_ids=known_ids,
+            changed_files=changed_files, baseline_commit=args.baseline_commit,
+            model_delta_ids=model_delta_ids, allowlist_pattern=allowlist_pattern,
+            fail_closed_on_unreachable=True, root=args.root,
+        )
+    else:
+        report = detect_orphans(impl_units, requirements)
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
+
+
+def _exempt_glob_to_regex(glob: str) -> str:
+    """Convert a forward-orphan allowlist glob (``tools/**``) to the start-anchored regex
+    detect_orphans_diff expects (re.match): ``**`` -> ``.*``, ``*`` -> ``[^/]*``."""
+    return re.escape(glob).replace(r"\*\*", ".*").replace(r"\*", "[^/]*")
 
 
 if __name__ == "__main__":

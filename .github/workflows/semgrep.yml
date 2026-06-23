@@ -1,0 +1,66 @@
+name: Semgrep SAST Analysis
+
+# Feature: spec-to-evidence-control / Task 24 (Phase-1 verification depth).
+# REQ-DEPTH-003 (SAST: Semgrep as the BINDING fork backstop + custom WIRING rules).
+# §3.6 fork-safe: OSS config, NO secrets, so it runs (and gates) on fork PRs where
+#   CodeQL/Sonar cannot. §3.3 diff-aware: --baseline-commit = merge-base. §4.1: the
+#   evidence_gate.check_slice_semgrep filter binds on HIGH/CRITICAL only.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, spec-reconciliation, platform-phases]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write  # for SARIF upload (same-repo only)
+
+jobs:
+  semgrep:
+    name: sast-semgrep
+    runs-on: ubuntu-latest
+    # Semgrep OSS needs no secrets, so it is safe to run on fork PRs — the binding
+    # SAST backstop when the same-repo-only CodeQL/Sonar checks cannot run (§3.6).
+    container:
+      image: semgrep/semgrep
+    steps:
+      - name: Checkout (full history for diff-aware analysis)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Merge-base self-test (§3.4): fail-closed if history is shallow. Fetch origin/main
+      # first so a missing remote-tracking ref on a PR checkout does not false-fail the
+      # self-test and block every PR (red-team I5).
+      - name: Merge-base reachability self-test
+        run: |
+          git fetch --no-tags --quiet origin main 2>/dev/null || true
+          BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          if [ -z "$BASE" ]; then
+            echo "ERROR: fetch-depth:0 required — merge-base unreachable (shallow clone detected)" >&2
+            exit 1
+          fi
+          echo "merge-base: $BASE"
+          echo "BASELINE_COMMIT=$BASE" >> "$GITHUB_ENV"
+
+      # OSS, diff-aware (baseline = merge-base), custom WIRING rules + curated packs.
+      # No SEMGREP_APP_TOKEN -> safe for forks (§3.6). Output SARIF for same-repo upload.
+      - name: Run Semgrep (OSS, diff-aware)
+        run: |
+          semgrep scan \
+            --config p/security-audit \
+            --config p/owasp-top-ten \
+            --config tools/semgrep_rules/wiring_dead_code.yml \
+            --baseline-commit "${BASELINE_COMMIT}" \
+            --sarif --output semgrep.sarif \
+            --error
+
+      # SARIF upload: same-repo-only (§3.6) — a fork's read-only token can't write it.
+      - name: Upload Semgrep SARIF (same-repo only)
+        if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep-oss
