@@ -31,7 +31,7 @@ env:
   CF_HOSTNAME: plane.autonomous-agent.dev
   CF_ZONE: autonomous-agent.dev
   CF_TUNNEL_NAME: plane-ascp
-  VM_HOST: ${{ vars.VM_HOST || '158.178.129.208' }}
+  VM_HOST: ${{ secrets.VM_HOST }}
   VM_USER: ${{ vars.VM_USER || 'opc' }}
 
 jobs:

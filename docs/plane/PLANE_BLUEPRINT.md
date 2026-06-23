@@ -2431,7 +2431,7 @@ The compose `*minio-env` anchor wires `MINIO_ROOT_USER ← AWS_ACCESS_KEY_ID` an
 
 ```ini
 # plane.env — app / security
-SECRET_KEY=a411f976b0dadd0a87f6c922a78dd04cf8d707997e63d8b351ebc6212374b80b
+SECRET_KEY=<64-hex sample — generate per deployment with: openssl rand -hex 32>
 DEBUG=0
 GUNICORN_WORKERS=1
 API_BASE_URL=http://api:8000
@@ -2450,7 +2450,7 @@ CERT_ACME_DNS=
 
 | Variable | Effective value | Notes |
 |----------|-----------------|-------|
-| `SECRET_KEY` | `a411f976…74b80b` (64-hex) | Django signing key. **Must be rotated for any non-local deployment** (the bundled value is a fixed sample). |
+| `SECRET_KEY` | `<64-hex sample>` | Django signing key. **Generate per deployment** with `openssl rand -hex 32`; never reuse a published value. |
 | `APP_DOMAIN` | `localhost:8090` | Drives `WEB_URL` + `CORS_ALLOWED_ORIGINS`. |
 | `WEB_URL` | `http://localhost:8090` | Public base URL of the workspace. |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:8090` | Single allowed browser origin. |

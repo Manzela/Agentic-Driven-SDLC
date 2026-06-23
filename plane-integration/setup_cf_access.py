@@ -44,8 +44,8 @@ def _load_dotenv(p):  # NS-08
 
 _load_dotenv(HERE / ".env")
 
-ACCT = os.environ.get("CF_ACCOUNT_ID", "53e540509182b64c9283bbd9f3cada89")
-APP_DOMAIN = os.environ.get("ASCP_APP_DOMAIN", "plane.autonomous-agent.dev")
+ACCT = os.environ.get("CF_ACCOUNT_ID", "YOUR_CF_ACCOUNT_ID")
+APP_DOMAIN = os.environ.get("ASCP_APP_DOMAIN", "YOUR-PLANE-HOST.example.com")
 POLICY_NAME = os.environ.get("ASCP_POLICY_NAME", "ASCP API — service tokens")
 BIND_TOKEN_ID = os.environ.get("ASCP_BIND_TOKEN_ID")
 CF_API = os.environ.get("CF_API_TOKEN", "")
@@ -150,8 +150,8 @@ def main():
     pkey = os.environ.get("PLANE_API_KEY")
     if cid and csec and pkey and APPLY:
         url = (f"https://{APP_DOMAIN}/api/v1/workspaces/"
-               f"{os.environ.get('PLANE_WS', 'agentic-driven-sdlc')}/projects/"
-               f"{os.environ.get('PLANE_PROJ', '0de2a9fb-5382-4e0d-bf99-f00f221461ca')}/states/")
+               f"{os.environ.get('PLANE_WS', 'your-workspace-slug')}/projects/"
+               f"{os.environ.get('PLANE_PROJ', 'YOUR_PROJECT_UUID')}/states/")
         req = urllib.request.Request(url, headers={
             "CF-Access-Client-Id": cid, "CF-Access-Client-Secret": csec, "X-API-Key": pkey,
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ascp-automation"})

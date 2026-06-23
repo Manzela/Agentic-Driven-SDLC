@@ -1,8 +1,8 @@
 # Plane remote access — durable runbook
 
-How to reach the **remote** Plane board (`plane.autonomous-agent.dev`, workspace
-`agentic-driven-sdlc`, project `0de2a9fb-5382-4e0d-bf99-f00f221461ca`) programmatically,
-securely, and repeatably — so the multi-hour access scramble never recurs.
+How to reach the **remote** Plane board (host, workspace, and project all set via
+`plane-integration/.env` — see below) programmatically, securely, and repeatably —
+so the multi-hour access scramble never recurs.
 
 > The existing `plane_client.py` targets the **local** Docker Plane (`localhost:8090`, workspace
 > `ascp`). This document is about the **remote production** board, which is different and sits
@@ -44,9 +44,9 @@ service-token policy. Keep them separate — never put `everyone` on a public ho
    `ASCP_BIND_TOKEN_ID=<service_token_uuid>`.
 3. Write the gitignored creds file `plane-integration/.env` (loaded automatically by the tools):
    ```
-   PLANE_API_BASE=https://plane.autonomous-agent.dev/api/v1
-   PLANE_WS=agentic-driven-sdlc
-   PLANE_PROJ=0de2a9fb-5382-4e0d-bf99-f00f221461ca
+   PLANE_API_BASE=https://YOUR-PLANE-HOST.example.com/api/v1
+   PLANE_WS=your-workspace-slug
+   PLANE_PROJ=YOUR_PROJECT_UUID
    PLANE_API_KEY=plane_api_xxx
    CF_ACCESS_CLIENT_ID=xxx.access
    CF_ACCESS_CLIENT_SECRET=xxx

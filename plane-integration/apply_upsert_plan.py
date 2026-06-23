@@ -55,9 +55,9 @@ def _load_dotenv(path):
 _load_dotenv(HERE / ".env")
 
 APPLY = "--apply" in sys.argv
-API_BASE = os.environ.get("PLANE_API_BASE", "https://plane.autonomous-agent.dev/api/v1").rstrip("/")
-WS = os.environ.get("PLANE_WS", "agentic-driven-sdlc")
-PROJ = os.environ.get("PLANE_PROJ", "0de2a9fb-5382-4e0d-bf99-f00f221461ca")
+API_BASE = os.environ.get("PLANE_API_BASE", "https://YOUR-PLANE-HOST.example.com/api/v1").rstrip("/")
+WS = os.environ.get("PLANE_WS", "your-workspace-slug")
+PROJ = os.environ.get("PLANE_PROJ", "YOUR_PROJECT_UUID")
 KEY = os.environ.get("PLANE_API_KEY", "")
 CF_ID = os.environ.get("CF_ACCESS_CLIENT_ID", "")
 CF_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")

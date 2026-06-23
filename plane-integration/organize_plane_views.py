@@ -25,10 +25,11 @@ Config: edit PROJ_ID / OWNER_ID below (OWNER_ID must be a project member's user 
 the Views are attributed to them). Everything else is derived from the project.
 """
 import collections
+import os
 
-# ---- config (the live ASCP project + the human owner the Views are attributed to) ----
-PROJ_ID = "0de2a9fb-5382-4e0d-bf99-f00f221461ca"
-OWNER_ID = "ed543970-4941-4a76-b1b4-aaf3f3ec128a"
+# ---- config (project + owner: set via env; placeholders MUST be overridden) ----
+PROJ_ID = os.environ.get("PLANE_PROJ", "YOUR_PROJECT_UUID")
+OWNER_ID = os.environ.get("PLANE_OWNER_ID", "YOUR_OWNER_UUID")
 
 from plane.db.models import IssueView, Project, Issue, Cycle, CycleIssue  # noqa: E402
 
