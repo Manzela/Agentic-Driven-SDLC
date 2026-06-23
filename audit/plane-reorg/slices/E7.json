@@ -1,0 +1,198 @@
+{
+ "epic": "E7",
+ "title": "Observability, Audit & Traceability",
+ "story_count": 6,
+ "task_count": 28,
+ "stories": [
+  {
+   "key": "ASCP-E7-REQ6",
+   "title": "Bidirectional Traceability (requirement \u2194 code \u2194 test \u2194 evidence \u2194 commit \u2194 owner)",
+   "state": "In-Verification",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-TRACE-001",
+   "coverage_type": "WIRING",
+   "labels": [
+    "agent:tester",
+    "type:wiring",
+    "gate:completion",
+    "phase:2",
+    "phase:3",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "traceability_links rows written for every link_type \u2208 {implementation,test,evidence,commit,owner} with direction \u2208 {forward,backward}, FK-bound to requirements(id), indexed by idx_traceability_links_requirement_id",
+    "traceability_writer.py::parse_commit_trailers extracts [A-Z]+-[A-Z]+-[0-9]{3} IDs; assert_commit_has_req_id raises TraceabilityError on a commit with no requirement ID (REQ-6.2 / Property 10)",
+    "orphan_detector.py runs full-repo Python-source-scoped (excluding tests/, generated dirs, __init__.py, db/migrations/) and exits non-zero on forward orphans (source unit with no req ref) and backward orphans (req with no traceability_links row of link_type in ('test','evidence') AND/OR no evidence_records row); honors # orphan-exempt / allowlist (REQ-6.3 / Property 11)",
+    "traceability-gate.yml REQUIRED check consumes orphan_detector.py non-zero exit and folds in assert_commit_has_req_id, blocking merge on any orphan",
+    "RequirementBaggageProcessor sets requirement.id Baggage on on_start for every active-requirement span; no requirement-processing span emitted without non-empty requirement.id (Property 12)",
+    "backward-orphan lookup authoritative store is Postgres (REQ-16.3) with documented feature_list.json fallback per Note N-25",
+    "ID-extraction factored into shared tools/req_id_scan.py imported by both orphan_detector.py and traceability_writer.py to prevent regex drift"
+   ],
+   "tasks": [
+    "Migration 003_traceability_links.sql + per-requirement index",
+    "Shared requirement-ID scanner tools/req_id_scan.py",
+    "tools/traceability_writer.py commit-trailer parser + link writer",
+    "tools/orphan_detector.py bidirectional orphan check",
+    "traceability-gate REQUIRED CI check (.github/workflows/traceability-gate.yml)",
+    "RequirementBaggageProcessor in tools/telemetry.py"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E7-REQ11",
+   "title": "Session Continuity and Durable State",
+   "state": "Agent-Executing",
+   "agent_role": "human",
+   "requirement_id": "REQ-STATE-001",
+   "coverage_type": "functional",
+   "labels": [
+    "human:review",
+    "type:functional",
+    "phase:0",
+    "phase:1",
+    "phase:2",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "run_state_store.save_run_state upserts into run_state AND writes claude-progress.txt as a file-backed duplicate including status, no_progress_n, stop_hook_active, resume_integrity_ok, and baseline resume_state_hash (Note N-25, never fail-open)",
+    "session_start_hook.py reads git status --porcelain, claude-progress.txt (created empty if absent), feature_list.json (minimal valid stub if absent); injects structured-JSON summary with git_status/unproven_count/proven_count; exit 0 always",
+    "pre_compact_hook.py checkpoints claude-progress.txt + evidence state + feature_list.json to MAIN-worktree git AND writes durable baseline run_state.resume_state_hash; exit 0 (non-blocking)",
+    "each completed Slice produces exactly one atomic commit (last_commit_sha recorded in run_state) as the rollback point",
+    "Postgres half (run_state upsert) and file+git half (PreCompact/SessionStart) kept as duplicates; on divergence the more conservative state wins"
+   ],
+   "tasks": [
+    "Migration 005_run_state.sql durable per-session execution state",
+    "session_start_hook.py Phase-0 git/progress/coverage loader",
+    "pre_compact_hook.py checkpoint writer + baseline-hash producer",
+    "tools/run_state_store.py persistence with file-backed duplicate",
+    "Per-slice commit trail wiring"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E7-REQ12",
+   "title": "Observability (live requirement-tagged trace + gate-decision forwarding)",
+   "state": "Agent-Executing",
+   "agent_role": "human",
+   "requirement_id": "REQ-OBS-001",
+   "coverage_type": "functional",
+   "labels": [
+    "human:review",
+    "type:functional",
+    "gate:stop",
+    "phase:3",
+    "priority:normal"
+   ],
+   "acceptance_criteria": [
+    "tools/telemetry.py::init_tracer configures OTLP exporter with CLAUDE_CODE_ENABLE_TELEMETRY=1 and OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental; opentelemetry-sdk + GenAI semconv versions pinned in requirements.txt",
+    "span export uses a streaming/short-interval processor with export interval \u2264 5 s (not a run-end batch)",
+    "gate-making hooks (Stop, PreToolUse, SubagentStop) emit a hook.decision span with hook.event, tool.name, decision (allow/block), reason, requirement.id, actor_agent \u2014 same actor_agent as the gate_audit_log row",
+    "non-gating hooks (SessionStart, PreCompact) emit a distinct informational span (hook.session_start / hook.checkpoint, decision=n/a), never a gate-decision allow/block attribute",
+    "RequirementBaggageProcessor propagates requirement.id to every child span (shared with REQ-6.4; Property 12)",
+    "Langfuse is the default backend (OTLP endpoint .../api/public/otel/v1/traces); backend license documentation present"
+   ],
+   "tasks": [
+    "OTel setup + OTLP exporter (tools/telemetry.py init)",
+    "RequirementBaggageProcessor requirement.id propagation (shared with REQ-6)",
+    "Hook decision forwarding \u2014 extend all six hooks to emit OTel events",
+    "Langfuse backend connection + license docs"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E7-REQ27",
+   "title": "Tamper-Evident Gate-Decision Audit Log (hash-chained)",
+   "state": "Human-Review",
+   "agent_role": "human",
+   "requirement_id": "REQ-AUDIT-001",
+   "coverage_type": "functional",
+   "labels": [
+    "human:review",
+    "type:functional",
+    "gate:completion",
+    "phase:2",
+    "phase:3",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "db/migrations/008_gate_audit_log.sql creates the append-only gate_audit_log (seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at, prev_hash, entry_hash); DB-enforces append-only via REVOKE UPDATE,DELETE + BEFORE UPDATE OR DELETE RAISE trigger",
+    "tools/audit_log.py::append is sole producer; created_at is DB-assigned (DEFAULT now()) and folded into the canonical row, not a producer argument; genesis prev_hash = sha256(''); canonical form = deterministic JSON of (seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at); entry_hash = sha256(canonical_row || prev_hash) INCLUDING seq and created_at",
+    "append() CALLED by stop_hook.py, pre_tool_use_hook.py, subagent_stop_hook.py (evidence-schema AND omission-declaration-guard decisions) on EVERY allow/block decision \u2014 three hook files / four decision points; kill-switch toggle also appends",
+    "append() serializes prev_hash-read + insert under pg_advisory_xact_lock (or SELECT ... FOR UPDATE on a chain-head sentinel) in one transaction; concurrent appends cannot fork the chain",
+    "tools/audit_verify.py recomputes the chain, fails on any broken link, emits structured JSON report (first_broken_seq, expected_hash, stored_prev_hash, computed_prev_hash); verifies a merged DB+file-backed chain ordered by seq with the seam rule (Property 28)",
+    ".github/workflows/audit-chain-verify.yml REQUIRED check runs audit_verify.py at merge; registration gated until 52.2/52.3 land (build-order inversion fix)",
+    "append invoked inside the decision path BEFORE the exit, wrapped so an append failure degrades to the file-backed log and never suppresses the gate decision/exit",
+    "CI-status-check gates (deepeval-gate, zap-baseline, coverage-gate, secrets-scan, audit-chain-verify) recorded via GitHub check-run history + SLSA, not the hook hash chain \u2014 each gate captured by exactly one execution-proof substrate"
+   ],
+   "tasks": [
+    "Migration 008_gate_audit_log.sql append-only hash-chained table",
+    "Audit-log producer tools/audit_log.py with chain linearization",
+    "Audit-chain verifier tools/audit_verify.py recompute + tamper report",
+    "Wire producer into the three hooks (52.3 producer wiring)",
+    "audit-chain-verify REQUIRED CI check (.github/workflows/audit-chain-verify.yml)",
+    "Retention & archival policy \u2014 live window + cross-boundary re-verification"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E7-REQ23",
+   "title": "Resumed-State Integrity",
+   "state": "Blocked",
+   "agent_role": "human",
+   "requirement_id": "REQ-STATE-005",
+   "coverage_type": "functional",
+   "labels": [
+    "human:review",
+    "type:functional",
+    "gate:pretooluse",
+    "phase:2",
+    "priority:blocking"
+   ],
+   "acceptance_criteria": [
+    "tools/state_integrity.py::compute_hash() recomputes the resumed-state hash as sha256 over the canonical projection of in-scope feature_list.json items + named run_state fields (Property 26), using the same hash-algorithm/canonical-form as the design hash layer",
+    "session_start_hook.py (Phase-2 extension, task 49.2) imports state_integrity.py, calls compute_hash(), compares against durable run_state.resume_state_hash, writes run_state.resume_integrity_ok \u2014 NON-BLOCKING (exit 0 always)",
+    "PreToolUse integrity guard (task 49.1) reads run_state.resume_integrity_ok and exits 2 when false; scoped to (is_resume AND NOT first_write_done) so it fires only on the first implementation write of a resumed session; treats resume_state_hash IS NULL as ALLOW",
+    "integrity guard chained BEFORE plan/scope/artifact/status checks in pre_tool_use_hook.py (order pinned at task 6.1)",
+    "Operator Reconciliation re-records the baseline and flips resume_integrity_ok to true, releasing the guard",
+    "on DB-down at SessionStart, the hook records resume_integrity_ok + baseline state_hash to claude-progress.txt so the guard always has a file-backed source (Note N-25, never fail-open)",
+    "verified by Property 26 (PBT, task 39.16) and the LOGIC Z3 CHECK-11a (mismatch \u21d2 \u00acproceeds, UNSAT) / CHECK-11b (SAT)"
+   ],
+   "tasks": [
+    "tools/state_integrity.py resumed-state hash computation",
+    "SessionStart compute/write extension (task 49.2)",
+    "PreToolUse integrity guard (task 49.1 enforcement point)"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E7-REQ16",
+   "title": "Durable Storage (single source of truth)",
+   "state": "Done",
+   "agent_role": "human",
+   "requirement_id": "REQ-STORE-001",
+   "coverage_type": "functional",
+   "labels": [
+    "human:review",
+    "type:functional",
+    "gate:completion",
+    "phase:2",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "eight migrations (001\u2013008) apply in numeric order on a test Neon branch, creating requirements, coverage_items, traceability_links, evidence_records, run_state, domain_baseline_checklists, requirement_versions, gate_audit_log; app_role granted only the privileges each gate needs (no UPDATE/DELETE on gate_audit_log)",
+    "evidence_records enforces the four-field evidence_complete CHECK (test_file <> '' AND test_name <> '' AND output_hash <> '' AND collected_at IS NOT NULL) AND output_hash ~ '^sha256:[a-f0-9]{64}$' format CHECK; actor_agent NOT NULL (Verifier never Implementer, Property 24)",
+    "evidence_collector.py::store_to_postgres inserts the Evidence_Record linked to requirement_id and commit_sha; UNIQUE (requirement_id, commit_sha, test_name) rejects duplicate evidence rows; Property-19 Phase-2 store\u2192retrieve round-trip passes (REQ-16.2)",
+    "raw evidence artifact retained as a content-addressed blob keyed by output_hash with the four-field record holding only the sha256: reference; hash-only retention permitted only in DB-down fallback and flagged degraded",
+    "required indexes exist: idx_evidence_records_requirement_id, idx_traceability_links_requirement_id, idx_coverage_items_requirement_id",
+    "file-canonical/DB-mirror split honored: feature_list.json canonical for acceptance_criteria/dependencies/priority; Postgres mirrors only the coverage-status subset; coverage queries reconstructable from Postgres alone (16.3)"
+   ],
+   "tasks": [
+    "Migrations 001/002/004 \u2014 requirements, coverage_items, evidence_records",
+    "Migration runner + eight-table integration test",
+    "evidence_collector.py \u2192 evidence_records storage integration",
+    "Phase-2 durable-state integration test \u2014 full store reconstructability"
+   ],
+   "on_board": true
+  }
+ ]
+}

@@ -1,0 +1,284 @@
+{
+ "epic": "E8",
+ "title": "Orchestration, Anti-Loopmaxxing & Human-in-the-Loop",
+ "story_count": 10,
+ "task_count": 40,
+ "stories": [
+  {
+   "key": "ASCP-E8-13",
+   "title": "Mid-Flight Steering via Deterministic Hooks",
+   "state": "Agent-Executing",
+   "agent_role": "human",
+   "requirement_id": "REQ-STEER-001",
+   "coverage_type": "WIRING",
+   "labels": [
+    "gate:pretooluse",
+    "gate:stop",
+    "phase:0",
+    "type:wiring",
+    "priority:blocking"
+   ],
+   "acceptance_criteria": [
+    "settings.json registers all six hooks as type:command; smoke test asserts none are HTTP/MCP and the four subagents are discoverable.",
+    "PreToolUse artifact guard blocks writes to feature_list.json schema, tests/ (except actor_agent==verifier.md), CI config, and destructive Bash ops with exit 2.",
+    "A hook returning exit 1 never blocks; exit 2 blocks and routes stderr to the agent; exit 0 proceeds (Property 21).",
+    "Two completion evaluations with identical coverage state but different predicted outputs yield identical gate decisions (Property 4 / CHECK-5)."
+   ],
+   "tasks": [
+    "Author .claude/settings.json six-hook command registration",
+    "Implement pre_tool_use_hook.py artifact + status guards",
+    "Configure GitHub repository ruleset as merge-side complement",
+    "Author exit-code + prediction-independence property tests"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E8-14",
+   "title": "Anti-Loopmaxxing Controls (Caps, Budget, No-Progress)",
+   "state": "Agent-Executing",
+   "agent_role": "implementer",
+   "requirement_id": "REQ-LOOP-001",
+   "coverage_type": "functional",
+   "labels": [
+    "gate:stop",
+    "handoff",
+    "phase:0",
+    "type:functional",
+    "priority:blocking"
+   ],
+   "acceptance_criteria": [
+    "iteration_count>=25 in the implementation phase routes to HANDOFF via evaluate_stop, setting run_state.status=handoff and emitting a HANDOFF summary.",
+    "token_cost_usd>=TOKEN_BUDGET (1,000,000, a computed predicate, no stored column) routes to HANDOFF.",
+    "check_no_progress (zero proven + zero commits across N=3 slices) routes to HANDOFF and lists still-unproven item IDs (CHECK-8a/8b).",
+    "retry_count>=3 on a slice routes to HANDOFF (REQ-LOOP-003), owned by the implementer loop.",
+    "On HANDOFF, feature_list.json is NOT modified and the run is not auto-retried \u2014 requires explicit operator restart."
+   ],
+   "tasks": [
+    "Implement HANDOFF triggers in evaluate_stop (stop_hook.py)",
+    "Own the retry + per-slice token budget in implementer.md",
+    "Migrate the run_state counters",
+    "Mirror HANDOFF onto the Plane issue via webhook",
+    "Author HANDOFF/no-progress property + unit tests"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E8-15",
+   "title": "Inner-Loop Orchestration (Subagents + Hooks)",
+   "state": "Agent-Executing",
+   "agent_role": "human",
+   "requirement_id": "REQ-ORCH-001",
+   "coverage_type": "WIRING",
+   "labels": [
+    "agent:initializer",
+    "agent:coder",
+    "agent:tester",
+    "phase:0",
+    "type:wiring",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "The inner loop is driven solely by the four .claude/agents/*.md subagents + the six hooks \u2014 no external reasoning framework on the default delivery path.",
+    "The optional Temporal/Inngest durable outer loop is behind a flag (Phase 5), invoking claude -p as a durable step with each tool call a separate activity; OFF by default.",
+    "Agent_Teams is absent from the delivery-gating path; a grep gate asserts no Agent_Teams primitive is wired into a gate decision."
+   ],
+   "tasks": [
+    "Wire the subagent/hook inner loop",
+    "Optional Temporal/Inngest durable stub behind a flag",
+    "Keep Agent_Teams off the gating path",
+    "Expose the inner-loop topology in Plane"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E8-18",
+   "title": "Human-in-the-Loop Plan Approval & PR Review",
+   "state": "Plan-Approved",
+   "agent_role": "human",
+   "requirement_id": "REQ-HITL-001",
+   "coverage_type": "functional",
+   "labels": [
+    "human:review",
+    "gate:pretooluse",
+    "phase:0",
+    "type:functional",
+    "priority:blocking"
+   ],
+   "acceptance_criteria": [
+    "With no plan-approved.json, every implementation Write/Edit is blocked at PreToolUse (CHECK-4f UNSAT).",
+    "The Initializer enters plan mode presenting the validated spec + feature_list.json; only the human writes plan-approved.json.",
+    "On the next session the Initializer reads plan-approved.json.notes and injects it into run_state for the Implementer's context.",
+    "A mutated feature_list.json (SHA != marker's feature_list_sha) re-blocks implementation until re-approval (Property 6).",
+    "The GitHub repository ruleset requires a human reviewer before merge to the protected branch (test_repo_ruleset.py asserts it)."
+   ],
+   "tasks": [
+    "Implement the PreToolUse plan gate (check_plan_approval)",
+    "Wire missing-context injection through the Initializer",
+    "Configure the required-reviewer repository ruleset",
+    "Define and validate the plan-approved.json marker"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E8-19",
+   "title": "Predictive Routing (Optional, Off-Gate)",
+   "state": "Agent-Executing",
+   "agent_role": "research",
+   "requirement_id": "REQ-PRED-001",
+   "coverage_type": "NFR",
+   "labels": [
+    "phase:3",
+    "type:nfr",
+    "priority:normal"
+   ],
+   "acceptance_criteria": [
+    "Predictions are injected ONLY as advisory context through a context-injection hook or MCP retrieve tool \u2014 never into a gate.",
+    "Any design routing a prediction into an allow/block decision is rejected; CHECK-5 / Property 4 hold.",
+    "Predicted-routing spans are tagged distinctly; prediction acceptance + accuracy are measured so routing can be disabled on drift.",
+    "The feature is OFF by default (Phase 6), built only after the spine is proven, on Speculative Actions / semantic-router / Claude memory tool."
+   ],
+   "tasks": [
+    "Implement off-gate advisory prediction injection",
+    "Tag and measure predicted-routing spans",
+    "Surface a Plane toggle for predictive routing"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E8-20",
+   "title": "Execution Bounds & Quality Threshold Registry",
+   "state": "Agent-Executing",
+   "agent_role": "human",
+   "requirement_id": "REQ-NFR-020",
+   "coverage_type": "NFR",
+   "labels": [
+    "phase:0",
+    "type:nfr",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "A single config module centralizes every numeric DEFAULT and exposes an explicit operator-override path; an unauthorized change is rejected.",
+    "Each registered threshold carries a named OWNER (quality owner, implementer loop, Spec_Compiler, Delivery Owner/Operator).",
+    "evaluate_stop, the implementer loop, and the reasoning-loop detector all read caps/budgets/K from this registry (no hard-coded constants).",
+    "The vague-adjective reject-set is requirement-backed (consumed by spec_validator.py / Property 17), not test-backed only."
+   ],
+   "tasks": [
+    "Build the execution-bounds config module",
+    "Wire consumers to the registry",
+    "Expose thresholds + owners in Plane"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E8-21",
+   "title": "HANDOFF Termination Semantics (Exit-0, Distinct from Done)",
+   "state": "HANDOFF",
+   "agent_role": "implementer",
+   "requirement_id": "REQ-LOOP-005",
+   "coverage_type": "functional",
+   "labels": [
+    "gate:stop",
+    "handoff",
+    "phase:0",
+    "type:functional",
+    "priority:blocking"
+   ],
+   "acceptance_criteria": [
+    "evaluate_stop evaluates HANDOFF triggers (cap->budget->no-progress) BEFORE the unproven-items completion gate; each returns allow().",
+    "At HANDOFF, in-scope items are EXPECTED unproven and the Stop hook ALLOWS \u2014 reproducing the infinite-block defect is forbidden (Property 5 carve-out).",
+    "At spec_pass_count>=7 with violation_count>0, HANDOFF (exit 0) wins over the REQ-SPEC-021 exit-2 block (CHECK-5b/5c).",
+    "run_state.status=handoff and the HANDOFF summary (remaining unproven items, last N slice outputs, reason) are emitted; feature_list.json is unmodified.",
+    "The stop_hook_active reentrancy guard prevents the Stop hook from re-triggering itself during a blocking cycle (REQ-GATE-004)."
+   ],
+   "tasks": [
+    "Implement HANDOFF-before-block ordering in evaluate_stop",
+    "Encode the spec-completion lex-specialis tiebreak",
+    "Implement the reentrancy guard composition",
+    "Add the HANDOFF Z3 fixtures",
+    "Drive the Plane HANDOFF terminal state"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E8-24",
+   "title": "Checklist-Approval Gate + Research Epistemic Integrity",
+   "state": "Spec-Compiling",
+   "agent_role": "research",
+   "requirement_id": "REQ-SPEC-016",
+   "coverage_type": "functional",
+   "labels": [
+    "agent:research",
+    "gate:pretooluse",
+    "phase:3",
+    "type:functional",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "A discovery Write referencing a DRAFT (NULL approved_at) checklist is blocked at PreToolUse (check_checklist_approval, exit 2); CHECK-12a UNSAT / CHECK-12b SAT.",
+    "research_claim_validator.py rejects any draft claim lacking a source URL or authority-tier label, or failing the fact-check, before human review (Property 29).",
+    "The Initializer consumes a checklist for discovery ONLY when it is approved AND epistemically clean (the Req 24.2 precondition).",
+    "The checklist version + SHA used are recorded and linked to feature_list.json.checklist_ref for auditable derivation."
+   ],
+   "tasks": [
+    "Add check_checklist_approval to pre_tool_use_hook.py",
+    "Implement tools/research_claim_validator.py",
+    "Migrate the checklist version-history table",
+    "Surface checklist approval in Plane"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E8-26",
+   "title": "Reasoning-Loop Detection (REASONING span, K=3)",
+   "state": "In-Verification",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-OBS-006",
+   "coverage_type": "NFR",
+   "labels": [
+    "phase:3",
+    "type:nfr",
+    "priority:normal"
+   ],
+   "acceptance_criteria": [
+    "Reasoning spans are emitted as OTel INTERNAL spans carrying the claude.span.kind=reasoning attribute \u2014 no new SpanKind enum value is introduced.",
+    "A run with >=3 identical tool-call signatures is flagged as a reasoning loop; the threshold K reads from the Requirement-20 registry.",
+    "The reasoning-loop signal is emitted as a first-class observable signal (forwarded to the same trace endpoint as gate decisions), complementing the N=3 slice-level no-progress watchdog without replacing it."
+   ],
+   "tasks": [
+    "Emit the REASONING span attribute",
+    "Implement the repeated-action detector",
+    "Forward the signal to the trace endpoint",
+    "Surface reasoning-loop alerts in Plane"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E8-29",
+   "title": "Structured Omission Declaration Gate",
+   "state": "In-Verification",
+   "agent_role": "verifier",
+   "requirement_id": "REQ-SPEC-018",
+   "coverage_type": "functional",
+   "labels": [
+    "gate:completion",
+    "gate:subagentstop",
+    "phase:0",
+    "type:functional",
+    "priority:blocking"
+   ],
+   "acceptance_criteria": [
+    "schema/subagent_output.schema.json declares omission_declaration as a REQUIRED, non-nullable envelope field validated for initializer/research/verifier roles.",
+    "The omission_guard in subagent_stop_hook.py rejects (exit 2) any subagent result whose omission_declaration is null or absent; CHECK-13a UNSAT / CHECK-13b SAT (Property 30).",
+    "The Implementer->Verifier handoff carries no omission_declaration and is not rejected (Implementer exemption).",
+    "The guard runs end-to-end alongside the base subagent_stop_hook.py evidence-schema validator before Phase 1."
+   ],
+   "tasks": [
+    "Author the subagent-output schema",
+    "Implement the omission_guard in subagent_stop_hook.py",
+    "Add the omission-gate Z3 + property tests",
+    "Surface omission declarations in Plane"
+   ],
+   "on_board": true
+  }
+ ]
+}

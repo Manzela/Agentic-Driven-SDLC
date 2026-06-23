@@ -1,0 +1,1105 @@
+{
+  "_meta": {
+    "title": "Plane upsert plan — Spec-to-Evidence Governance Spine reconciliation",
+    "generated": "2026-06-18",
+    "branch": "spec-reconciliation",
+    "source_commit": "b2fa9bc",
+    "semantics": "idempotent; upsert-by-NAME; NO deletions (create|update only); array ordered in safe apply sequence by the per-op 'milestone' field (milestones 0-8 per report §7, monotonic non-decreasing)",
+    "executor_notes": "For op=update, resolve the target via match_key against plane-integration/.provision_state.json 'issues' map. For op=create, the executor first checks whether an issue with target_name already exists (upsert-by-NAME) and updates instead of duplicating. epic_module/phase_cycle/state/labels resolve via .reorg_state.json + .provision_state.json id maps. The COH-1 actor literal is 'verifier.md' (byte-for-byte) everywhere.",
+    "taxonomy_refs": {
+      "modules": "plane-integration/.reorg_state.json -> modules",
+      "cycles": "plane-integration/.reorg_state.json -> cycles",
+      "states_labels_issues": "plane-integration/.provision_state.json"
+    },
+    "counts": {
+      "new": 14,
+      "update": 25,
+      "total": 39
+    },
+    "apply_step_0_gate": "COH-1 verifier-name reconciliation is the blocking pre-gate. It is encoded as AC3 on NEW-05 (milestone 3) and as report §7 Milestone 0. Do NOT apply any actor gate (UPD-E2-S2, UPD-E4-S1/S3, the A3/A4 hook patches) before NEW-05's COH-1 CI assert passes.",
+    "coverage_note": "Every entry in the task's new_items_needed payload has exactly one owning op below: ralph-disable -> UPD-E8-13(AC2/AC5); A6 forcing-function -> NEW-10; PreCompact -> NEW-11; A5 canary -> NEW-01; A8 directive+sentinel -> NEW-03; A9 hedge/orient doctrines -> NEW-04; 00-charter formal deliverable -> NEW-13; D3 populator -> NEW-02; cross-epic dependency edges -> NEW-14; disable/teardown success-oracle -> NEW-06."
+  },
+  "operations": [
+    {
+      "op": "update",
+      "id": "UPD-E8-13",
+      "target_name": "A1 settings.json master fix — register six-hook spine + disable ralph-loop",
+      "match_key": "story:ASCP-E8-13",
+      "epic_module": "E8",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:blocking",
+      "labels": [
+        "gate:stop",
+        "phase:0",
+        "type:wiring",
+        "human:review"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>Master registration fix (A1 -> .claude/settings.json).</b> Wires SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop into the runtime and sets <code>enabledPlugins.\"ralph-loop@…\": false</code> for governed sessions. This is the precondition for every other gate.</p><p><b>Contradiction fixed (C1):</b> state moved off <code>Agent-Executing</code> — this story IS the wiring that makes a spine exist, so it cannot itself be in an executing-spine state. agent_role=human retained (apply is human-gated).</p>",
+      "acceptance_criteria": [
+        "AC1: .claude/settings.json registers exactly five governance events (SessionStart, PreToolUse, PostToolUse, SubagentStop, Stop); all command paths ${CLAUDE_PROJECT_DIR}-relative.",
+        "AC2: enabledPlugins disables ralph-loop for governed sessions; the file's _comment_ralph_loop documents that this project-scoped disable must out-rank the user-level enable.",
+        "AC3: settings.json lands on the run branch (ancestor of the session commit) and in the cwd that executes tool calls (fixes B-INTENT-01 + C-INTENT-02).",
+        "AC4 (reworded, was contradictory): AFTER this story applies and the Stop gate fires, two completion evaluations of the same item yield an identical gate decision (deterministic). The prior wording presupposed a firing Stop gate this same story registers.",
+        "AC5 (NEW — ralph Stop-ownership telemetry, was only implied): a runtime telemetry check asserts the governance Stop hook — not stop-hook.sh — owns the Stop event, and stop-hook.sh is ABSENT from hook telemetry (post-apply verification step 5, pass/fail gate). Closes the runtime leg of C-LOOP-04/C-HOOK-01.",
+        "AC6: SPINE_REQUIRED_EVENTS scoped to the five registered events (COH-2) so the SessionStart canary is green when wired as scoped."
+      ],
+      "resolves": [
+        "A-HOOK-01",
+        "A-INTENT-01",
+        "B-INTENT-01",
+        "B-HOOK-01",
+        "C-HOOK-01",
+        "C-INTENT-02",
+        "C-LOOP-04",
+        "artifact:01-settings.json",
+        "C1",
+        "ralph-loop-disable-prereq"
+      ],
+      "rationale": "Fixes C1 (state contradiction) and adds the missing ralph Stop-ownership telemetry AC (the coverage-summary 'NEW verification subtask under E8-13'). A1 alone collapses 13 of 18 findings.",
+      "milestone": 1
+    },
+    {
+      "op": "create",
+      "id": "NEW-12",
+      "target_name": "Author the eight .kiro migrations 001-008 + run_state completeness + gate_audit_log append-only grant",
+      "match_key": "story:REQ-INFRA-005",
+      "epic_module": "E1",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:blocking",
+      "labels": [
+        "phase:0",
+        "type:wiring",
+        "gate:security"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>Durable home for D3 (run_state) and the hash-chained gate_audit_log.</b> REQ-INFRA-005 AC#4 asserts eight .kiro migrations 001-008 apply, but ZERO *.sql files exist anywhere in-repo (verified b2fa9bc) — the AC asserts state that is not on disk. Likely folded into the REQ-INFRA-005 UPDATE rather than a wholly new story (executor: upsert against story:REQ-INFRA-005 if that is the chosen home).</p>",
+      "acceptance_criteria": [
+        "AC1: Author/locate eight migration files creating requirements, coverage_items, traceability_links, evidence_records, run_state, domain_baseline_checklists, requirement_versions, gate_audit_log.",
+        "AC2: run_state schema carries ALL D3/D7 columns: block_streak, external_blocker, no_progress_n, budget_exceeded, iteration_count, violation_count, prev_violation_count, subagent_block_repeat_n, resume_state_hash.",
+        "AC3: gate_audit_log has an append-only grant (no UPDATE/DELETE) + requirement_id FK integrity.",
+        "AC4: REQ-INFRA-005 AC#4 becomes testable — the eight migrations actually apply against a fresh DB."
+      ],
+      "resolves": [
+        "REQ-INFRA-005-AC4",
+        "D3-durable-home",
+        "D7-column",
+        "C7"
+      ],
+      "rationale": "Closes contradiction C7 (asserted state not on disk). The run_state table is the durable home the D3 populator (NEW-02) writes to and the PreCompact hook (NEW-11) checkpoints.",
+      "milestone": 1
+    },
+    {
+      "op": "update",
+      "id": "UPD-REQ-INFRA-005",
+      "target_name": "REQ-INFRA-005 — migration set provisioning (true-up AC#4)",
+      "match_key": "story:REQ-INFRA-005",
+      "epic_module": "E1",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:blocking",
+      "labels": [
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>True-up: AC#4 previously claimed a companion migration set (eight .kiro migrations 001-008) exists and applies; ZERO *.sql files exist. Reframe AC#4 to depend on NEW-12 authoring the migrations; do not assert applied state until the files exist.</p>",
+      "acceptance_criteria": [
+        "AC#4 (reframed): the eight migrations authored by NEW-12 apply cleanly; this story verifies application rather than presupposing it."
+      ],
+      "resolves": [
+        "C7",
+        "REQ-INFRA-005-AC4"
+      ],
+      "rationale": "If NEW-12 is folded into this story, this UPDATE and NEW-12 collapse into one upsert. Kept separate so the executor can choose.",
+      "milestone": 1
+    },
+    {
+      "op": "create",
+      "id": "NEW-14",
+      "target_name": "Board-integrity: add explicit blocked-by dependency edges on E8-13 (settings.json) + the ralph-loop disable from every hook-consuming story",
+      "match_key": null,
+      "epic_module": "E8",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>The board-integrity edge that makes the systemic inert-spine assumption explicit.</b> Across E2-E7 the per-story analysis returned !CONTRA:NONE on substance — no story logically contradicts the audit — but every gate-bearing AC is written AS IF the hooks fire (e.g. E4-S1 AC4/AC5 describe pre_tool_use behavior; E7-REQ12 'extend all six hooks to emit OTel' presumes the spine is live). These are unstated cross-epic dependencies on E8-13 (A1 settings.json) + the ralph-loop disable, classified blocked-by NOT contradicted. No dependency edge currently guarantees the spine is wired first. This story adds the explicit Plane blocked-by relations so the Active Sprint / Roadmap ordering cannot schedule a hook-consuming story ahead of the registration that makes its hooks exist.</p>",
+      "acceptance_criteria": [
+        "AC1: Every hook-consuming story (E2-S1/S2/S3, ASCP-E3-1/-2/-4/-22, ASCP-E4-S1/S2/S3/S4, ASCP-E5-S10, E6-S2/S3/S7, ASCP-E7-REQ6/REQ11/REQ12/REQ16/REQ23/REQ27, ASCP-E8-14/18/21/26) carries a blocked-by edge to UPD-E8-13 (A1 settings.json).",
+        "AC2: The same set carries a blocked-by edge to the ralph-loop disable leg (UPD-E8-13 AC2/AC5) so no gate is scheduled while stop-hook.sh can still shadow the governance Stop event.",
+        "AC3: NEW-01 (A5 canary) is the runtime proof these edges are honored — a story whose hooks have not been registered surfaces as an unwired-spine warning, not a silent pass.",
+        "AC4: The Roadmap-by-phase and Active-Sprint views, when ordered by dependency, place E8-13 + ralph-disable strictly before any blocked-by descendant.",
+        "AC-NOTE: this op records relations only — it does NOT change any story's content or state; it removes the audit's systemic 'gate ACs assume a live spine with no edge guaranteeing it' integrity gap."
+      ],
+      "resolves": [
+        "systemic:inert-spine-assumption",
+        "blocked-by:E8-13",
+        "blocked-by:ralph-disable"
+      ],
+      "rationale": "Per the new_items_needed payload: add explicit cross-epic dependency edges on E8-13 + the ralph-disable from all hook-consuming stories. Turns the repeated E1-E7 'blocked-by not contradicted' finding into enforced board topology so apply order cannot violate it.",
+      "milestone": 1
+    },
+    {
+      "op": "create",
+      "id": "NEW-01",
+      "target_name": "SessionStart Spine Canary & Resume Re-Orientation (A5 — build 05-session_start_hook.py)",
+      "match_key": null,
+      "epic_module": "E8",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:blocking",
+      "labels": [
+        "gate:stop",
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>The load-bearing canary (A5).</b> Asserts the governance hooks are registered and emits a LOUD warning when the spine is unwired/partial. It is the fix for the silent-inertness root of all P0s and the resume-integrity half of A-AMBIG-01. E8-13 registers SessionStart as a hook type but no AC builds the self-check — this story owns it. Additive, fails OPEN.</p>",
+      "acceptance_criteria": [
+        "AC1: On startup/resume/compact, emits 'Spine wired: 5 governance event(s) registered' (green) per COH-2 SPINE_REQUIRED_EVENTS scoping to the five A1 registers.",
+        "AC2: Emits a LOUD additionalContext warning when the spine is unwired / partial / malformed.",
+        "AC3: Injects re-orientation: current branch, coverage counts, last HANDOFF reason.",
+        "AC4: Honestly emits 'RESUME INTEGRITY drift detection INACTIVE' until PreCompact (NEW-11) lands — no silent benign branch.",
+        "AC5: Exit 0 + stdout additionalContext only (cannot block); fails OPEN with a diagnostic."
+      ],
+      "resolves": [
+        "A-HOOK-01",
+        "A-INTENT-01",
+        "B-INTENT-01",
+        "C-INTENT-02",
+        "C-HOOK-01",
+        "B-HOOK-01",
+        "A-AMBIG-01:integrity",
+        "artifact:05-session_start_hook.py"
+      ],
+      "rationale": "Closes the silent-inertness root: a future un-wiring becomes loud, not silent. No owning story existed.",
+      "milestone": 2
+    },
+    {
+      "op": "create",
+      "id": "NEW-10",
+      "target_name": "Unify the A6 PostToolUse forcing-function as one hook both stories extend (06-post_tool_use_hook.py)",
+      "match_key": null,
+      "epic_module": "E4",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:wiring",
+        "gate:completion"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>One A6 PostToolUse hook (A6).</b> Currently split across ASCP-E4-S2 (wiring leg) and ASCP-E4-S3 (five-layer leg) with NO item owning the unified hook — a redundancy/convergence gap (R1). This story builds the one hook both stories extend. The .json leg is LIVE: tools/feature_list_check.py exists on disk (225 lines).</p>",
+      "acceptance_criteria": [
+        "AC1: One 06-post_tool_use_hook.py runs ONE targeted check on the ONE changed file (ruff/.py, eslint/.ts.tsx.js.jsx, schema+count/feature_list.json via tools/feature_list_check.py) and feeds the located oracle + one corrective step via exit-0 JSON.",
+        "AC2: ASCP-E4-S2 (wiring) and ASCP-E4-S3 (five-layer) EXTEND this one hook; neither re-registers it (resolves R1 duplicate-registration).",
+        "AC3: Keys on file extension (model shape); check map operator-overridable; top-N defects (default 5), one defect one action.",
+        "AC4: Fails OPEN on its own bug / missing toolchain / timeout (a forcing-function must not become a blocker on its own crash)."
+      ],
+      "resolves": [
+        "C-REDUND-06",
+        "A-REDUN-01",
+        "B-OVERSPEC-01",
+        "artifact:06-post_tool_use_hook.py",
+        "R1"
+      ],
+      "rationale": "Resolves R1 (the A6 hook split). E4-S2/S3 are reframed to extend, not re-register.",
+      "milestone": 2
+    },
+    {
+      "op": "create",
+      "id": "NEW-05",
+      "target_name": "Author the four canonical subagent base-prompts (A7) + COH-1 actor-name reconciliation",
+      "match_key": null,
+      "epic_module": "E2",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:blocking",
+      "labels": [
+        "agent:initializer",
+        "agent:coder",
+        "agent:tester",
+        "agent:research",
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>The four base-prompts A7 + the COH-1 byte-for-byte name convention.</b> .claude/agents/ holds only .gitkeep. Authoring is scattered across E3/E4 tasks with NO single item owning all four canonical A7 base-prompts as a unit. CRITICAL: the COH-1 'name: &lt;role&gt;.md' frontmatter convention (so CLAUDE_AGENT_NAME == the literal 'verifier.md' the gates compare) is the audit's hard apply-step-0 gate; opposite defaults re-create the G1 fail-closed-but-stuck failure on every proven-flip. DECISION (apply-step-0): take option (a) name: verifier.md — option (b) is not takeable because tools/execution_bounds does not exist on disk.</p>",
+      "acceptance_criteria": [
+        "AC1: Four .md base-prompts authored with name: <role>.md frontmatter (verifier.md, implementer.md, initializer.md, research.md).",
+        "AC2: tools[] allowlists encode verifier=sole-Evidence_Record-producer/sole status->proven flipper; implementer=no self-grade; initializer=no self-approve, never writes plan-approved.json; research=authority tiers + non-empty omission_declaration.",
+        "AC3 (COH-1 gate): a CI assert proves CLAUDE_AGENT_NAME resolves to the literal the gates compare against ('verifier.md') across pre_tool_use_hook.py, subagent_stop_hook.py, and the two spine test fixtures (test_subagent_stop_actor.py, test_pre_tool_use_authority.py) — byte-for-byte.",
+        "AC4: Records the COH-1 option-(a) decision in the description so step 3/4 of the apply order inherit it."
+      ],
+      "resolves": [
+        "B-INTENT-02",
+        "artifact:07-agent-base-prompts",
+        "COH-1",
+        "D4",
+        "D22"
+      ],
+      "rationale": "The single owner of all four base-prompts + the load-bearing COH-1 reconciliation. Blocks every actor gate.",
+      "milestone": 3
+    },
+    {
+      "op": "create",
+      "id": "NEW-04",
+      "target_name": "Root CLAUDE.md Durable-Invariant Anchor + 4 P2 Doctrines (A9)",
+      "match_key": null,
+      "epic_module": "E2",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:functional"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>The CH-11 durable-invariant anchor (A9).</b> No root CLAUDE.md exists on disk. A3/A4/A7/A8 reason strings dereference it by short name (actor-independence, human-owned artifacts, canonical-source pin, verifier-only flips). It also carries the four P2 doctrines that are otherwise wholly uncovered. Apply alongside/ahead of A3/A7 so short-name references resolve on first fire.</p>",
+      "acceptance_criteria": [
+        "AC1: Applies the CH-11 anchor using the byte-consistent verifier.md literal so short-name references resolve on first fire.",
+        "AC2: Encodes checkable-success-oracle (A-LOOP-01) as a standing rule: define a checkable end-state for teardown/disable tasks before claiming done.",
+        "AC3: Encodes hedge-on-named-targets (B-AMBIG-01): when a prompt names an in-repo target, verify it exists before acting.",
+        "AC4: Encodes advisory-vs-gating-lint (B-OVERSPEC-01): lint is advisory; the gate is CI; fix via inline noqa not a shared pyproject.toml edit.",
+        "AC5: Encodes orient-before-grep (B-REDUND-01): one broad orientation pass before serial greps.",
+        "AC6: Every numeric threshold lives in the execution-bounds registry, never here (CH-15)."
+      ],
+      "resolves": [
+        "A-LOOP-01",
+        "B-AMBIG-01",
+        "B-OVERSPEC-01",
+        "B-REDUND-01",
+        "artifact:09-CLAUDE.md"
+      ],
+      "rationale": "The four P2 doctrines are otherwise wholly uncovered; the short-name references otherwise dangle.",
+      "milestone": 3
+    },
+    {
+      "op": "update",
+      "id": "UPD-E8-20",
+      "target_name": "tools/execution_bounds threshold + role registry",
+      "match_key": "story:ASCP-E8-20",
+      "epic_module": "E8",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>Expand E8-20 to OWN authoring tools/execution_bounds</b> (PREFERRED over a standalone item). It is the operator-overridable threshold/role registry holding SPEC_COMPLETION_HARD_CAP=7, the Z3 60s timeout, the vague-adjective proximity window, BLOCK_ESCALATION_CAP, and VERIFIER_ROLE. E3-1/-4, E5-S10/S30, E4-S1/S3/S4, E8-14/20/21/26 CONSUME it via subtasks but no item OWNS authoring it; it is ABSENT on disk. The VERIFIER_ROLE default MUST be byte-consistent with the COH-1 reconciliation ('verifier.md').</p>",
+      "acceptance_criteria": [
+        "AC1 (expanded): E8-20 OWNS authoring tools/execution_bounds as a module, not just declaring numerics.",
+        "AC2: Module exposes SPEC_COMPLETION_HARD_CAP=7, Z3 timeout=60s, vague-adjective proximity window, BLOCK_ESCALATION_CAP, VERIFIER_ROLE.",
+        "AC3: VERIFIER_ROLE default == 'verifier.md' byte-for-byte (COH-1). Consumers import it; on ImportError they fall back to literals.",
+        "AC4: A test proves a consumer (e.g. A3 pre_tool_use) reads the registry value, not a hardcode."
+      ],
+      "resolves": [
+        "prereq:tools/execution_bounds",
+        "COH-1:VERIFIER_ROLE",
+        "NEW-09"
+      ],
+      "rationale": "Per coverage summary: PREFER tightening E8-20's AC; create NEW-09 only if E8-20 stays scoped to numerics. This UPDATE folds NEW-09 into E8-20.",
+      "milestone": 4,
+      "supersedes": "NEW-09"
+    },
+    {
+      "op": "create",
+      "id": "NEW-09",
+      "target_name": "tools/execution_bounds threshold + role registry (standalone — ONLY if E8-20 stays numerics-scoped)",
+      "match_key": null,
+      "epic_module": "E3",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Backlog",
+      "description_html": "<p><b>Conditional create.</b> Only instantiate if UPD-E8-20 is NOT taken (i.e. E8-20 remains scoped to numerics). Authors tools/execution_bounds with the same AC set as UPD-E8-20. Default-disabled: executor should prefer the E8-20 fold and skip this create unless that fold is rejected.</p>",
+      "acceptance_criteria": [
+        "AC1: Authors tools/execution_bounds (SPEC_COMPLETION_HARD_CAP=7, Z3 60s, vague-adjective window, BLOCK_ESCALATION_CAP, VERIFIER_ROLE='verifier.md' per COH-1)."
+      ],
+      "resolves": [
+        "prereq:tools/execution_bounds"
+      ],
+      "rationale": "Fallback owner. Prefer UPD-E8-20. Created in Backlog so it does not duplicate work if the fold is taken.",
+      "milestone": 4,
+      "conditional": "only if UPD-E8-20 not applied"
+    },
+    {
+      "op": "create",
+      "id": "NEW-08",
+      "target_name": "Author tools/spec_validator.py (Z3 EARS encoder + vague-adjective scanner + UNMAPPED + provenance + validate_spec verdict)",
+      "match_key": null,
+      "epic_module": "E3",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:blocking",
+      "labels": [
+        "phase:0",
+        "type:functional"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>The single named shared prerequisite (remediation §7.1/§7.2) underpinning E3-1/-2/-4.</b> Built piecemeal across three stories' tasks with NO single owning item and ABSENT on disk, so none of E3-1/-2/-4 is execution-ready.</p>",
+      "acceptance_criteria": [
+        "AC1: One module owns Z3-backed EARS encoding, a vague-adjective proximity scanner, the UNMAPPED completeness check, provenance rejection, and validate_spec() returning a four-field structured verdict + a 60s timeout sentinel.",
+        "AC2: E3-1 (EARS + vague-adjective), E3-2 (UNMAPPED + provenance), E3-4 (validate_spec verdict + timeout) IMPORT it rather than re-authoring it.",
+        "AC3: The Z3 60s timeout reads from execution_bounds (UPD-E8-20), not a hardcode."
+      ],
+      "resolves": [
+        "prereq:tools/spec_validator.py",
+        "D2:validator-leg",
+        "C5"
+      ],
+      "rationale": "Makes E3-1/-2/-4 execution-ready for the first time; resolves the piecemeal-authoring redundancy.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E3-1",
+      "target_name": "ASCP-E3-1 — EARS encoder + vague-adjective scanner (consume spec_validator)",
+      "match_key": "story:ASCP-E3-1",
+      "epic_module": "E3",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:functional"
+      ],
+      "state": "Spec-Compiling",
+      "description_html": "<p>Precondition block added (C5): execution-ready only AFTER NEW-08 (spec_validator.py) + NEW-12 (migrations) + the spine (E8-13). Reframe the EARS/vague-adjective work as consuming tools/spec_validator.py, not re-authoring it.</p>",
+      "acceptance_criteria": [
+        "AC (preconditioned): imports tools/spec_validator.py for EARS encoding + the vague-adjective scanner; assumes a live webhook board only after E8-13 lands."
+      ],
+      "resolves": [
+        "C5"
+      ],
+      "rationale": "E3 stories assumed a live board + firing hooks + spec_validator that don't exist. Add explicit preconditions.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E3-2",
+      "target_name": "ASCP-E3-2 — UNMAPPED + provenance rejection (consume spec_validator)",
+      "match_key": "story:ASCP-E3-2",
+      "epic_module": "E3",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:functional"
+      ],
+      "state": "Spec-Compiling",
+      "description_html": "<p>Precondition block (C5): execution-ready only after NEW-08 + NEW-12 + spine. UNMAPPED completeness + provenance rejection consume tools/spec_validator.py.</p>",
+      "acceptance_criteria": [
+        "AC (preconditioned): imports tools/spec_validator.py for UNMAPPED + provenance; no self-authoring."
+      ],
+      "resolves": [
+        "C5"
+      ],
+      "rationale": "Same E3 precondition reconciliation.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E3-4",
+      "target_name": "ASCP-E3-4 — validate_spec four-field verdict + run_state violation_count via populator",
+      "match_key": "story:ASCP-E3-4",
+      "epic_module": "E3",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:functional"
+      ],
+      "state": "Spec-Compiling",
+      "description_html": "<p>Precondition block (C5) + contradiction fix (C6): AC-3 named the Initializer as producer of run_state.violation_count/prev_violation_count, partially contradicting D3 (no populator). Reconcile: the initializer EMITS via the D3 populator (NEW-02), it does not write run_state directly.</p>",
+      "acceptance_criteria": [
+        "AC: validate_spec() four-field verdict + 60s timeout via tools/spec_validator.py (NEW-08).",
+        "AC-3 (reconciled): run_state.violation_count/prev_violation_count are written by the D3 populator (NEW-02); the initializer emits the signal, not the row."
+      ],
+      "resolves": [
+        "C5",
+        "C6"
+      ],
+      "rationale": "Resolves C6 (D3 populator ownership) and the E3 precondition gap.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E3-5",
+      "target_name": "ASCP-E3-5 — schema task (verify-and-extend, not author-from-scratch)",
+      "match_key": "story:ASCP-E3-5",
+      "epic_module": "E3",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:0",
+        "type:functional"
+      ],
+      "state": "Spec-Compiling",
+      "description_html": "<p>Redundancy reframe (R2): schema/feature_list.schema.json ALREADY implements the four-field EvidenceRecord (additionalProperties:false), the WIRING->integration evidence_kind allOf, and the nfr_subtype/subtype/declared_states allOf. Reframe E3-5's schema task as verify-and-extend, not author-from-scratch.</p>",
+      "acceptance_criteria": [
+        "AC (reframed): verify the on-disk schema already covers the four-field EvidenceRecord + allOf constraints; extend only the deltas."
+      ],
+      "resolves": [
+        "R2",
+        "C5"
+      ],
+      "rationale": "Avoids duplicate work already realized on disk.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E3-22",
+      "target_name": "ASCP-E3-22 — preconditioned for spine + absent prereqs",
+      "match_key": "story:ASCP-E3-22",
+      "epic_module": "E3",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:0",
+        "type:functional"
+      ],
+      "state": "Spec-Compiling",
+      "description_html": "<p>Precondition block (C5): assumes a live webhook board + firing initializer/research/SubagentStop hooks; research_claim_validator.py, amendment_handler.py, migrations 005/006/007, baselines/ are ALL ABSENT. Add the explicit DEFERRED-prereq dependency list.</p>",
+      "acceptance_criteria": [
+        "AC (preconditioned): execution-ready only after the spine (E8-13) + migrations (NEW-12) + the named absent prereqs land."
+      ],
+      "resolves": [
+        "C5"
+      ],
+      "rationale": "E3-22 is not execution-ready as-stated; make the dependency explicit.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E5-S10",
+      "target_name": "ASCP-E5-S10 — Stop completion gate (add preconditions + CH-10 escalate rung)",
+      "match_key": "story:ASCP-E5-S10",
+      "epic_module": "E5",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:blocking",
+      "labels": [
+        "gate:stop",
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Contradiction fix (C8): specifies the Stop completion gate internals but assumes the spine is wired — names neither the settings.json registration precondition (E8-13), the ralph-loop disable, nor the COH-1 verifier.md reconciliation; references check_no_progress N=3 counters that are inert until the D3 run_state populator (NEW-02) exists. ALSO omits the CH-10 escalate-don't-re-inject rung that directly closes C-LOOP-04 — add it.</p>",
+      "acceptance_criteria": [
+        "AC1: Names the three preconditions explicitly — E8-13 settings.json registration, ralph-loop disable, COH-1 verifier.md.",
+        "AC2: check_no_progress N=3 counters are sourced from the D3 populator (NEW-02); the gate is honest that they are inert until NEW-02 lands.",
+        "AC3 (NEW): includes the CH-10 escalate-don't-re-inject rung — on repeat, vary/escalate within bounded rungs then HANDOFF, never re-inject (the exact mechanism that closes C-LOOP-04)."
+      ],
+      "resolves": [
+        "C8",
+        "C-LOOP-04:CH-10-rung"
+      ],
+      "rationale": "Adds the missing CH-10 rung and the three spine preconditions.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E8-21",
+      "target_name": "ASCP-E8-21 — SubagentStop / Stop escalation consuming run_state",
+      "match_key": "story:ASCP-E8-21",
+      "epic_module": "E8",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "gate:stop",
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Consumes run_state counters (block_streak, external_blocker, subagent_block_repeat_n) that are inert until the D3 populator (NEW-02). Add the NEW-02 dependency and the COH-3 accept-value note (A4 approve->allow; update lockstep test). R5 scope contract: E8-21 owns the escalation/HANDOFF rungs inside evaluate_stop; E8-14 owns the reentrancy guard half. R6: cite the single canonical HANDOFF contract (NEW-03 / charter NEW-13) rather than re-stating the rungs, so the five anti-idle layers cannot drift.</p>",
+      "acceptance_criteria": [
+        "AC1: HANDOFF/escalation paths consume run_state via NEW-02; SubagentStop accept value is 'allow' (COH-3) with the test updated in lockstep.",
+        "AC2 (R5 scope contract): E8-21 owns ONLY the escalation/HANDOFF rungs in evaluate_stop; the reentrancy guard is E8-14's; the boundary is test-pinned.",
+        "AC3 (R6): references the canonical HANDOFF contract (NEW-03 / NEW-13) by id; does not re-state the rung logic inline."
+      ],
+      "resolves": [
+        "C-LOOP-04",
+        "C-IDLE-03",
+        "COH-3",
+        "R5",
+        "R6"
+      ],
+      "rationale": "Makes the run_state dependency and the COH-3 accept-value change explicit.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E8-14",
+      "target_name": "ASCP-E8-14 — 005_run_state.sql column migration (scope note)",
+      "match_key": "story:ASCP-E8-14",
+      "epic_module": "E8",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Scope clarification: E8-14 owns ONLY the 005_run_state.sql column migration — it does NOT populate the counters. The populator is NEW-02. Cross-link both so the consume/populate split is explicit (this was the audit's #1 deferred-prereq confusion). ALSO (R5): E8-14 and E8-21 BOTH edit evaluate_stop (artifact-02 reentrancy + HANDOFF-before-block). Add an explicit scope contract so the two stories do not make conflicting edits to one function.</p>",
+      "acceptance_criteria": [
+        "AC1: 005_run_state.sql adds the D3/D7 columns; populating them is explicitly NEW-02's responsibility, not this story's.",
+        "AC2 (R5 scope contract): within evaluate_stop, E8-14 owns the reentrancy guard (stop_hook_active short-circuit -> zero-token re-entry); E8-21 owns the escalation/HANDOFF rungs. Neither story re-implements the other's half; a test pins the boundary."
+      ],
+      "resolves": [
+        "D3:column-vs-populate-split",
+        "R5"
+      ],
+      "rationale": "Clarifies that the column migration alone leaves the counters inert; NEW-02 writes them.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E4-S1",
+      "target_name": "ASCP-E4-S1 — implementer hook leg + evidence_collector signature extension",
+      "match_key": "story:ASCP-E4-S1",
+      "epic_module": "E4",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:wiring",
+        "gate:completion"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Contradiction fix (C15): ACs reference hooks firing (PreToolUse exit 2, SubagentStop exit 2/0) as if the spine is registered; no settings.json exists. Also: evidence_collector.collect() on disk is collect(test_file, test_name, output) with NO evidence_kind/actor_agent params — S1's assumed extended signature must become an explicit task. AC4/AC5 reference the D10 plan-approval gate — mark that leg DEFERRED per the scope decision.</p>",
+      "acceptance_criteria": [
+        "AC1: Spine precondition — hooks fire only after E8-13 (A1) + NEW-05 (A7) land.",
+        "AC2 (explicit task): extend tools/evidence_collector.collect() to carry evidence_kind + actor_agent (store_to_postgres(..., actor_agent), select-by-evidence_kind) — currently absent on disk.",
+        "AC4/AC5 (D10 leg): marked DEFERRED — plan-approval enforcement is D10, tracked in NEW-07, not built here."
+      ],
+      "resolves": [
+        "C15",
+        "D10:deferred",
+        "D11:deferred"
+      ],
+      "rationale": "Resolves the systemic E4 spine-presupposition + the evidence_collector signature mismatch; records the D10 deferral.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E4-S2",
+      "target_name": "ASCP-E4-S2 — extend the unified A6 hook (verify-and-extend schema)",
+      "match_key": "story:ASCP-E4-S2",
+      "epic_module": "E4",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Redundancy reframe (R1+R2): E4-S2's A6 wiring leg now EXTENDS the unified hook (NEW-10), not re-registers it. The 'Enforce WIRING->integration at the CoverageItem allOf' task is reframed verify-and-extend — schema/feature_list.schema.json already implements it.</p>",
+      "acceptance_criteria": [
+        "AC: extends NEW-10's unified A6 hook; the WIRING->integration allOf is verified-present on disk, extended only on deltas."
+      ],
+      "resolves": [
+        "R1",
+        "R2",
+        "C15"
+      ],
+      "rationale": "Removes duplicate hook registration and duplicate schema authoring.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E4-S3",
+      "target_name": "ASCP-E4-S3 — extend the unified A6 hook (five-layer leg)",
+      "match_key": "story:ASCP-E4-S3",
+      "epic_module": "E4",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Redundancy reframe (R1): E4-S3's five-layer leg EXTENDS the unified A6 hook (NEW-10). Also reframe the evidence/schema tasks verify-and-extend (R2) and add the spine precondition (C15). verifier.md frontmatter authored under NEW-05.</p>",
+      "acceptance_criteria": [
+        "AC: extends NEW-10's unified A6 hook; consumes the COH-1 verifier.md actor from NEW-05; spine-preconditioned."
+      ],
+      "resolves": [
+        "R1",
+        "R2",
+        "C15"
+      ],
+      "rationale": "Single A6 hook ownership; no re-authoring of on-disk schema.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E4-S4",
+      "target_name": "ASCP-E4-S4 — nfr_subtype/subtype/declared_states (verify-and-extend)",
+      "match_key": "story:ASCP-E4-S4",
+      "epic_module": "E4",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:0",
+        "type:nfr"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Redundancy reframe (R2): 'Add nfr_subtype/subtype/declared_states' duplicates already-realized on-disk work — schema/feature_list.schema.json already carries the nfr_subtype/subtype/declared_states allOf. Reframe verify-and-extend.</p>",
+      "acceptance_criteria": [
+        "AC (reframed): verify the on-disk nfr_subtype/subtype/declared_states allOf; extend only the deltas, do not author from scratch."
+      ],
+      "resolves": [
+        "R2",
+        "C15"
+      ],
+      "rationale": "Avoids duplicate schema authoring already present on disk.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E2-S1",
+      "target_name": "E2-S1 — subagent-hook inner loop (spine precondition)",
+      "match_key": "story:E2-S1",
+      "epic_module": "E2",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Contradiction fix (C2): AC4 claims the inner loop ('one Plane issue = 4 subagents + 6 hooks') is reachable with integration-test evidence — false as-on-disk (no .claude/settings.json; .claude/agents/ is .gitkeep-only). Add the explicit dependency on E8-13 (A1) + NEW-05 (A7); reframe AC4 to assert reachability POST-spine.</p>",
+      "acceptance_criteria": [
+        "AC4 (reframed): the 4-subagent/6-hook inner loop is reachable with integration evidence ONLY after E8-13 (A1) + NEW-05 (A7) land."
+      ],
+      "resolves": [
+        "C2"
+      ],
+      "rationale": "The inner loop presupposes the spine Pattern-1 says never ran.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E2-S2",
+      "target_name": "E2-S2 — verifier carve-out (depend on COH-1)",
+      "match_key": "story:E2-S2",
+      "epic_module": "E2",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Contradiction fix (C4): AC2's verifier carve-out keyed on actor_agent == verifier.md works only if the verifier frontmatter name is verifier.md AND CLAUDE_AGENT_NAME carries that suffix. As-on-disk no .claude/agents/*.md exist. Add a hard dependency on NEW-05 (COH-1 reconciliation).</p>",
+      "acceptance_criteria": [
+        "AC2 (preconditioned): the verifier carve-out is testable only after NEW-05 lands the verifier.md frontmatter + the COH-1 CI assert passes."
+      ],
+      "resolves": [
+        "C4",
+        "COH-1"
+      ],
+      "rationale": "The carve-out has no actor to recognize until COH-1 lands.",
+      "milestone": 4
+    },
+    {
+      "op": "update",
+      "id": "UPD-E2-S3",
+      "target_name": "E2-S3 — completion checks (remove deepeval gate; single-source the list; deferred D10 leg)",
+      "match_key": "story:E2-S3",
+      "epic_module": "E2",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "gate:completion",
+        "phase:0",
+        "type:functional",
+        "human:review"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Contradiction + redundancy fix (C3/R3): AC3 lists deepeval-gate among required completion checks — directly contradicts intent-model 2.5 and the charter's 'predictions never gate' (deepeval is QUALITY-only). It also hardcodes a static 7-check list (violates CH-15 'lists from a registry') and double-sources it (inline vs tasks.md 14.2). AC2's plan-approval (D10) leg is marked DEFERRED per the scope decision.</p>",
+      "acceptance_criteria": [
+        "AC3a: REMOVE deepeval from the completion gate — deepeval is quality-only, never a completion gate (intent-model 2.5; charter 'predictions never gate').",
+        "AC3b: Source the completion-check list from a SINGLE registry (CH-15); delete the inline static 7-check duplicate (R3).",
+        "AC2 (D10 leg): plan-approval enforcement is DEFERRED (tracked in NEW-07), not asserted as a working exit-2 block here."
+      ],
+      "resolves": [
+        "C3",
+        "R3",
+        "D10:deferred"
+      ],
+      "rationale": "Removes a charter-violating gate, the CH-15 hardcode, and the double-sourcing; records the D10 deferral.",
+      "milestone": 4
+    },
+    {
+      "op": "create",
+      "id": "NEW-02",
+      "target_name": "Loop Driver / run_state Populator + BLOCKED-ON sentinel parser (D3)",
+      "match_key": null,
+      "epic_module": "E8",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:blocking",
+      "labels": [
+        "gate:stop",
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>The audit's #1 DEFERRED prerequisite (D3).</b> A2/A4 (E8-14/E8-21), E5-S10, E3-4, E4-S1, and E6-S2/S3/S5 all CONSUME run_state counters but NOTHING populates them — cap/budget/no-progress HANDOFF is inert until a driver writes them. E8-14 owns only the 005_run_state.sql column migration. This story owns the writer. Lands LAST in Phase-0 because it turns the already-wired gates from inert to firing.</p>",
+      "acceptance_criteria": [
+        "AC1: Writes the counters each turn — block_streak, external_blocker, no_progress_n, budget_exceeded, iteration_count, violation_count, resume_state_hash — or explicitly down-scopes to A2's hook-owned fallback streak (decision recorded).",
+        "AC2: Parses the 'BLOCKED-ON: <dependency>' sentinel into run_state.external_blocker (the A8<->A2 reconciliation channel).",
+        "AC3: After this lands, A2/A4 HANDOFF / cap / budget / no-progress paths are LIVE (counters no longer 0); a test proves a 3-streak triggers HANDOFF, not re-injection.",
+        "AC4: The agent is FORBIDDEN from writing run_state directly — it emits the BLOCKED-ON sentinel; the populator writes the row (A8 directive constraint)."
+      ],
+      "resolves": [
+        "D3",
+        "C-IDLE-03",
+        "C6",
+        "A2:HANDOFF-live",
+        "A4:escalation-live"
+      ],
+      "rationale": "Without this, the entire anti-loopmaxxing convergence layer is inert. Lands after the gates so it switches them on.",
+      "milestone": 5
+    },
+    {
+      "op": "create",
+      "id": "NEW-03",
+      "target_name": "Bounded-Autonomy Goal Directive (A8 — HANDOFF via BLOCKED-ON sentinel)",
+      "match_key": null,
+      "epic_module": "E2",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "phase:0",
+        "type:functional"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>The canonical bounded-autonomy contract (A8).</b> No owning story. Authorizes self-continuation only when in-scope AND objectively checkable, converts blockers into surface-and-HANDOFF (killing the idle 'standing by' loop), pins the canonical source, pairs anti-fabrication with its terminal, and supplies the BLOCKED-ON sentinel that pairs with NEW-02. E2-S3 touches the HITL boundary but not the directive. Forbids the agent from writing run_state directly (emits the sentinel instead — the A8<->A2 reconciliation).</p>",
+      "acceptance_criteria": [
+        "AC1: Authorizes self-continuation only when the next step is in-scope AND objectively checkable (CH-14 named escape).",
+        "AC2: Converts every blocker into surface-and-HANDOFF (no idle 'standing by'); pairs anti-fabrication with its terminal so honesty cannot collapse into idling.",
+        "AC3: Pins the canonical source for selection (A-AMBIG-01 pin half).",
+        "AC4: Emits the 'BLOCKED-ON: <dependency>' sentinel rather than writing run_state directly (pairs with NEW-02 AC2/AC4).",
+        "AC5: Read once per session (un-multiplied -> may be complete); references durable invariants by name (resolved by NEW-04).",
+        "AC6 (R6 canonical HANDOFF contract): defines THE single canonical HANDOFF-before-block contract that the five anti-idle layers (E8-14/E8-21 Stop hook, E3-4 Z3 verdict, E4-S1 gate, E5-S10 slice driver, E6-S3 dispatch) all reference by id rather than re-state — preventing drift across the defense-in-depth layers."
+      ],
+      "resolves": [
+        "A-IDLE-01",
+        "B-IDLE-01",
+        "C-IDLE-03",
+        "A-AMBIG-01:pin",
+        "artifact:08-goal-directive",
+        "R6"
+      ],
+      "rationale": "Two ends of one contract with A2: the directive authorizes the agent to stop honestly; A2's gate lets it stop.",
+      "milestone": 6
+    },
+    {
+      "op": "update",
+      "id": "UPD-E6-S2",
+      "target_name": "ASCP-E6-S2 — scope-gate dispatch (gate behind explicit preconditions; defer D10/D11/D25)",
+      "match_key": "story:ASCP-E6-S2",
+      "epic_module": "E6",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "gate:completion",
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Contradiction fix (C10): 'mirrors the PreToolUse scope gate (REQ-7.5)', dispatches initializer/implementer subagents, reads plan-approved.json+feature_list_sha and the flagd kill-switch — but A1/A7 are staged-not-applied, scope-sequencing is D11 (DEFERRED), plan-approval is D10 (DEFERRED), kill-switch is D25 (absent). Gate dispatch behind an explicit precondition list; mark the D10/D11/D25 legs DEFERRED (tracked in NEW-07).</p>",
+      "acceptance_criteria": [
+        "AC1: Dispatch is gated behind explicit preconditions — E8-13 (A1) + NEW-05 (A7) applied.",
+        "AC2: The plan-approved.json (D10) + scope-sequencing (D11) + kill-switch (D25) legs are marked DEFERRED, not assumed firing; tracked in NEW-07."
+      ],
+      "resolves": [
+        "C10",
+        "D10:deferred",
+        "D11:deferred",
+        "D25:deferred"
+      ],
+      "rationale": "Dispatch presumed deferred/absent infra. Make the deferral explicit.",
+      "milestone": 6
+    },
+    {
+      "op": "update",
+      "id": "UPD-E6-S3",
+      "target_name": "ASCP-E6-S3 — Done-routing (reframe to in-scope Stop leg; defer OPA/required-check legs)",
+      "match_key": "story:ASCP-E6-S3",
+      "epic_module": "E6",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "gate:completion",
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Contradiction fix (C11): 'Done is written only after Stop hook + OPA zero-evidence query + GitHub required status check all pass' — the Stop hook is unregistered (Pattern-1), OPA/Conftest is D17 (absent), GitHub required checks are D17-D18 (absent). Reframe the AC to the in-scope leg (Stop hook, live after E8-13); mark OPA + required-check legs DEFERRED.</p>",
+      "acceptance_criteria": [
+        "AC1 (reframed): Done is gated on the Stop hook (live after E8-13).",
+        "AC2: the OPA zero-evidence query (D17) and GitHub required status check (D17-D18) legs are marked DEFERRED until that infra lands."
+      ],
+      "resolves": [
+        "C11",
+        "D17:deferred",
+        "D18:deferred"
+      ],
+      "rationale": "The Done triplet presumed two absent gates. Keep the in-scope Stop leg; defer the rest.",
+      "milestone": 6
+    },
+    {
+      "op": "update",
+      "id": "UPD-E6-S4",
+      "target_name": "ASCP-E6-S4 — agent vocabulary <-> COH-1 reconciliation map",
+      "match_key": "story:ASCP-E6-S4",
+      "epic_module": "E6",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:high",
+      "labels": [
+        "agent:initializer",
+        "agent:coder",
+        "agent:tester",
+        "agent:research",
+        "phase:0",
+        "type:wiring"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Latent COH-1 fix (C12): E6-S4 seeds agent_role as suffix-less dropdown values (initializer|implementer|verifier|research) and labels agent:coder/agent:tester, while the gates require byte-consistent <role>.md actor literals (verifier.md/implementer.md). Document the mapping so the board vocabulary and the gate actor convention do not diverge.</p>",
+      "acceptance_criteria": [
+        "AC1: A documented mapping between the board's agent_role dropdown / agent:* labels and the gate's <role>.md actor literals (verifier.md/implementer.md/initializer.md/research.md).",
+        "AC2: Depends on NEW-05 (COH-1). The 'By Agent' view is execution-ready only after this map + NEW-05 land."
+      ],
+      "resolves": [
+        "C12",
+        "COH-1"
+      ],
+      "rationale": "Resolves the board-vocabulary vs gate-literal divergence that blocks the By Agent view.",
+      "milestone": 6
+    },
+    {
+      "op": "update",
+      "id": "UPD-E6-S7",
+      "target_name": "ASCP-E6-S7 — non-vacuous gate-isolation property",
+      "match_key": "story:ASCP-E6-S7",
+      "epic_module": "E6",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:0",
+        "type:nfr"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Vacuous-pass fix (C13): the static check 'no gate function imports or reads Plane state' presumes gate functions exist to scan, but the Stop/PreToolUse/OPA gates are unapplied/absent — until they are built the check passes vacuously (no gate functions -> none read Plane state -> green), a false-green. Make the check assert gates EXIST AND don't read Plane state.</p>",
+      "acceptance_criteria": [
+        "AC (non-vacuous): the property asserts (a) the expected gate functions EXIST after the spine lands, AND (b) none import or read Plane state. A missing gate is a FAIL, not a vacuous pass."
+      ],
+      "resolves": [
+        "C13"
+      ],
+      "rationale": "Removes the false-green the audit flags elsewhere.",
+      "milestone": 6
+    },
+    {
+      "op": "update",
+      "id": "UPD-E8-18",
+      "target_name": "ASCP-E8-18 — plan-approval gate (mark enforcement leg deferred)",
+      "match_key": "story:ASCP-E8-18",
+      "epic_module": "E8",
+      "phase_cycle": "Phase 0 — Spine",
+      "priority": "priority:normal",
+      "labels": [
+        "gate:completion",
+        "phase:0",
+        "type:wiring",
+        "human:review"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Latent contradiction fix (C14): asserts the plan-approval PreToolUse gate as a working exit-2 block (CHECK-4f UNSAT), but D10 is DEFERRED and verification 3 notes A7's plan-approval is 'prose-only/unenforced until D10 lands'. Mark the enforcement leg DEFERRED; do not assume it is already enforced by the steering change set.</p>",
+      "acceptance_criteria": [
+        "AC (reframed): the plan-approval PreToolUse exit-2 enforcement is DEFERRED (D10, tracked in NEW-07); A7's plan-approval is prose-only until D10 lands."
+      ],
+      "resolves": [
+        "C14",
+        "D10:deferred"
+      ],
+      "rationale": "Stops the board presupposing D10 enforcement that does not exist.",
+      "milestone": 6
+    },
+    {
+      "op": "update",
+      "id": "UPD-E5-S31",
+      "target_name": "ASCP-E5-S31 — phase reconciliation (phase:2 label vs Phase-4 AC)",
+      "match_key": "story:ASCP-E5-S31",
+      "epic_module": "E5",
+      "phase_cycle": "Phase 4 — Property-Based Test Suite",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:4",
+        "type:nfr"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p>Contradiction fix (C9): contradictory phase claims — label phase:2 vs AC 'Phase-4 task 40.5'. Reconcile to Phase-4 per the AC: move the cycle to 'Phase 4 — Property-Based Test Suite' and set the label to phase:4.</p>",
+      "acceptance_criteria": [
+        "AC (reconciled): cycle = Phase 4 — Property-Based Test Suite; label = phase:4 (matches the AC's 'Phase-4 task 40.5')."
+      ],
+      "resolves": [
+        "C9"
+      ],
+      "rationale": "Removes the internal phase-sequencing inconsistency.",
+      "milestone": 6
+    },
+    {
+      "op": "create",
+      "id": "NEW-13",
+      "target_name": "Author the 00-charter tier-1 base-prompt engineering standard (CH-01/06/07/08) as a formal deliverable",
+      "match_key": null,
+      "epic_module": "E8",
+      "phase_cycle": "Phase 1 — Verification Depth",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:1",
+        "type:functional"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>The tier-1 charter standard (00-charter, CH-01/06/07/08) as a FORMAL board deliverable.</b> The charter principles (single-source-of-truth, predictions-never-gate, located-oracle-before-claim, escalate-don't-re-inject) are applied piecemeal across many items (E8-15/29 base-prompts, E2-S3 completion gate, E5-S10) but the tier-1 charter standard ITSELF is not owned by any item (PARTIAL). Authoring it as a deliverable gives traceability to B-INTENT-02 and every loop/idle item, and makes NEW-04's A9 anchor reference a real upstream document rather than dangling. Drop-in exists at audit/steering-audit/proposed/00-charter.md.</p>",
+      "acceptance_criteria": [
+        "AC1: Lands 00-charter.md as the tier-1 base-prompt engineering standard that every steering string (A2/A3/A4/A7/A8/A9) inherits by reference, not by copy.",
+        "AC2: Encodes CH-01 (single canonical source), CH-06 (predictions never gate), CH-07 (located oracle before any done-claim), CH-08 (escalate-don't-re-inject) as named, citable doctrines.",
+        "AC3: B-INTENT-02 (no self-grading), the loop items (C-LOOP-04/CH-10), and the idle items (A/B/C-IDLE) trace to a charter clause — provenance is no longer implicit.",
+        "AC4: NEW-04 (A9 root CLAUDE.md) and NEW-05 (A7 base-prompts) reference charter clauses by id; a check proves no steering string re-states a charter rule inline (CH-15 single-source)."
+      ],
+      "resolves": [
+        "artifact:00-charter",
+        "B-INTENT-02:provenance",
+        "traceability:loop-idle"
+      ],
+      "rationale": "Per the new_items_needed payload: author the 00-charter as a FORMAL deliverable (E8/Phase-1/normal). Previously reference-only; now an owning item so the tier-1 standard has a home and the loop/idle/self-grading items have a citable parent.",
+      "milestone": 7
+    },
+    {
+      "op": "create",
+      "id": "NEW-06",
+      "target_name": "Add a checkable success-oracle for disable / teardown tasks (kill-switch & ralph-disable)",
+      "match_key": null,
+      "epic_module": "E6",
+      "phase_cycle": "Phase 1 — Verification Depth",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:1",
+        "type:nfr",
+        "gate:completion"
+      ],
+      "state": "Spec-Verified",
+      "description_html": "<p><b>The teardown-specific success-oracle (A-LOOP-01).</b> A-LOOP-01 was a 3-round teardown with no checkable success oracle for the disable scenario. A generic checkable-success-oracle doctrine exists (NEW-04 AC2 / E8-20) but no CONCRETE oracle exists for the specific disable/teardown path that caused the loop — the kill-switch teardown (E6-S2) and the ralph-loop disable (E8-13). This story authors the named, checkable end-state predicate for those scenarios so 'is it actually disabled?' is a one-shot assertion, not a re-grep loop. Owns the teardown half that NEW-04's doctrine only describes.</p>",
+      "acceptance_criteria": [
+        "AC1: A checkable oracle for the ralph-loop disable — asserts at runtime that stop-hook.sh is ABSENT from hook telemetry and the governance Stop hook owns the event (the same predicate UPD-E8-13 AC5 verifies; this story makes it a reusable teardown oracle).",
+        "AC2: A checkable oracle for the kill-switch teardown (E6-S2) — a single assertion that the flagd kill-switch is OFF and no dispatch path remains live, not a multi-round manual re-check.",
+        "AC3: The oracle is invoked BEFORE any 'teardown done' claim (inherits NEW-04 AC2 / charter CH-07 located-oracle-before-claim); a test proves a still-enabled plugin FAILS the oracle.",
+        "AC4: Cross-linked from UPD-E8-13 (ralph disable) and ASCP-E6-S2 (kill-switch) so the disable/teardown scenarios share one oracle, not three ad-hoc checks."
+      ],
+      "resolves": [
+        "A-LOOP-01",
+        "disable-teardown-oracle"
+      ],
+      "rationale": "Per the new_items_needed payload: add a success-oracle for disable/teardown (E6 kill-switch/teardown, or E8; Phase-1/normal). Resolves A-LOOP-01 from PARTIAL (generic doctrine) to a concrete checkable oracle for the exact scenario that caused the 3-round teardown.",
+      "milestone": 7
+    },
+    {
+      "op": "create",
+      "id": "NEW-11",
+      "target_name": "PreCompact resume_state_hash checkpoint hook (D7)",
+      "match_key": null,
+      "epic_module": "E7",
+      "phase_cycle": "Phase 2 — Durable State & Security",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:2",
+        "type:wiring"
+      ],
+      "state": "Backlog",
+      "description_html": "<p><b>The producer of resume_state_hash for A5's drift compare (D7).</b> Its absence keeps A-AMBIG-01's integrity half permanently PARTIAL (the only remaining PARTIAL finding in the audit). Named as a prereq the SessionStart canary (NEW-01) depends on (COH-2). Likely E7 durable-state/observability scope.</p>",
+      "acceptance_criteria": [
+        "AC1: A PreCompact checkpoint hook writes resume_state_hash so NEW-01's resume-integrity compare can detect mid-run spec mutation.",
+        "AC2: When this lands, re-add PreCompact to A1's SPINE_REQUIRED_EVENTS (COH-2) and flip NEW-01 AC4 from 'INACTIVE' to active drift detection.",
+        "AC3: Closes the only remaining PARTIAL finding (A-AMBIG-01 integrity half)."
+      ],
+      "resolves": [
+        "A-AMBIG-01:integrity",
+        "D7",
+        "COH-2"
+      ],
+      "rationale": "Phase-2 deferred tail: the last PARTIAL finding. Lands after the Phase-0 spine.",
+      "milestone": 8
+    },
+    {
+      "op": "create",
+      "id": "NEW-07",
+      "target_name": "(Deferred) PreToolUse plan-approval HITL gate as enforced exit-2 block (D10) + scope-sequencing (D11)",
+      "match_key": null,
+      "epic_module": "E2",
+      "phase_cycle": "Phase 2 — Durable State & Security",
+      "priority": "priority:normal",
+      "labels": [
+        "gate:completion",
+        "phase:2",
+        "type:wiring",
+        "human:review"
+      ],
+      "state": "Backlog",
+      "description_html": "<p><b>Scope decision tracker (D10/D11).</b> E2-S3 AC2, E4-S1 AC4/AC5, E6-S2, and E8-18 all PRESUPPOSE the plan-approval SHA-binding gate (and scope-sequencing) as a working exit-2 block, but the audit explicitly classes D10/D11 as DEFERRED/out-of-scope for the steering-string remediation. DECISION RECORDED (report 4.3): mark those ACs DEFERRED and track the build here in Backlog — do NOT build the guards in the steering apply set.</p>",
+      "acceptance_criteria": [
+        "AC1 (when built): a PreToolUse guard refuses the Agent-Executing transition while plan-approved.json is absent or feature_list_sha is mismatched.",
+        "AC2 (when built): scope-sequencing (D11) enforces declared-state ordering.",
+        "AC-STATUS: until built, this item carries the DEFERRED legs of E2-S3/E4-S1/E6-S2/E8-18 so the dependency is tracked, not lost."
+      ],
+      "resolves": [
+        "D10",
+        "D11",
+        "scope-mismatch-decision"
+      ],
+      "rationale": "Records the recorded scope decision so the board stops presupposing deferred enforcement. Lives in Backlog.",
+      "milestone": 8
+    },
+    {
+      "op": "update",
+      "id": "UPD-E7-STATUS",
+      "target_name": "E7 + E6-S5 status true-up (REQ16/REQ6/REQ27/REQ11/REQ23/REQ12 + E6-S5)",
+      "match_key": "story:ASCP-E7-REQ16",
+      "additional_match_keys": [
+        "story:ASCP-E7-REQ6",
+        "story:ASCP-E7-REQ27",
+        "story:ASCP-E7-REQ11",
+        "story:ASCP-E7-REQ23",
+        "story:ASCP-E7-REQ12",
+        "story:E6-S5"
+      ],
+      "epic_module": "E7",
+      "phase_cycle": "Phase 3 — Observability & Proof",
+      "priority": "priority:normal",
+      "labels": [
+        "phase:3",
+        "type:nfr"
+      ],
+      "state": "Backlog",
+      "description_html": "<p>Contradiction fix (C16) + §4.4 status incoherences: E7 stories carry advanced states (Done, In-Verification, Human-Review, Agent-Executing, Blocked) while their underlying tools/migrations/telemetry are absent on disk — status claims outrun on-disk reality. True-up each to Backlog or Spec-Verified until its prereqs (NEW-11, NEW-12, the spine) land. Additionally: (S7) reconcile the recurring agent_role:human + state:Agent-Executing mismatch on REQ11/REQ12/REQ23 — a human-owned item cannot be agent-executing; (S8) REQ23's 'Blocked' state has no encoded blocker link — either encode the blocker relation (its prereq is NEW-11 / migrations) or move it off Blocked; (S6) E6-S5 is marked Done with no in-slice evidence for a blocking reconciliation item — move off Done until evidence exists. Executor: apply to each match_key (the six E7 stories + E6-S5).</p>",
+      "acceptance_criteria": [
+        "AC1: each E7 story's state reflects on-disk reality — Backlog/Spec-Verified until its tools/migrations/telemetry exist; no Done/In-Verification while the underlying artifact is absent.",
+        "AC2 (S7): no E7 story carries agent_role:human together with state:Agent-Executing; reconcile the role/state pairing.",
+        "AC3 (S8): REQ23 either carries an encoded blocker relation or is moved off Blocked (no dead-end Blocked with no edge).",
+        "AC4 (S6): E6-S5 is moved off Done until in-slice evidence exists; the R4 overlap with E6-S7 is left intact."
+      ],
+      "resolves": [
+        "C16",
+        "S6",
+        "S7",
+        "S8"
+      ],
+      "rationale": "Makes the Workflow Kanban view honest (no item in a state its evidence cannot support). Also folds the §4.4 status incoherences: E6-S5 Done-without-evidence (S6), E7 agent_role:human+Agent-Executing mismatch (S7), E7-REQ23 Blocked-without-link (S8).",
+      "milestone": 8
+    }
+  ]
+}

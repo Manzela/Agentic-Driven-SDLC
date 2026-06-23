@@ -37,6 +37,12 @@ paths = [
   '''(^|/)docs/.*\.md$''',
   '''(^|/)\.gitleaks\.toml$''',
   '''(^|/)\.env\.example$''',
+  # Generated Plane-board dumps (audit/plane-xref/board-snapshot*.json): machine-emitted
+  # board data. The gitleaks "generic-connection-string" rule matches localhost URLs and
+  # the DEFAULT self-hosted Plane "plane:plane@plane-db" docker-compose credential inside
+  # dumped issue descriptions — NO live credentials (verified across BOTH snapshot files:
+  # 0 plane_api_ / CF-secret / CF-client-id occurrences). Not a real-secret silencer.
+  '''(^|/)audit/plane-xref/board-snapshot[^/]*\.json$''',
 ]
 
 # Obvious non-secret placeholder values seen in docs/examples.

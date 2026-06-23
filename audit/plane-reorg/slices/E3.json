@@ -1,0 +1,181 @@
+{
+ "epic": "E3",
+ "title": "Intent\u2192Spec Compilation & Coverage Model",
+ "story_count": 6,
+ "task_count": 21,
+ "stories": [
+  {
+   "key": "ASCP-E3-1",
+   "title": "Spec Compilation \u2014 terse intent to atomic EARS requirements",
+   "state": "Spec-Compiling",
+   "agent_role": "initializer",
+   "requirement_id": "REQ-SPEC-001",
+   "coverage_type": "functional",
+   "labels": [
+    "agent:initializer",
+    "type:functional",
+    "phase:0",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "Every compiled requirement has a unique ID matching ^[A-Z]+-[A-Z]+-[0-9]{3}$, exactly one ears_pattern, a priority integer >=1, and >=1 acceptance criterion.",
+    "spec_validator.py assigns exactly one of the five base EARS patterns per requirement; zero-pattern and multi-pattern requirements are rejected (Property 16).",
+    "The seven-member vague-adjective reject-set is enforced; an adjective is flagged only when no numeric literal (with optional unit) sits within +/-6 tokens in the same EARS clause (Property 17).",
+    "Compiled requirements exist on disk as spec.json + requirements.md and are committed; compilation does not live in model context alone.",
+    "The Plane story carries requirement_id populated, agent_role=initializer, and transitions Backlog -> Agent-Triaged -> Spec-Compiling."
+   ],
+   "tasks": [
+    "EARS schema + spec.json/requirements.md artifact format",
+    "spec_validator.py EARS encoder + vague-adjective scanner",
+    "Plane triage + state sync on spec compilation"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E3-2",
+   "title": "Proactive Discovery \u2014 infer implied baseline requirements; UNMAPPED blocks advancement",
+   "state": "Spec-Compiling",
+   "agent_role": "initializer",
+   "requirement_id": "REQ-SPEC-010",
+   "coverage_type": "functional",
+   "labels": [
+    "agent:initializer",
+    "type:functional",
+    "priority:blocking",
+    "phase:0"
+   ],
+   "acceptance_criteria": [
+    "Every baseline item in the active checklist has >=1 proposed requirement OR is explicitly flagged UNMAPPED.",
+    "Advancement to implementation is blocked while any baseline item is UNMAPPED (CHECK-9a UNSAT).",
+    "Each requirement carries provenance in {stated, inferred}; spec_validator.py rejects any inferred requirement lacking a provenance tag at authoring time.",
+    "Each inferred requirement is gated by per-item human confirmation before it enters feature_list.json (not only bulk plan-mode review).",
+    "The Plane story remains in Spec-Compiling/Agent-Triaged and cannot advance to Plan-Approved while any baseline item is UNMAPPED."
+   ],
+   "tasks": [
+    "UNMAPPED detection + advancement block",
+    "Provenance marking + per-inferred human confirmation",
+    "Plane discovery board + UNMAPPED blocking label"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E3-3",
+   "title": "Domain-Baseline Checklist Sourcing \u2014 researched, version-controlled, approval-gated",
+   "state": "Spec-Compiling",
+   "agent_role": "research",
+   "requirement_id": "REQ-SPEC-013",
+   "coverage_type": "functional",
+   "labels": [
+    "agent:research",
+    "type:functional",
+    "gate:completion",
+    "phase:0",
+    "priority:high"
+   ],
+   "acceptance_criteria": [
+    "Newness is decided by an Initializer lookup against domain_baseline_checklists keyed by product_class; absence of an approved (approved_at non-null) row triggers research.",
+    "The draft checklist is named by product class under baselines/ and is not used for discovery until approved_at is non-null.",
+    "Every external claim carries a source URL + authority-tier label and passes the fact-check pass; research_claim_validator.py rejects unlabeled/unverified claims (Property 29).",
+    "feature_list.json.checklist_ref records path + version + git blob SHA of the checklist actually used, and a domain_baseline_checklists row links it.",
+    "The research output carries a non-null omission_declaration (per-EARS-category [Gap] markers) accepted by the SubagentStop omission guard."
+   ],
+   "tasks": [
+    "research.md subagent + web-tool grant + checklist persistence",
+    "Checklist version-history table + approval gate + claim validator",
+    "Plane research workflow + human approval handoff"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E3-4",
+   "title": "Spec-Completion Loop \u2014 bounded, Z3-judged, fail-closed to HANDOFF",
+   "state": "Spec-Compiling",
+   "agent_role": "initializer",
+   "requirement_id": "REQ-SPEC-020",
+   "coverage_type": "functional",
+   "labels": [
+    "agent:initializer",
+    "gate:stop",
+    "type:functional",
+    "priority:blocking",
+    "phase:0",
+    "handoff"
+   ],
+   "acceptance_criteria": [
+    "validate_spec() always returns exactly the four fields {contradictions, ambiguities, uncovered, violation_count}; the authoring agent's output is never consulted in the verdict (Property 14).",
+    "The Stop hook blocks (exit 2) on passes before the cap while violation_count > 0; at the cap with violation_count > 0 it writes status=handoff, emits a HANDOFF summary, and allows the stop (exit 0), never exit 2 (Property 15; REQ-LOOP-005 tiebreak).",
+    "The Initializer persists run_state.violation_count (producer) and run_state.prev_violation_count each pass; HANDOFF fires immediately when the current count does not strictly decrease.",
+    "spec_pass_count is capped at SPEC_COMPLETION_HARD_CAP=7, read from the task-44 config; the Z3 timeout DEFAULT is 60s and returns violation_count=-1 on timeout.",
+    "At violation_count == 0 the story transitions Spec-Compiling -> Spec-Verified; feature_list.json is emitted with every item unproven; plan mode is entered."
+   ],
+   "tasks": [
+    "spec_validator.py structured verdict + timeout sentinel",
+    "Stop-hook block + strict-decrease/cap HANDOFF tiebreak",
+    "feature_list.json emission + plan-mode handoff",
+    "Plane Spec-Verified transition + HANDOFF state"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E3-5",
+   "title": "Coverage Model \u2014 feature_list.json, default unproven, four-field evidence, append-only guard",
+   "state": "Spec-Verified",
+   "agent_role": "initializer",
+   "requirement_id": "REQ-COV-001",
+   "coverage_type": "functional",
+   "labels": [
+    "agent:initializer",
+    "type:functional",
+    "type:nfr",
+    "type:wiring",
+    "gate:completion",
+    "phase:0",
+    "priority:blocking"
+   ],
+   "acceptance_criteria": [
+    "schema/feature_list.schema.json validates a hand-written valid file and rejects an item with status: proven but a missing output_hash (four-field gate, Property 2).",
+    "WIRING items require integration-test evidence (evidence_kind == integration); NFR items require nfr_subtype (Property 1; allOf clauses).",
+    "The PreToolUse status guard permits only the four edges, blocks into-proven without complete evidence, and blocks any deletion/truncation/reorder of the existing item id-sequence (check_append_only, Property 3).",
+    "Every item carries in_scope (default true); Stop/OPA/Completion gates count only in_scope items; out-of-scope is human-authored only (Req 5.7).",
+    "The Initializer seeds the file via feature_list_init.py (creation exempt from the artifact/status guards) and populates all items unproven."
+   ],
+   "tasks": [
+    "feature_list.schema.json + four-field Evidence_Record + allOf clauses",
+    "PreToolUse status guard + append-only (check_append_only)",
+    "WIRING/NFR first-class emission + in_scope gate counting",
+    "Plane coverage-item mirror + evidence_status field"
+   ],
+   "on_board": true
+  },
+  {
+   "key": "ASCP-E3-22",
+   "title": "Requirement-Amendment Versioning \u2014 re-enter unproven, block COMPLETE until reproven",
+   "state": "Spec-Compiling",
+   "agent_role": "human",
+   "requirement_id": "REQ-COV-007",
+   "coverage_type": "functional",
+   "labels": [
+    "human:review",
+    "agent:initializer",
+    "gate:completion",
+    "type:functional",
+    "priority:high",
+    "phase:2"
+   ],
+   "acceptance_criteria": [
+    "Each amendment inserts a requirement_versions row with monotonically increasing version, non-null prior_text (from version 1 onward), new_text, author, rationale, and DB-assigned created_at.",
+    "The amendment re-enters the coverage item unproven in BOTH coverage_items.status and the feature_list.json item (evidence cleared), so a Postgres-down amendment cannot leave the file item proven (task 39.15 path).",
+    "COMPLETE is blocked while any amended item is un-reproven (CHECK-10a UNSAT; CHECK-10b SAT for a re-proven amended item).",
+    "The PreToolUse status guard allows proven->unproven ONLY when the write carries a corresponding requirement_versions insert; a bare flip is blocked (Property 3 / Property 25).",
+    "The invoking actor is a human operator action, not an autonomous agent; the feature_list_sha re-bind re-blocks implementation under a stale approval when the item id/type/acceptance_criteria changes."
+   ],
+   "tasks": [
+    "requirement_versions table (append-only) + handler",
+    "Status-guard amendment edge + feature_list.json flip",
+    "Amendment-monotonicity verification",
+    "Plane amendment re-entry + COMPLETE block"
+   ],
+   "on_board": true
+  }
+ ]
+}

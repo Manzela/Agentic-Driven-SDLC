@@ -1,0 +1,397 @@
+{
+ "_meta": {
+  "generated_for": "plane-xref deepening pass (post-agent-reapply state)",
+  "groups": {
+   "G1_restore": 6,
+   "G2_create": 1,
+   "G4_refine": 6
+  },
+  "counts": {
+   "update": 13,
+   "create": 1,
+   "relation": 40
+  }
+ },
+ "ops": [
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E7-REQ6",
+   "set_state": "Backlog",
+   "description_html": "<p><b>Status true-up (C16 / \u00a74.4 S6/S7/S8):</b> moved to <b>Backlog</b> \u2014 the prior advanced state outran on-disk evidence (underlying tools / migrations / telemetry are absent per the audit). Re-advance only when the named prerequisites land. The original requirement content is preserved below (it had been overwritten by a batch true-up note).</p><p><b>Bidirectional Traceability (requirement \u2194 code \u2194 test \u2194 evidence \u2194 commit \u2194 owner)</b> \u2014 requirement <code>REQ-TRACE-001</code></p><p><b>EARS requirements</b></p><ul><li><b>[ubiquitous]</b> The system shall maintain bidirectional links requirement \u2194 implementation \u2194 test \u2194 evidence \u2194 commit \u2194 owner in the durable Postgres traceability_links store.</li><li><b>[ubiquitous]</b> The system shall stamp the active requirement.id onto every telemetry span via a W3C Baggage span processor so traceability is reconstructable from the live trace.</li><li><b>[event-driven]</b> WHEN a commit is created, the system shall require \u22651 referenced requirement ID in the commit trailer.</li><li><b>[unwanted]</b> IF an implementation unit references no requirement, OR a requirement maps to no verification artifact, THEN the system shall fail the orphan-detection check and block the run via the traceability-gate required status check.</li></ul><p><b>Acceptance criteria</b></p><ul><li>traceability_links rows written for every link_type \u2208 {implementation,test,evidence,commit,owner} with direction \u2208 {forward,backward}, FK-bound to requirements(id), indexed by idx_traceability_links_requirement_id</li><li>traceability_writer.py::parse_commit_trailers extracts [A-Z]+-[A-Z]+-[0-9]{3} IDs; assert_commit_has_req_id raises TraceabilityError on a commit with no requirement ID (REQ-6.2 / Property 10)</li><li>orphan_detector.py runs full-repo Python-source-scoped (excluding tests/, generated dirs, __init__.py, db/migrations/) and exits non-zero on forward orphans (source unit with no req ref) and backward orphans (req with no traceability_links row of link_type in ('test','evidence') AND/OR no evidence_records row); honors # orphan-exempt / allowlist (REQ-6.3 / Property 11)</li><li>traceability-gate.yml REQUIRED check consumes orphan_detector.py non-zero exit and folds in assert_commit_has_req_id, blocking merge on any orphan</li><li>RequirementBaggageProcessor sets requirement.id Baggage on on_start for every active-requirement span; no requirement-processing span emitted without non-empty requirement.id (Property 12)</li><li>backward-orphan lookup authoritative store is Postgres (REQ-16.3) with documented feature_list.json fallback per Note N-25</li><li>ID-extraction factored into shared tools/req_id_scan.py imported by both orphan_detector.py and traceability_writer.py to prevent regex drift</li></ul><p><b>Control metadata</b></p><ul><li><code>epic</code>: E7</li><li><code>requirement_id</code>: REQ-TRACE-001</li><li><code>agent_role</code>: verifier</li><li><code>coverage_type</code>: WIRING</li><li><code>key</code>: ASCP-E7-REQ6</li></ul>",
+   "why": "G1-restore-ASCP-E7-REQ6"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E7-REQ11",
+   "set_state": "Backlog",
+   "description_html": "<p><b>Status true-up (C16 / \u00a74.4 S6/S7/S8):</b> moved to <b>Backlog</b> \u2014 the prior advanced state outran on-disk evidence (underlying tools / migrations / telemetry are absent per the audit). Re-advance only when the named prerequisites land. The original requirement content is preserved below (it had been overwritten by a batch true-up note).</p><p><b>Session Continuity and Durable State</b> \u2014 requirement <code>REQ-STATE-001</code></p><p><b>EARS requirements</b></p><ul><li><b>[ubiquitous]</b> The system shall persist all mutable run state outside model context \u2014 in files (claude-progress.txt, feature_list.json), git history, and the durable Postgres run_state store.</li><li><b>[ubiquitous]</b> The system shall record an incremental commit per completed Slice as the durable execution trail and rollback point.</li><li><b>[event-driven]</b> WHEN context compaction is imminent, the PreCompact_Hook shall checkpoint progress and evidence records (and write the durable baseline run_state.resume_state_hash) before context is trimmed.</li><li><b>[event-driven]</b> WHEN a session starts, the SessionStart_Hook shall load git status, the progress file, and the Coverage_Model so a resumed session re-orients deterministically, and shall additionally compute the resumed-state hash and write run_state.resume_integrity_ok without itself halting the run.</li></ul><p><b>Acceptance criteria</b></p><ul><li>run_state_store.save_run_state upserts into run_state AND writes claude-progress.txt as a file-backed duplicate including status, no_progress_n, stop_hook_active, resume_integrity_ok, and baseline resume_state_hash (Note N-25, never fail-open)</li><li>session_start_hook.py reads git status --porcelain, claude-progress.txt (created empty if absent), feature_list.json (minimal valid stub if absent); injects structured-JSON summary with git_status/unproven_count/proven_count; exit 0 always</li><li>pre_compact_hook.py checkpoints claude-progress.txt + evidence state + feature_list.json to MAIN-worktree git AND writes durable baseline run_state.resume_state_hash; exit 0 (non-blocking)</li><li>each completed Slice produces exactly one atomic commit (last_commit_sha recorded in run_state) as the rollback point</li><li>Postgres half (run_state upsert) and file+git half (PreCompact/SessionStart) kept as duplicates; on divergence the more conservative state wins</li></ul><p><b>Control metadata</b></p><ul><li><code>epic</code>: E7</li><li><code>requirement_id</code>: REQ-STATE-001</li><li><code>agent_role</code>: human</li><li><code>coverage_type</code>: functional</li><li><code>key</code>: ASCP-E7-REQ11</li></ul>",
+   "why": "G1-restore-ASCP-E7-REQ11"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E7-REQ12",
+   "set_state": "Backlog",
+   "description_html": "<p><b>Status true-up (C16 / \u00a74.4 S6/S7/S8):</b> moved to <b>Backlog</b> \u2014 the prior advanced state outran on-disk evidence (underlying tools / migrations / telemetry are absent per the audit). Re-advance only when the named prerequisites land. The original requirement content is preserved below (it had been overwritten by a batch true-up note).</p><p><b>Observability (live requirement-tagged trace + gate-decision forwarding)</b> \u2014 requirement <code>REQ-OBS-001</code></p><p><b>EARS requirements</b></p><ul><li><b>[ubiquitous]</b> The system shall emit OTel spans for every model call, tool invocation, and subagent task.</li><li><b>[ubiquitous]</b> The system shall propagate the active requirement.id to all child spans via a W3C Baggage span processor.</li><li><b>[state-driven]</b> WHILE a run is in progress, the system shall stream each span to the observability backend as it closes (export interval DEFAULT \u2264 5 seconds), not batched at run-end.</li><li><b>[event-driven]</b> WHEN a hook makes a gate decision, the system shall emit that decision \u2014 event, tool, allow/block, reason, requirement ID, actor_agent \u2014 to the same trace endpoint as agent spans.</li><li><b>[optional]</b> WHERE a managed observability backend is used, the system shall document its license (Langfuse MIT core; SigNoz MIT Expat core; Arize Phoenix Elastic License 2.0) so backend choice is compliance-aware.</li></ul><p><b>Acceptance criteria</b></p><ul><li>tools/telemetry.py::init_tracer configures OTLP exporter with CLAUDE_CODE_ENABLE_TELEMETRY=1 and OTEL_SEMCONV_STABILITY_OPT_IN=gen_ai_latest_experimental; opentelemetry-sdk + GenAI semconv versions pinned in requirements.txt</li><li>span export uses a streaming/short-interval processor with export interval \u2264 5 s (not a run-end batch)</li><li>gate-making hooks (Stop, PreToolUse, SubagentStop) emit a hook.decision span with hook.event, tool.name, decision (allow/block), reason, requirement.id, actor_agent \u2014 same actor_agent as the gate_audit_log row</li><li>non-gating hooks (SessionStart, PreCompact) emit a distinct informational span (hook.session_start / hook.checkpoint, decision=n/a), never a gate-decision allow/block attribute</li><li>RequirementBaggageProcessor propagates requirement.id to every child span (shared with REQ-6.4; Property 12)</li><li>Langfuse is the default backend (OTLP endpoint .../api/public/otel/v1/traces); backend license documentation present</li></ul><p><b>Control metadata</b></p><ul><li><code>epic</code>: E7</li><li><code>requirement_id</code>: REQ-OBS-001</li><li><code>agent_role</code>: human</li><li><code>coverage_type</code>: functional</li><li><code>key</code>: ASCP-E7-REQ12</li></ul>",
+   "why": "G1-restore-ASCP-E7-REQ12"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E7-REQ23",
+   "set_state": "Backlog",
+   "description_html": "<p><b>Status true-up (C16 / \u00a74.4 S6/S7/S8):</b> moved to <b>Backlog</b> \u2014 the prior advanced state outran on-disk evidence (underlying tools / migrations / telemetry are absent per the audit). Re-advance only when the named prerequisites land. The original requirement content is preserved below (it had been overwritten by a batch true-up note).</p><p><b>Resumed-State Integrity</b> \u2014 requirement <code>REQ-STATE-005</code></p><p><b>EARS requirements</b></p><ul><li><b>[event-driven]</b> WHEN a session resumes, the SessionStart_Hook shall compute the resumed-state hash and write run_state.resume_integrity_ok (bool) without itself blocking.</li><li><b>[unwanted]</b> IF a session resumes AND the resumed-state hash does not match the durable store's recorded resume_state_hash, THEN the system shall block the run from proceeding (PreToolUse integrity guard, exit 2 on the first implementation write) and require operator reconciliation.</li><li><b>[state-driven]</b> WHILE run_state.resume_integrity_ok is false, the PreToolUse integrity guard shall block the session's first Write/Edit/MultiEdit, releasing only after operator reconciliation flips it true.</li><li><b>[optional]</b> WHERE a session has no recorded baseline (resume_state_hash IS NULL, a fresh non-resumed run), the system shall treat the integrity guard as ALLOW so a first run is never blocked.</li></ul><p><b>Acceptance criteria</b></p><ul><li>tools/state_integrity.py::compute_hash() recomputes the resumed-state hash as sha256 over the canonical projection of in-scope feature_list.json items + named run_state fields (Property 26), using the same hash-algorithm/canonical-form as the design hash layer</li><li>session_start_hook.py (Phase-2 extension, task 49.2) imports state_integrity.py, calls compute_hash(), compares against durable run_state.resume_state_hash, writes run_state.resume_integrity_ok \u2014 NON-BLOCKING (exit 0 always)</li><li>PreToolUse integrity guard (task 49.1) reads run_state.resume_integrity_ok and exits 2 when false; scoped to (is_resume AND NOT first_write_done) so it fires only on the first implementation write of a resumed session; treats resume_state_hash IS NULL as ALLOW</li><li>integrity guard chained BEFORE plan/scope/artifact/status checks in pre_tool_use_hook.py (order pinned at task 6.1)</li><li>Operator Reconciliation re-records the baseline and flips resume_integrity_ok to true, releasing the guard</li><li>on DB-down at SessionStart, the hook records resume_integrity_ok + baseline state_hash to claude-progress.txt so the guard always has a file-backed source (Note N-25, never fail-open)</li><li>verified by Property 26 (PBT, task 39.16) and the LOGIC Z3 CHECK-11a (mismatch \u21d2 \u00acproceeds, UNSAT) / CHECK-11b (SAT)</li></ul><p><b>Control metadata</b></p><ul><li><code>epic</code>: E7</li><li><code>requirement_id</code>: REQ-STATE-005</li><li><code>agent_role</code>: human</li><li><code>coverage_type</code>: functional</li><li><code>key</code>: ASCP-E7-REQ23</li></ul>",
+   "why": "G1-restore-ASCP-E7-REQ23"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E7-REQ27",
+   "set_state": "Backlog",
+   "description_html": "<p><b>Status true-up (C16 / \u00a74.4 S6/S7/S8):</b> moved to <b>Backlog</b> \u2014 the prior advanced state outran on-disk evidence (underlying tools / migrations / telemetry are absent per the audit). Re-advance only when the named prerequisites land. The original requirement content is preserved below (it had been overwritten by a batch true-up note).</p><p><b>Tamper-Evident Gate-Decision Audit Log (hash-chained)</b> \u2014 requirement <code>REQ-AUDIT-001</code></p><p><b>EARS requirements</b></p><ul><li><b>[ubiquitous]</b> The system shall append every gate decision (event, tool, allow/block, reason, requirement ID, actor agent, created_at) to an append-only, hash-chained audit log where each entry stores the hash of the prior entry.</li><li><b>[ubiquitous]</b> The system shall retain the hash-chained gate-decision log as the execution-proof complement to SLSA build provenance, so 'we can prove what happened' is distinct from and additional to 'the trace says what happened.'</li><li><b>[event-driven]</b> WHEN the audit log is verified, IF any entry's stored prior-hash does not equal the recomputed hash of the preceding entry, THEN verification shall fail (tamper detection).</li><li><b>[state-driven]</b> WHILE operating without archival, the system shall treat unbounded append-only retention as the accepted DEFAULT and prohibit mid-chain pruning; verified prefixes older than the live window (DEFAULT 365 days) shall be checkpoint-and-archived so the chain re-verifies across the archive boundary.</li><li><b>[unwanted]</b> IF two concurrent append() calls read the same prev_hash, THEN the system shall serialize the read+insert under a lock within one transaction so the chain linearizes and audit_verify does not raise a false fork.</li></ul><p><b>Acceptance criteria</b></p><ul><li>db/migrations/008_gate_audit_log.sql creates the append-only gate_audit_log (seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at, prev_hash, entry_hash); DB-enforces append-only via REVOKE UPDATE,DELETE + BEFORE UPDATE OR DELETE RAISE trigger</li><li>tools/audit_log.py::append is sole producer; created_at is DB-assigned (DEFAULT now()) and folded into the canonical row, not a producer argument; genesis prev_hash = sha256(''); canonical form = deterministic JSON of (seq, event_name, tool_name, decision, reason, requirement_id, actor_agent, created_at); entry_hash = sha256(canonical_row || prev_hash) INCLUDING seq and created_at</li><li>append() CALLED by stop_hook.py, pre_tool_use_hook.py, subagent_stop_hook.py (evidence-schema AND omission-declaration-guard decisions) on EVERY allow/block decision \u2014 three hook files / four decision points; kill-switch toggle also appends</li><li>append() serializes prev_hash-read + insert under pg_advisory_xact_lock (or SELECT ... FOR UPDATE on a chain-head sentinel) in one transaction; concurrent appends cannot fork the chain</li><li>tools/audit_verify.py recomputes the chain, fails on any broken link, emits structured JSON report (first_broken_seq, expected_hash, stored_prev_hash, computed_prev_hash); verifies a merged DB+file-backed chain ordered by seq with the seam rule (Property 28)</li><li>.github/workflows/audit-chain-verify.yml REQUIRED check runs audit_verify.py at merge; registration gated until 52.2/52.3 land (build-order inversion fix)</li><li>append invoked inside the decision path BEFORE the exit, wrapped so an append failure degrades to the file-backed log and never suppresses the gate decision/exit</li><li>CI-status-check gates (deepeval-gate, zap-baseline, coverage-gate, secrets-scan, audit-chain-verify) recorded via GitHub check-run history + SLSA, not the hook hash chain \u2014 each gate captured by exactly one execution-proof substrate</li></ul><p><b>Control metadata</b></p><ul><li><code>epic</code>: E7</li><li><code>requirement_id</code>: REQ-AUDIT-001</li><li><code>agent_role</code>: human</li><li><code>coverage_type</code>: functional</li><li><code>key</code>: ASCP-E7-REQ27</li></ul>",
+   "why": "G1-restore-ASCP-E7-REQ27"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:E6-S5",
+   "set_state": "Backlog",
+   "description_html": "<p><b>Status true-up (C16 / \u00a74.4 S6/S7/S8):</b> moved to <b>Backlog</b> \u2014 the prior advanced state outran on-disk evidence (underlying tools / migrations / telemetry are absent per the audit). Re-advance only when the named prerequisites land. The original requirement content is preserved below (it had been overwritten by a batch true-up note).</p><p><b>Bidirectional state-mirror and traceability-triple sync</b> \u2014 requirement <code>REQ-INT-005</code></p><p><b>EARS requirements</b></p><ul><li><b>[ubiquitous]</b> THE system SHALL keep each Plane issue's state an eventually-consistent, idempotent projection of its requirement_id's durable coverage status in Postgres.</li><li><b>[event-driven]</b> WHEN an agent run produces a slice, THE system SHALL write the traceability triple onto the Plane issue: worktree_branch (git branch), agent_run_id (LLM run id), and the Plane issue id, so issue-branch-run is reconstructable from Plane alone.</li><li><b>[event-driven]</b> WHEN a commit is created for a slice, THE system SHALL ensure the commit trailer carries the requirement_id (REQ-6.2) and SHALL surface the commit SHA on the Plane issue, completing the requirement-commit link.</li><li><b>[state-driven]</b> WHILE the durable store and Plane disagree about an issue's state (drift), THE system SHALL treat Postgres as authoritative and reconcile Plane toward it, never the reverse.</li><li><b>[unwanted]</b> IF a Plane-side manual edit sets a state the durable coverage status does not support (e.g. a human drags to Done while the item is unproven), THEN THE system SHALL revert the Plane issue to the durable-store-backed state and record the rejected edit.</li><li><b>[optional]</b> WHERE a periodic reconciliation sweep runs, THE system SHALL recompute every in-scope issue's state from Postgres and repair any drifted mirror, bounding eventual-consistency lag.</li></ul><p><b>Acceptance criteria</b></p><ul><li>For every in-scope requirement_id, Plane state equals the projection of Postgres coverage status; a reconciliation test injects drift and asserts repair toward Postgres.</li><li>The traceability triple (issue id - worktree_branch - agent_run_id) is queryable from Plane for any proven item; an integration test reconstructs it end-to-end.</li><li>A manual Plane drag to Done on an unproven item is reverted and logged (Plane cannot manufacture a proven).</li><li>Drift always resolves toward Postgres; the sweep is idempotent (no-op on a consistent state).</li></ul><p><b>Control metadata</b></p><ul><li><code>epic</code>: E6</li><li><code>requirement_id</code>: REQ-INT-005</li><li><code>agent_role</code>: verifier</li><li><code>coverage_type</code>: functional</li><li><code>key</code>: E6-S5</li></ul>",
+   "why": "G1-restore-E6-S5"
+  },
+  {
+   "kind": "create",
+   "name": "Author the eight .kiro migrations 001-008 + run_state completeness + gate_audit_log append-only grant",
+   "external_id": "ascp-audit-reorg:NEW-12",
+   "epic_module": "E1",
+   "phase_cycle": "Phase 0 \u2014 Spine",
+   "set_state": "Spec-Verified",
+   "set_labels": [
+    "phase:0",
+    "type:wiring",
+    "gate:security",
+    "priority:blocking"
+   ],
+   "description_html": "<p><b>Durable home for D3 (run_state) and the hash-chained gate_audit_log.</b> REQ-INFRA-005 AC#4 asserts eight .kiro migrations 001-008 apply, but ZERO *.sql files exist anywhere in-repo (verified b2fa9bc) \u2014 the AC asserts state that is not on disk. Likely folded into the REQ-INFRA-005 UPDATE rather than a wholly new story (executor: upsert against story:REQ-INFRA-005 if that is the chosen home).</p><p><b>Acceptance criteria</b></p><ul><li>AC1: Author/locate eight migration files creating requirements, coverage_items, traceability_links, evidence_records, run_state, domain_baseline_checklists, requirement_versions, gate_audit_log.</li><li>AC2: run_state schema carries ALL D3/D7 columns: block_streak, external_blocker, no_progress_n, budget_exceeded, iteration_count, violation_count, prev_violation_count, subagent_block_repeat_n, resume_state_hash.</li><li>AC3: gate_audit_log has an append-only grant (no UPDATE/DELETE) + requirement_id FK integrity.</li><li>AC4: REQ-INFRA-005 AC#4 becomes testable \u2014 the eight migrations actually apply against a fresh DB.</li></ul><p><b>Provenance:</b> created standalone in the deepening pass \u2014 the prior apply collided this op onto <code>story:REQ-INFRA-005</code> (shared match_key), so REQ-INFRA-005's true-up overwrote it and the migration-authoring owner never existed. REQ-INFRA-005 AC#4 depends on this item.</p>",
+   "why": "G2-create-NEW-12 (COV-01/XC-03/GT-D1)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:E2-S1",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:E2-S2",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:E2-S3",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E3-1",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E3-2",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E3-4",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E3-22",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E4-S1",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E4-S2",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E4-S3",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E4-S4",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E5-S10",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:E6-S2",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:E6-S3",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:E6-S7",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E7-REQ6",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E7-REQ11",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E7-REQ12",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E7-REQ16",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E7-REQ23",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E7-REQ27",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E8-14",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E8-18",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E8-21",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E8-26",
+   "to_external_id": "story:ASCP-E8-13",
+   "why": "NEW-14 spine-first topology (COV-02/PSD-01/GT-D2)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E4-S2",
+   "to_external_id": "ascp-audit-reorg:NEW-10",
+   "why": "R1 extend-not-re-register the unified A6 hook"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E4-S3",
+   "to_external_id": "ascp-audit-reorg:NEW-10",
+   "why": "R1 extend-not-re-register the unified A6 hook"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "relates_to",
+   "from_external_id": "story:ASCP-E8-14",
+   "to_external_id": "story:ASCP-E8-21",
+   "why": "R5 evaluate_stop scope contract (E8-14=reentrancy guard, E8-21=escalation rungs)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "relates_to",
+   "from_external_id": "story:ASCP-E8-14",
+   "to_external_id": "ascp-audit-reorg:NEW-03",
+   "why": "R6 canonical HANDOFF contract single-source"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "relates_to",
+   "from_external_id": "story:ASCP-E8-21",
+   "to_external_id": "ascp-audit-reorg:NEW-03",
+   "why": "R6 canonical HANDOFF contract single-source"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "relates_to",
+   "from_external_id": "story:ASCP-E3-4",
+   "to_external_id": "ascp-audit-reorg:NEW-03",
+   "why": "R6 canonical HANDOFF contract single-source"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "relates_to",
+   "from_external_id": "story:ASCP-E5-S10",
+   "to_external_id": "ascp-audit-reorg:NEW-03",
+   "why": "R6 canonical HANDOFF contract single-source"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "relates_to",
+   "from_external_id": "story:E6-S3",
+   "to_external_id": "ascp-audit-reorg:NEW-03",
+   "why": "R6 canonical HANDOFF contract single-source"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E5-S10",
+   "to_external_id": "ascp-audit-reorg:NEW-02",
+   "why": "D3 run_state populator makes counters live (TWL-03/08)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E3-4",
+   "to_external_id": "ascp-audit-reorg:NEW-02",
+   "why": "D3 run_state populator makes counters live (TWL-03/08)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:ASCP-E8-21",
+   "to_external_id": "ascp-audit-reorg:NEW-02",
+   "why": "D3 run_state populator makes counters live (TWL-03/08)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:E2-S2",
+   "to_external_id": "ascp-audit-reorg:NEW-05",
+   "why": "COH-1 actor-name reconciliation prerequisite"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "story:E6-S4",
+   "to_external_id": "ascp-audit-reorg:NEW-05",
+   "why": "COH-1 actor-name reconciliation prerequisite"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "blocked_by",
+   "from_external_id": "ascp-audit-reorg:NEW-01",
+   "to_external_id": "ascp-audit-reorg:NEW-11",
+   "why": "A5 resume-integrity needs D7 producer (PSD-04)"
+  },
+  {
+   "kind": "relation",
+   "relation_type": "relates_to",
+   "from_external_id": "ascp-audit-reorg:NEW-11",
+   "to_external_id": "story:ASCP-E7-REQ11",
+   "why": "NEW-11 vs E7-REQ11.3 PreCompact scope (COV-06/RED-06)"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E8-13",
+   "append_md": "**Deepening AC (xref pass \u2014 registration correctness & generalization).**\n- The A1 register installs **exactly 5 events** \u2014 SessionStart, PreToolUse, PostToolUse, SubagentStop, Stop. **PreCompact is a separate hook (NEW-11), NOT part of this register** \u2014 `SPINE_REQUIRED_EVENTS` must scope to these 5 so the SessionStart canary is green when wired *as scoped* (COH-2), not perpetually yellow.\n- The **PreToolUse matcher must include `Bash`** (not only `Write|Edit|MultiEdit`): protected-path anti-tamper is bypassable via `sed`/`tee`/`echo >`/`python -c` writes under Bash. Pair the tool matcher with a **content-level** protected-path check (resolve the target path from the command), not a tool-name allowlist alone.\n- **Exit-code-2 steering reason MUST be written to STDERR**, never stdout. On a PreToolUse/Stop block, Claude Code feeds **stderr** back to the model; stdout is shown only to the user. A hook that prints its reason to stdout + exits 2 makes the steer invisible to the agent \u2192 the agent flails/loops. (Best-practice BP-3.)\n- `settings.json` must live on the **run branch in the run cwd** \u2014 a hook registered off-branch never fires (the original silent-inertness root).\n- Add a runtime **ralph-loop disable telemetry assert**: post-apply, `stop-hook.sh` is ABSENT from hook telemetry and the governance Stop hook owns the event (TWL-06).",
+   "why": "G4-E8-13"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E5-S10",
+   "append_md": "**Deepening AC (xref pass \u2014 anti-loop, testable).**\n- Encode the **CH-10 escalate-don't-re-inject rung** as a runnable oracle: on Stop re-entry the hook emits **ZERO tokens** (no mega-prompt re-injection); after N consecutive no-progress streaks it routes to **HANDOFF**, never re-injects. A test must prove a 3-streak triggers HANDOFF, not the 49\u00d7 re-injection the forensics found (C-LOOP-04).\n- The **reentrancy guard keys on the hook-input payload `stop_hook_active` flag** that Claude Code supplies, **not** a self-authored `run_state.stop_hook_active` mutex (which is unwritten until D3/NEW-02 and races the very loop it guards). (TWL-01/02/04, BP-2.)\n- The N=3 no-progress counters are inert until the D3 populator (NEW-02) writes them \u2014 this story is `blocked_by` NEW-02 (edge added).",
+   "why": "G4-E5-S10"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E8-21",
+   "append_md": "**Deepening AC (xref pass \u2014 escalation ownership scope contract).**\n- **Scope contract with E8-14 on `evaluate_stop`:** E8-14 owns the `stop_hook_active` reentrancy short-circuit; **E8-21 owns the escalation/HANDOFF rungs that consume `run_state`** (cap / budget / no-progress \u2192 HANDOFF). They edit one function \u2014 neither re-implements the other's leg. (R5.)\n- Escalation rungs are live only after NEW-02 (D3) writes the counters \u2192 `blocked_by` NEW-02 (edge added). Cite the single canonical HANDOFF contract in NEW-03 rather than restating the rungs (R6).",
+   "why": "G4-E8-21"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E8-14",
+   "append_md": "**Deepening AC (xref pass \u2014 reentrancy scope contract).**\n- E8-14 owns ONLY the `stop_hook_active` reentrancy short-circuit in `evaluate_stop` (read the flag from the hook input payload; if set, return immediately, emit nothing). The escalation/HANDOFF rungs belong to E8-21 (R5 scope contract; `relates_to` edge added).",
+   "why": "G4-E8-14"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "story:ASCP-E4-S1",
+   "append_md": "**Deepening AC (xref pass \u2014 SubagentStop correctness & anti-spoof).**\n- The SubagentStop gate **must resolve the actor from `CLAUDE_AGENT_NAME` (server/runtime side), NOT from a payload-supplied `actor_agent`** \u2014 a payload field is spoofable by the very subagent being gated, defeating actor-independence (B-INTENT-02). (HGD-4.)\n- The hook's JSON **`decision` value must be a valid SubagentStop value (`\"block\"` or omitted)** \u2014 `\"approve\"` is not a recognized SubagentStop decision and is silently ignored, so a self-graded record passes. (BP-4.)\n- Block reasons go to **stderr** with exit 2 and name the **located evidence field** + one corrective step (not a generic 'failed').",
+   "why": "G4-E4-S1"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "ascp-audit-reorg:NEW-05",
+   "append_md": "**Deepening AC (xref pass \u2014 COH-1 generalization).**\n- Resolve the verifier identity through a **single constant/env (`VERIFIER_ROLE`, default `verifier.md`)** imported by every gate (`pre_tool_use_hook.py`, `subagent_stop_hook.py`, fixtures), so a future role rename is a one-line change \u2014 not a brittle byte-for-byte literal duplicated across files that re-creates the G1 fail-closed-but-stuck failure when it drifts. The CI assert checks `CLAUDE_AGENT_NAME` resolves to that constant. (HGD-3.)",
+   "why": "G4-ascp-audit-reorg:NEW-05"
+  },
+  {
+   "kind": "update",
+   "target_external_id": "ascp-audit-reorg:NEW-11",
+   "append_md": "**Scope note (xref):** NEW-11 owns the standalone **PreCompact hook** that writes `resume_state_hash`. Existing task **E7-REQ11.3** is the durable-state *column writer* \u2014 a distinct leg. `relates_to` edge added; neither re-implements the other. (RED-06/COV-06.)",
+   "why": "G5-NEW-11-dedup"
+  }
+ ]
+}

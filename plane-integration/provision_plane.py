@@ -14,7 +14,7 @@ encoded into a structured metadata block in each issue's description AND mapped 
 labels where a label exists, because the community edition's public API does not
 expose custom-property creation.
 """
-import os, sys, json, time, pathlib, urllib.request, urllib.error
+import os, sys, json, time, random, pathlib, urllib.request, urllib.error
 
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -38,6 +38,10 @@ WS = CFG["PLANE_WORKSPACE_SLUG"]
 PROJ = CFG["PLANE_PROJECT_ID"]
 KEY = CFG["PLANE_API_KEY"]
 PBASE = f"/workspaces/{WS}/projects/{PROJ}"
+# Browser UA so a CF-fronted board doesn't 1010 (REL-05); CF-Access headers if present (remote board).
+UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ascp-automation"
+CF_ID = os.environ.get("CF_ACCESS_CLIENT_ID", "")
+CF_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
 
 STATE_GROUP_COLOR = {
     "backlog": "#94a3b8", "unstarted": "#6366f1", "started": "#f59e0b",
@@ -62,14 +66,23 @@ def _throttle(min_interval=1.1):
         time.sleep(min_interval - dt)
     _last_ts[0] = time.time()
 
+def _headers():
+    h = {"X-API-Key": KEY, "Content-Type": "application/json", "User-Agent": UA}
+    if CF_ID and CF_SECRET:
+        h["CF-Access-Client-Id"] = CF_ID
+        h["CF-Access-Client-Secret"] = CF_SECRET
+    return h
+
+
 def api(method, path, body=None, retries=8):
     url = f"{API_BASE}{path}"
     data = json.dumps(body).encode() if body is not None else None
     last = None
-    for attempt in range(retries):
+    attempt = 0
+    deadline = time.time() + 600          # 429s wait against a wall-clock cap, not the retry budget (REL-07)
+    while attempt < retries:
         _throttle()
-        req = urllib.request.Request(url, data=data, method=method,
-              headers={"X-API-Key": KEY, "Content-Type": "application/json"})
+        req = urllib.request.Request(url, data=data, method=method, headers=_headers())
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 raw = r.read()
@@ -78,14 +91,18 @@ def api(method, path, body=None, retries=8):
             txt = e.read().decode("utf-8", "replace")[:400]
             last = ApiError(e.code, f"{method} {path} -> {e.code}: {txt}")
             last.body = txt
-            if e.code == 429:
-                time.sleep(62); continue
+            if e.code == 429:                 # honor Retry-After + jitter; do NOT consume `attempt`
+                ra = e.headers.get("Retry-After")
+                wait = float(ra) if (ra and str(ra).isdigit()) else 30
+                if time.time() + wait > deadline:
+                    raise last
+                time.sleep(wait + random.uniform(0, 2)); continue
             if 500 <= e.code < 600:
-                time.sleep(min(2 ** attempt, 30)); continue
+                time.sleep(min(2 ** attempt, 30) + random.uniform(0, 1)); attempt += 1; continue
             raise last
         except urllib.error.URLError as e:
             last = ApiError(0, f"{method} {path} -> URLError {e}")
-            time.sleep(min(2 ** attempt, 30)); continue
+            time.sleep(min(2 ** attempt, 30) + random.uniform(0, 1)); attempt += 1; continue
     raise last
 
 def paged(path):
