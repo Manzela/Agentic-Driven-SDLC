@@ -26,6 +26,9 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tools.hook_telemetry import record_fire  # noqa: E402
+
 # The durable-state artifacts this hook checkpoints, relative to the repo root.
 # Globs are expanded against the resolved root; concrete paths are tried as-is.
 _PROGRESS_FILE = "claude-progress.txt"
@@ -151,8 +154,13 @@ def main() -> int:
         state = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
         state = {}
-    result = pre_compact(state)
-    print(json.dumps(result))
+    record_fire("PreCompact", (state.get("session_id", "") if isinstance(state, dict) else ""))
+    # Perform the checkpoint for its side effect / return value, but emit NO
+    # stdout: PreCompact has no schema-valid stdout decision, so printing the
+    # raw {"checkpointed":…} payload is INVALID INPUT. The pure core
+    # (pre_compact) keeps returning the payload for the verifier; the shell just
+    # runs it and exits 0 silently.
+    pre_compact(state)
     # Exit 0 — PreCompact is a non-blocking checkpoint write; it cannot block
     # compaction. (Exit 2 is the blocking channel and is intentionally unused.)
     return 0

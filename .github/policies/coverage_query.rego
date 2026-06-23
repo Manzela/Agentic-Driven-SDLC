@@ -82,6 +82,48 @@ deny contains msg if {
 	msg := "Merge denied: feature_list.json has zero in-scope items. A zero-item coverage model is a valid INIT state but never a valid COMPLETE/merge state."
 }
 
+# ── Rule 4: actor-separation (provenance) ────────────────────────────────────
+# A proven in-scope item's evidence must name DISTINCT implementer/verifier
+# sessions (zero-trust: an implementer may not self-verify). Phase A trusts the
+# ids; Phase B adds cryptographic attestation + ledger cross-check at CI. This
+# is the Rego twin of coverage_gate.deny_merge's Rule 3.
+deny contains msg if {
+	some item in in_scope_items
+	item.status == "proven"
+	item.evidence
+	not _distinct_sessions(item.evidence)
+	msg := sprintf("Merge denied: in-scope item %q evidence lacks distinct verifier/implementer sessions (self-grading or missing provenance).", [object.get(item, "id", "<no-id>")])
+}
+
+_distinct_sessions(ev) if {
+	v := _norm_session(ev.verifier_session_id)
+	i := _norm_session(ev.implementer_session_id)
+	v != ""
+	i != ""
+	v != i
+}
+
+# Normalize an UNTRUSTED session id before the distinctness comparison: strip
+# surrounding whitespace, REJECT non-ASCII (-> ""), then lower-case. This closes
+# the near-duplicate forgery class ("i" vs " i " vs "I") AND keeps this helper
+# IDENTICAL to the Python twin coverage_gate._norm_session / evidence_gate
+# (which case-fold): over ASCII, OPA `lower` == Python `casefold`, and any
+# non-ASCII id (e.g. "ß", which Python casefold folds to "ss" but OPA lower does
+# NOT) normalizes to "" in BOTH and is treated as absent — closing the
+# casefold/lower twin-drift. A non-string id normalizes to "". Phase B
+# additionally rejects ids absent from the trusted ledger.
+_norm_session(value) := lower(trim_space(value)) if {
+	is_string(value)
+	regex.match(`^[\x00-\x7f]+$`, trim_space(value))
+}
+
+_norm_session(value) := "" if not is_string(value)
+
+_norm_session(value) := "" if {
+	is_string(value)
+	not regex.match(`^[\x00-\x7f]+$`, trim_space(value))
+}
+
 # ── Helper: a field is missing or empty on an evidence object ─────────────────
 # True when the field is absent, or present but an empty/blank string.
 field_missing_or_empty(evidence, field) if {

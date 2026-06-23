@@ -120,3 +120,136 @@ jobs:
           print("coverage-gate: PASS — every in-scope item is proven with complete evidence.")
           sys.exit(0)
           PY
+
+      # PROTECTED COVERAGE BASELINE (Phase A.5) — TRUST BOUNDARY.
+      # --------------------------------------------------------------------------
+      # The baseline (coverage_baseline.json) declares which item ids the dispatcher
+      # (the TCB) put in-scope for this delivery. The merge gate checks the PR's
+      # feature_list.json AGAINST it, so that the agent — which controls the PR
+      # payload — cannot dodge auditing by DELETING feature_list.json (RT-01) or by
+      # flipping a target item to in_scope:false / removing it (RT-02).
+      #
+      # CRITICAL: the baseline MUST be fetched from a TRUSTED, OUT-OF-BAND source the
+      # agent cannot tamper with. It is NEVER taken from the PR checkout (that is the
+      # very surface the agent owns). Acceptable A.5 sources, in order of preference:
+      #   1. A protected workflow artifact uploaded by the dispatcher job (the TCB),
+      #      downloaded here with actions/download-artifact — the artifact is written
+      #      by a job the PR author cannot influence.
+      #   2. A protected branch / ref the PR cannot push to (checked out into a
+      #      SEPARATE path, e.g. ./.trusted, NOT the workspace root).
+      #   3. A repository/organization secret materialized to disk.
+      # Phase A.5 treats the baseline as TRUSTED; Phase B signs it (then this step
+      # also verifies the signature before trusting the file).
+      #
+      # If no baseline is delivered (no delivery is in flight) the file is simply
+      # absent and ci_evidence_check skips gracefully — see the absent-input contract.
+      #
+      # TRUST-BOUNDARY HARDENING (Gemini RT-01/RT-02 finding):
+      #   * We stage into ${{ runner.temp }}/trusted-baseline — an ABSOLUTE path
+      #     OUTSIDE $GITHUB_WORKSPACE. download-artifact resolves a relative `path`
+      #     against the workspace (the PR checkout), so a relative target like
+      #     `.trusted-baseline` is INSIDE the agent-controlled surface; a malicious PR
+      #     can commit `.trusted-baseline/coverage_baseline.json` and, because the
+      #     download is continue-on-error, that PR-authored file would survive a silent
+      #     download miss and be read as "trusted". $RUNNER_TEMP is created fresh per
+      #     job and is not populated from the PR HEAD, so a PR cannot plant a file there.
+      #   * We `rm -rf` the staging dir before the download so no prior state lingers.
+      #   * After the download we detect outcome: if the artifact was absent the gate
+      #     runs WITHOUT a baseline (the file simply does not exist => pre-delivery
+      #     skip). If the download FAILED for any other reason we do NOT silently fall
+      #     back — ci_evidence_check additionally fails closed if ever handed a baseline
+      #     path inside $GITHUB_WORKSPACE.
+      - name: Prepare out-of-band baseline staging dir (outside the PR checkout)
+        run: |
+          rm -rf "${RUNNER_TEMP}/trusted-baseline"
+          mkdir -p "${RUNNER_TEMP}/trusted-baseline"
+          # Belt and suspenders: if a malicious PR committed a workspace-resident
+          # baseline to spoof the trusted one, delete it so nothing reads it by accident.
+          rm -rf "${GITHUB_WORKSPACE}/.trusted-baseline"
+
+      - name: Fetch protected coverage baseline (out-of-band, NOT from PR checkout)
+        id: baseline
+        continue-on-error: true   # absent baseline == no delivery expected == skip
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-baseline               # uploaded by the dispatcher (TCB) job
+          path: ${{ runner.temp }}/trusted-baseline   # ABSOLUTE, outside the workspace
+          # github-token / run-id wiring (for cross-run / cross-workflow artifacts)
+          # is supplied by the dispatcher integration; left to ops per source choice.
+
+      # Evidence re-derivation + ledger cross-check (Phase A) + protected-baseline
+      # gate (Phase A.5). Consistent with the deny_merge step above, this skips
+      # gracefully when feature_list.json or dispatch_ledger.json is absent AND no
+      # baseline expects a delivery — both are runtime artifacts whose absence is
+      # valid pre-delivery. When the trusted baseline IS present, an absent or shrunk
+      # coverage model DENIES the merge (RT-01 / RT-02). The baseline path points at
+      # the out-of-band $RUNNER_TEMP location, NEVER the PR checkout root, and
+      # ci_evidence_check fails closed if the path ever resolves inside the workspace.
+      - name: Evidence re-derivation + ledger cross-check + baseline gate (Phase A / A.5)
+        run: |
+          python3 tools/ci_evidence_check.py \
+            feature_list.json \
+            artifacts \
+            dispatch_ledger.json \
+            "${RUNNER_TEMP}/trusted-baseline/coverage_baseline.json"
+
+  # ---------------------------------------------------------------- baseline-upload job
+  # The dispatcher (TCB) writes coverage_baseline.json to plane-integration/ on the
+  # runner that executes it (cron or manual trigger). This job uploads that file as a
+  # protected GitHub Actions artifact so the coverage-gate job can download it
+  # out-of-band (never from the PR checkout). The artifact is named 'coverage-baseline'
+  # to match the download-artifact step above.
+  #
+  # This job only runs when the dispatcher has produced a baseline (i.e. the file
+  # exists in the repo or was emitted by a prior step). On PRs the file is absent
+  # (the dispatcher runs independently), so this job skips gracefully.
+  #
+  # Ops note (A.5): in production the dispatcher runs as a separate cron workflow or
+  # external process; wire the upload there instead. This job provides the CI path for
+  # the monorepo / single-workflow case where the dispatcher is invoked as a step.
+  upload-coverage-baseline:
+    name: Upload protected coverage baseline artifact (TCB → CI trust bridge)
+    runs-on: ubuntu-latest
+    # Only upload when the file exists — i.e. a dispatcher run has already produced it.
+    # The `if` uses a file-existence check executed via a prior step's output.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run dispatcher (drain once) to produce coverage_baseline.json
+        # Only runs when the queue file exists. If the queue is absent the dispatcher
+        # exits cleanly with dispatched=0 and writes no baseline (no-op).
+        run: |
+          if [ -f plane-integration/.agent_queue.jsonl ]; then
+            ASCP_DISPATCHER_NO_PLANE=1 python3 plane-integration/dispatcher.py --once
+          else
+            echo "No agent queue found — skipping dispatcher run (pre-delivery state)."
+          fi
+
+      - name: Check whether a baseline was produced
+        id: baseline_check
+        run: |
+          if [ -f plane-integration/coverage_baseline.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Upload the baseline as a protected artifact. The coverage-gate job downloads
+      # it into $RUNNER_TEMP (outside the PR workspace) so an agent-controlled PR
+      # cannot plant a tampered baseline in the workspace to spoof this artifact.
+      - name: Upload coverage-baseline artifact (trusted, out-of-band)
+        if: steps.baseline_check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-baseline
+          path: plane-integration/coverage_baseline.json
+          # Retain for the duration of the PR pipeline; 1 day is sufficient.
+          retention-days: 1
+          # Overwrite any stale artifact from a previous run on the same branch.
+          overwrite: true

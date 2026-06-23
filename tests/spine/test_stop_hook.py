@@ -168,5 +168,85 @@ def test_negative_violation_count_fails_closed_blocks():
     assert decision["terminal"] is None, decision
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# (8) main() entrypoint contract: reentrancy, STDERR channel, escalation,
+#     disk-loaded state (Task 3 — D5/D6/D8/D13).
+# ════════════════════════════════════════════════════════════════════════════
+
+import json as _json
+import os as _os
+import subprocess as _subprocess
+
+_ROOT = Path(__file__).resolve().parents[2]
+_HOOK = _ROOT / ".claude/hooks/stop_hook.py"
+
+
+def _run(event, env=None, cwd=_ROOT):
+    e = {**_os.environ, **(env or {})}
+    p = _subprocess.run(
+        [sys.executable, str(_HOOK)], input=_json.dumps(event),
+        capture_output=True, text=True, env=e, cwd=str(cwd),
+    )
+    return p.returncode, p.stdout, p.stderr
+
+
+def test_reentrant_stop_allows_zero_tokens():
+    rc, out, err = _run({"stop_hook_active": True,
+        "run_state": {"violation_count": 5},
+        "feature_list": {"items": [{"id": "X", "in_scope": True, "status": "unproven"}]}})
+    assert rc == 0 and out.strip() == "" and err.strip() == ""
+
+
+def test_block_reason_on_stderr_not_stdout():
+    rc, out, err = _run({"run_state": {"violation_count": 2},
+        "feature_list": {"items": [{"id": "X", "in_scope": True, "status": "unproven"}]}})
+    assert rc == 2 and err.strip() != "" and out.strip() == ""
+
+
+def test_block_streak_escalates_to_handoff():
+    rc, out, err = _run({"run_state": {"violation_count": 1, "block_streak": 5},
+        "feature_list": {"items": [{"id": "X", "in_scope": True, "status": "unproven"}]}})
+    assert rc == 0 and "HANDOFF" in (out + err)
+
+
+def test_external_blocker_routes_to_handoff():
+    rc, out, err = _run({"run_state": {"violation_count": 1, "external_blocker": "waiting on API key"},
+        "feature_list": {"items": [{"id": "X", "in_scope": True, "status": "unproven"}]}})
+    assert rc == 0 and "HANDOFF" in (out + err)
+
+
+def test_loads_run_state_from_disk_when_event_omits_it(tmp_path):
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / "run_state.json").write_text(_json.dumps({"violation_count": 3}))
+    (tmp_path / "feature_list.json").write_text(_json.dumps(
+        {"items": [{"id": "X", "in_scope": True, "status": "unproven"}]}))
+    # event has neither key, but a marker tells the hook this is a governed loop stop
+    rc, out, err = _run({"loop": True}, env={"CLAUDE_PROJECT_DIR": str(tmp_path)}, cwd=tmp_path)
+    assert rc == 2  # gate fired on disk-loaded state
+
+
+# ── Corrupt durable-state files MUST fail CLOSED (exit 2 + STDERR reason), NOT
+#    crash with an uncaught JSONDecodeError (exit 1, which Claude Code treats as
+#    non-blocking). REQ-GATE-005: ambiguous states resolve to BLOCKED. ─────────
+
+def test_corrupt_run_state_on_disk_fails_closed(tmp_path):
+    (tmp_path / "run_state.json").write_text("not json{")
+    (tmp_path / "feature_list.json").write_text(_json.dumps(
+        {"items": [{"id": "X", "in_scope": True, "status": "unproven"}]}))
+    rc, out, err = _run({"loop": True}, env={"CLAUDE_PROJECT_DIR": str(tmp_path)}, cwd=tmp_path)
+    assert rc == 2, f"corrupt run_state must block (exit 2), got rc={rc} err={err}"
+    assert err.strip() != "" and out.strip() == ""
+    assert "run_state.json" in err
+
+
+def test_corrupt_feature_list_on_disk_fails_closed(tmp_path):
+    (tmp_path / "run_state.json").write_text(_json.dumps({"violation_count": 0}))
+    (tmp_path / "feature_list.json").write_text("not json{")
+    rc, out, err = _run({"loop": True}, env={"CLAUDE_PROJECT_DIR": str(tmp_path)}, cwd=tmp_path)
+    assert rc == 2, f"corrupt feature_list must block (exit 2), got rc={rc} err={err}"
+    assert err.strip() != "" and out.strip() == ""
+    assert "feature_list.json" in err
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))

@@ -513,7 +513,7 @@
     "On first up, migrator applies Plane's schema and exits 0; api starts cleanly with no relation-does-not-exist errors in logs_api.",
     "Re-running with no schema change is a no-op migration (migrator exits 0, applies nothing new).",
     "An APP_RELEASE bump pulls new images and the upgrade migration runs against existing pgdata without data loss (REQ-INFRA-004 marker row survives).",
-    "The companion .kiro migrations 001-008 are applied through a tracked runner with schema_migrations bookkeeping; double-apply is idempotent and produces all eight tables.",
+    "The eight companion .kiro migration files db/migrations/001-008.sql are AUTHORED and version-controlled (each declaring its table with the design-DDL columns/CHECKs), AND a tracked forward-only apply path is DEFINED \u2014 a named runner (dbmate default) plus a schema_migrations bookkeeping table (tasks 28.10/28.11). This AC asserts authored-files + a defined idempotent apply contract, NOT a live-applied database: when the runner is executed against a target Neon branch it applies 001-008 in numeric order, is a no-op on double-apply, and yields all eight tables (requirements, coverage_items, traceability_links, evidence_records, run_state, domain_baseline_checklists, requirement_versions, gate_audit_log) \u2014 verified by the test-branch integration assertion (tasks 28.9/33.1), which is the leg that proves applied state.",
     "A deliberately broken migration causes migrator to exit non-zero and the app tier is held from advancing."
    ],
    "tasks": [
@@ -1595,7 +1595,8 @@
     "A WIRING candidate surfaced as PostToolUse feedback is turned into a WIRING CoverageItem (status default unproven, in_scope true, >=1 acceptance criterion) added to feature_list.json via the PreToolUse-status-guard-permitted creation path.",
     "For a WIRING item whose symbol wiring_checker reports unreachable, the Verifier performs unproven -> failed and does NOT emit proven; the Plane issue moves to Failed with evidence_status = failed.",
     "A WIRING item transitions to proven only when its attached Evidence_Record has evidence_kind == integration and exercises the real execution path; a unit-test Evidence_Record is schema-invalid (CoverageItem allOf) and rejected at the SubagentStop acceptance gate.",
-    "Integration test 26.1 exercises the PostToolUse -> wiring_checker path: a file with a defined-but-never-called function yields a WIRING finding with type: WIRING and the symbol name."
+    "Integration test 26.1 exercises the PostToolUse -> wiring_checker path: a file with a defined-but-never-called function yields a WIRING finding with type: WIRING and the symbol name.",
+    "There is exactly ONE PostToolUse registration in settings.json (matcher Write|Edit|MultiEdit); the wiring/lint/SAST checks EXTEND that single hook and MUST NOT add a second PostToolUse entry (parallel duplicate registrations double-report and race, best-practices \u00a71.6); the hook fails OPEN \u2014 on its own bug, a missing toolchain, or a per-tool timeout it still exits 1 (never exit 2, never crash the edit loop)."
    ],
    "state": "In-Verification",
    "agent_role": "verifier",
@@ -2958,6 +2959,10 @@
     {
      "pattern": "event-driven",
      "text": "WHEN a session starts, the SessionStart_Hook shall load git status, the progress file, and the Coverage_Model so a resumed session re-orients deterministically, and shall additionally compute the resumed-state hash and write run_state.resume_integrity_ok without itself halting the run."
+    },
+    {
+     "pattern": "event-driven",
+     "text": "WHEN a session starts, resumes, or follows a compaction, THE SessionStart_Hook shall assert the live registered hook events == SPINE_REQUIRED_EVENTS (the five A1 events: SessionStart, PreToolUse, PostToolUse, SubagentStop, Stop; PreCompact excluded until registered, COH-2), inject a green 'Spine wired: N governance event(s) registered' line when wired-as-scoped, else a LOUD 'GOVERNANCE SPINE UNWIRED/PARTIAL' warning, plus a re-orientation block (branch, in-scope unproven/proven counts, last HANDOFF reason); the hook fails open (A5 silent-unwiring canary)."
     }
    ],
    "state": "Agent-Executing",
@@ -3004,6 +3009,15 @@
       "Checkpoint claude-progress.txt + evidence state + feature_list.json to MAIN-worktree git",
       "Write durable run_state.resume_state_hash over the checkpointed state",
       "try/except \u2192 exit 0; unit + integration test"
+     ]
+    },
+    {
+     "title": "run_state POPULATOR \u2014 per-turn counter advancement (D3 loop-driver, NEW-02; distinct from persistence)",
+     "category": "Orchestration",
+     "subtasks": [
+      "Implement advance_turn(run_state, turn_outcome): the SOLE writer of run_state.iteration_count / block_streak / external_blocker / no_progress_n; increment iteration_count per implementation turn; increment block_streak on a repeated same-condition block (reset on a varied/cleared condition); set/clear external_blocker from the turn blocker classification; reset no_progress_n on any progress else advance it (task 31.2).",
+      "Call the populator each turn BEFORE the Stop hook evaluates and persist via save_run_state so the durable + file-backed run_state the cap/HANDOFF/escalation gates read is current; the Stop/SubagentStop hooks only READ these counters.",
+      "Wire blocked_by edges from the HANDOFF/escalation consumers (ASCP-E5-S10, ASCP-E8-21) so the populator is a recognized prerequisite of the anti-loop spine."
      ]
     },
     {
@@ -3391,7 +3405,7 @@
     },
     {
      "pattern": "event-driven",
-     "text": "WHEN a tool call targets a protected artifact (tests/, coverage-model schema, CI config) or a destructive operation, the system shall block it at the PreToolUse_Hook command-type hook."
+     "text": "WHEN a tool call targets a protected artifact (tests/, coverage-model schema, CI config) or a destructive operation \u2014 INCLUDING a Bash command that WRITES a protected path via redirection / tee / sed -i / cp-mv / python -c \u2014 the system shall block it at the PreToolUse_Hook command-type hook (a Write|Edit|MultiEdit-only target check is bypassable by shell writes)."
     },
     {
      "pattern": "state-driven",
@@ -3404,13 +3418,18 @@
     {
      "pattern": "optional",
      "text": "WHERE a hook returns a non-zero exit code other than 2, the system shall treat it as non-blocking feedback only (exit 1 does NOT block)."
+    },
+    {
+     "pattern": "state-driven",
+     "text": "WHILE running a governed session, THE settings.json shall set enabledPlugins.\"ralph-loop@ralph-loop\": false so the plugin's stop-hook.sh cannot shadow the governance Stop event \u2014 the C-LOOP-04 root cause (it re-injected an identical mega-prompt 49x with no reentrancy guard)."
     }
    ],
    "acceptance_criteria": [
     "settings.json registers all six hooks as type:command; smoke test asserts none are HTTP/MCP and the four subagents are discoverable.",
-    "PreToolUse artifact guard blocks writes to feature_list.json schema, tests/ (except actor_agent==verifier.md), CI config, and destructive Bash ops with exit 2.",
-    "A hook returning exit 1 never blocks; exit 2 blocks and routes stderr to the agent; exit 0 proceeds (Property 21).",
-    "Two completion evaluations with identical coverage state but different predicted outputs yield identical gate decisions (Property 4 / CHECK-5)."
+    "PreToolUse artifact guard blocks writes to feature_list.json schema, tests/ (except actor_agent==verifier.md), CI config, and destructive Bash ops with exit 2; it ALSO blocks any Bash command that WRITES a protected path (shell redirection >/>>, tee, sed -i/perl -i, cp/mv/install/dd into the path, or an interpreter heredoc/-c write such as python -c) \u2014 a Write|Edit|MultiEdit-only guard is bypassed by tee/sed -i/echo>, so the content-level path-write check is required. The PreToolUse hook registers with no matcher so it already sees Bash.",
+    "A hook returning exit 1 never blocks; exit 2 blocks and routes the reason via STDERR to the agent (stdout-JSON is ignored on exit 2, so the reason MUST be on stderr, not stdout); exit 0 proceeds (Property 21). On a block the stderr reason names the located oracle (field/path/actor + value, keyed on model shape) plus exactly ONE corrective next step on an allowed path, with an anti-workaround clause for the actor-authority denies; on a repeat block of the same condition the message escalates rather than re-injecting byte-for-byte.",
+    "Two completion evaluations with identical coverage state but different predicted outputs yield identical gate decisions (Property 4 / CHECK-5).",
+    "settings.json carries an enabledPlugins block disabling ralph-loop for governed sessions; a runtime telemetry assertion confirms stop-hook.sh is ABSENT from hook telemetry and the governance Stop hook owns the event (the anti-49x-re-injection fix)."
    ],
    "state": "Agent-Executing",
    "agent_role": "human",
@@ -3563,6 +3582,10 @@
     {
      "pattern": "state-driven",
      "text": "WHILE Agent_Teams (experimental peer-to-peer) remains experimental, the system shall keep it off the delivery-gating path until it exits experimental status and supports session resumption."
+    },
+    {
+     "pattern": "optional",
+     "text": "WHERE the next step is BOTH in-scope (in_scope==true) AND objectively checkable (>=1 machine-checkable acceptance criterion), THE System shall authorize the loop to self-continue without human prompting within the Req-14 caps/budget; IF blocked on a dependency it cannot itself satisfy, THEN it shall emit a single 'BLOCKED-ON: <dependency>' sentinel (parsed into run_state.external_blocker) and route to HANDOFF rather than emit an idle 'standing by' turn (A8 bounded-autonomy goal directive; C-IDLE-03)."
     }
    ],
    "acceptance_criteria": [
@@ -3783,7 +3806,8 @@
     "A single config module centralizes every numeric DEFAULT and exposes an explicit operator-override path; an unauthorized change is rejected.",
     "Each registered threshold carries a named OWNER (quality owner, implementer loop, Spec_Compiler, Delivery Owner/Operator).",
     "evaluate_stop, the implementer loop, and the reasoning-loop detector all read caps/budgets/K from this registry (no hard-coded constants).",
-    "The vague-adjective reject-set is requirement-backed (consumed by spec_validator.py / Property 17), not test-backed only."
+    "The vague-adjective reject-set is requirement-backed (consumed by spec_validator.py / Property 17), not test-backed only.",
+    "The registry exposes the privileged-actor role name as a single VERIFIER_ROLE constant (DEFAULT 'verifier.md', operator-overridable via env SDLC_VERIFIER_AGENT); every actor gate and fixture IMPORTS it instead of re-declaring the byte-literal 'verifier.md' locally (COH-1/HGD-3) \u2014 so a role rename is a one-line change, and the DEFAULT agrees byte-for-byte with the agent frontmatter name:."
    ],
    "state": "Agent-Executing",
    "agent_role": "human",
@@ -3850,7 +3874,8 @@
     "At HANDOFF, in-scope items are EXPECTED unproven and the Stop hook ALLOWS \u2014 reproducing the infinite-block defect is forbidden (Property 5 carve-out).",
     "At spec_pass_count>=7 with violation_count>0, HANDOFF (exit 0) wins over the REQ-SPEC-021 exit-2 block (CHECK-5b/5c).",
     "run_state.status=handoff and the HANDOFF summary (remaining unproven items, last N slice outputs, reason) are emitted; feature_list.json is unmodified.",
-    "The stop_hook_active reentrancy guard prevents the Stop hook from re-triggering itself during a blocking cycle (REQ-GATE-004)."
+    "The stop_hook_active reentrancy guard prevents the Stop hook from re-triggering itself during a blocking cycle (REQ-GATE-004).",
+    "A repeated Stop/SubagentStop block on the SAME unresolved condition increments run_state.block_streak; at the bounded 3rd rung the hook ESCALATES to HANDOFF rather than re-emitting the same reason (the C-LOOP-04 49x-re-injection fix), and a non-null run_state.external_blocker (a blocking condition outside the agent's control) routes directly to HANDOFF not block (C-IDLE-03). block_streak and external_blocker are run_state columns (migration 005, edit E3) WRITTEN by the per-turn populator (task 31.2 / E7) and READ by the hook."
    ],
    "state": "HANDOFF",
    "agent_role": "implementer",

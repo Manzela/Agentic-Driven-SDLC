@@ -54,6 +54,30 @@ __all__ = [
 EVIDENCE_FIELDS = ("test_file", "test_name", "output_hash", "collected_at")
 
 
+def _norm_session(value: Any) -> str:
+    """Normalize a session id for distinctness comparison.
+
+    Session ids are UNTRUSTED inputs in Phase A. Two ids that differ only by
+    surrounding whitespace or letter-case are the SAME actor for the purpose of
+    the actor-separation gate — an implementer must not be able to dodge the
+    self-grading check by submitting ``' i '`` as the verifier when it
+    implemented as ``'i'``. We strip surrounding whitespace, REJECT non-ASCII
+    (→ ``""``), then case-fold. A non-string, ``None``, empty/whitespace-only, or
+    non-ASCII id normalizes to ``""`` (treated as absent). ASCII-only is enforced
+    so this is IDENTICAL to the Rego ``_norm_session`` twin (OPA ``lower`` over
+    ASCII == Python ``casefold`` over ASCII); a non-ASCII id such as ``'ß'``
+    (which ``casefold`` folds to ``'ss'`` but Rego ``lower`` does not) collapses
+    to ``""`` in BOTH, closing the casefold/lower drift. Phase B additionally
+    rejects any id absent from the trusted ledger.
+    """
+    if not isinstance(value, str):
+        return ""
+    s = value.strip()
+    if not s or not s.isascii():
+        return ""
+    return s.casefold()  # == lower() for ASCII; matches the Rego twin
+
+
 def _evidence_complete(item: Dict[str, Any]) -> bool:
     """Return True iff ``item`` carries a complete four-field Evidence_Record.
 
@@ -171,6 +195,28 @@ def deny_merge(feature_list: Dict[str, Any]) -> Dict[str, Any]:
                     f"Merge denied: in-scope item {item_id!r} is 'proven' but "
                     f"its Evidence_Record is missing/empty field(s): {missing}."
                 )
+
+            # Rule 3 — actor-separation (provenance). A proven item's evidence
+            # must name DISTINCT implementer/verifier sessions (zero-trust: an
+            # implementer may not self-verify). Phase A trusts the ids; Phase B
+            # adds cryptographic attestation + ledger cross-check at CI.
+            #
+            # The distinctness comparison NORMALIZES both ids first (strip
+            # surrounding whitespace, then case-fold) so a whitespace-padded or
+            # case-variant near-duplicate (e.g. 'i' vs ' i ', or 'I' vs 'i')
+            # cannot masquerade as a distinct verifier. Emptiness is likewise
+            # checked on the NORMALIZED form, so a whitespace-only id counts as
+            # absent. Mirrors the Rego ``_norm_session`` / ``_distinct_sessions``
+            # twin.
+            ev = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
+            vs_norm = _norm_session(ev.get("verifier_session_id"))
+            is_norm = _norm_session(ev.get("implementer_session_id"))
+            if not vs_norm or not is_norm:
+                reasons.append(f"Merge denied: in-scope item {item_id!r} is 'proven' but its "
+                               f"evidence lacks verifier_session_id / implementer_session_id.")
+            elif vs_norm == is_norm:
+                reasons.append(f"Merge denied: in-scope item {item_id!r} evidence has the same "
+                               f"verifier and implementer session (self-grading).")
 
         return {"deny": bool(reasons), "reasons": reasons}
 

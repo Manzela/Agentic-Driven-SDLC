@@ -38,12 +38,47 @@ QUEUE = HERE / ".agent_queue.jsonl"
 STATE = HERE / ".dispatcher_state.json"
 AUDIT = HERE / ".dispatch_audit.jsonl"
 
+# TRUSTED BASELINE — written by the dispatcher (TCB) to an out-of-band location
+# that is NEVER part of the agent's PR payload or workspace. CI fetches it from
+# this protected path; an agent controlling feature_list.json cannot tamper with it.
+# Phase B will sign this file; Phase A.5 trusts it by delivery path alone.
+BASELINE_PATH = HERE / "coverage_baseline.json"
+
 VALID_ROLES = {"initializer", "implementer", "verifier"}
 MAX_ATTEMPTS = 3
 
 
 def _log(*a):
     print("[dispatcher]", *a, file=sys.stderr, flush=True)
+
+
+# ---------------------------------------------------------------- trusted baseline writer
+def _write_baseline_fail_closed(issue_ids: list, out_path=None) -> None:
+    """Write the trusted coverage baseline for dispatched item ids (FAIL-CLOSED).
+
+    The output is the TRUSTED baseline the merge gate checks the PR payload against.
+    It MUST be delivered to CI out-of-band (protected artifact / protected branch /
+    secret) — NEVER read from the PR payload alongside feature_list.json. An agent
+    controlling feature_list.json cannot tamper with a file written here.
+    Phase B signs this output; Phase A.5 trusts it by delivery path alone.
+
+    FAIL-CLOSED: any write failure raises so that drain() surfaces the error rather
+    than silently proceeding without a baseline. A silent skip would leave CI with no
+    baseline file, causing the download-artifact step to fail silently (continue-on-error)
+    and the gate to run without a baseline — permanently bypassing RT-01/RT-02. The spec
+    mandates fail-CLOSED throughout; this function upholds that contract.
+
+    Callers that need fail-safe behaviour (e.g. watch-mode) may catch the exception
+    themselves and decide whether to abort or continue.
+    """
+    if not issue_ids:
+        return
+    path = pathlib.Path(out_path) if out_path is not None else BASELINE_PATH
+    if str(ROOT / "tools") not in sys.path:
+        sys.path.insert(0, str(ROOT / "tools"))
+    import baseline_writer  # noqa: PLC0415
+    baseline_writer.write_baseline(required_in_scope=issue_ids, out_path=path)
+    _log(f"trusted baseline written → {path} ({len(issue_ids)} item(s))")
 
 
 # ---------------------------------------------------------------- audit producer
@@ -129,8 +164,26 @@ def _plane_comment(issue_id, html):
         return False
 
 
+def _governed_cwd_ok(root) -> bool:
+    """True iff ``root`` is a governed spine checkout: ``.claude/settings.json``
+    exists AND disables the ralph-loop plugin, so a dispatched agent runs under
+    the governance spine rather than ungoverned / ralph-shadowed. Fail closed."""
+    s = pathlib.Path(root) / ".claude" / "settings.json"
+    if not s.is_file():
+        return False
+    try:
+        d = json.loads(s.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return d.get("enabledPlugins", {}).get("ralph-loop@claude-plugins-official") is False
+
+
 def _exec_claude(role, job):
     """Spawn a bounded headless agent run. OFF unless ASCP_AGENT_EXEC=1."""
+    if not _governed_cwd_ok(ROOT):
+        _log("REFUSED exec: cwd is not a governed spine checkout "
+             "(.claude/settings.json missing or ralph-loop not disabled). Staying in stage mode.")
+        return False
     prompt = (
         f"You are the {role} agent. Plane work-item {job.get('issue_id')} "
         f"('{job.get('name')}') entered state '{job.get('state')}'. Perform the {role} step "
@@ -175,12 +228,20 @@ def default_invoker(job):
 
 
 # ---------------------------------------------------------------- drain loop
-def drain(invoker=default_invoker, max_attempts=MAX_ATTEMPTS):
-    """Process all new agent_dispatch jobs once. Returns the number dispatched."""
+def drain(invoker=default_invoker, max_attempts=MAX_ATTEMPTS, baseline_path=None):
+    """Process all new agent_dispatch jobs once. Returns the number dispatched.
+
+    After all jobs are processed, writes the trusted coverage baseline for every
+    successfully dispatched issue id. The baseline is written to BASELINE_PATH (an
+    out-of-band trusted location — NOT the agent workspace / PR payload). CI fetches
+    it from there; an agent controlling feature_list.json cannot tamper with it.
+    Phase B signs this file; Phase A.5 trusts it by delivery path alone.
+    """
     st = load_state()
     seen = set(st.get("seen", []))
     attempts = dict(st.get("attempts", {}))
     dispatched = 0
+    dispatched_ids: list = []
 
     for job in read_jobs():
         if job.get("kind") != "agent_dispatch":
@@ -202,6 +263,8 @@ def drain(invoker=default_invoker, max_attempts=MAX_ATTEMPTS):
             seen.add(key)
             attempts.pop(key, None)
             dispatched += 1
+            if issue_id:
+                dispatched_ids.append(str(issue_id))
         except Exception as e:
             n = attempts.get(key, 0) + 1
             attempts[key] = n
@@ -215,6 +278,13 @@ def drain(invoker=default_invoker, max_attempts=MAX_ATTEMPTS):
     st["seen"] = list(seen)
     st["attempts"] = attempts
     save_state(st)
+
+    # Write the trusted coverage baseline for all dispatched item ids (fail-closed).
+    # A write failure raises so the caller sees the error rather than proceeding
+    # silently without a baseline — which would leave CI permanently gateless.
+    if dispatched_ids:
+        _write_baseline_fail_closed(dispatched_ids, out_path=baseline_path)
+
     return dispatched
 
 

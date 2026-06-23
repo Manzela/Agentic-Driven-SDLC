@@ -24,7 +24,7 @@ def test_runtime_gate_refuses_same_session():
     rec = {
         "test_file": "t", "test_name": "n",
         "output_hash": "sha256:" + hashlib.sha256(output.encode()).hexdigest(),
-        "collected_at": "2026-06-15T00:00:00+00:00", "actor_agent": "verifier.md",
+        "collected_at": "2026-06-15T00:00:00+00:00", "actor_agent": "verifier",
         "verifier_session_id": "s", "implementer_session_id": "s",
     }
-    assert hook.evaluate(rec, output, "verifier.md", "[Gap] none")["decision"] == "block"
+    assert hook.evaluate(rec, output, "verifier", "[Gap] none")["decision"] == "block"

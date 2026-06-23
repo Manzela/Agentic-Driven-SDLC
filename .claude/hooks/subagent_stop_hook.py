@@ -26,8 +26,8 @@ from pathlib import Path
 # builder enforce exactly the same contract.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.evidence_collector import validate_evidence_record  # noqa: E402
-
-VERIFIER_AGENT = "verifier.md"
+from tools.spine_roles import VERIFIER_ROLE  # noqa: E402  (single-source role constant)
+from tools.hook_telemetry import record_fire  # noqa: E402
 
 
 def _rederive(output: str) -> str:
@@ -45,7 +45,8 @@ def evaluate(record: dict, output: str, resolved_actor: str,
     resolved_actor: the runtime-stamped actor identity (from actor_identity).
     omission_declaration: the verifier's enumeration of uncovered scenarios.
 
-    Returns {"decision": "approve"|"block", "reason": str}.
+    Returns {"decision": None|"block", "reason": str} — accept OMITS a decision
+    value (Stop/SubagentStop have no valid "approve"; only "block" or omit).
     """
     try:
         # (0) four-field completeness + format (existing contract).
@@ -54,9 +55,9 @@ def evaluate(record: dict, output: str, resolved_actor: str,
 
         # (fix #1) only the verifier may flip; the record's actor must equal the
         # runtime-resolved actor (no forged actor_agent promotes a self-grade).
-        if resolved_actor != VERIFIER_AGENT:
+        if resolved_actor != VERIFIER_ROLE:
             return {"decision": "block",
-                    "reason": f"only {VERIFIER_AGENT} may flip to proven; resolved actor={resolved_actor}"}
+                    "reason": f"only {VERIFIER_ROLE} may flip to proven; resolved actor={resolved_actor}"}
         if record.get("actor_agent") != resolved_actor:
             return {"decision": "block",
                     "reason": "record actor_agent does not match the runtime-resolved actor (forgery)"}
@@ -81,7 +82,7 @@ def evaluate(record: dict, output: str, resolved_actor: str,
         if not omission_declaration or not str(omission_declaration).strip():
             return {"decision": "block", "reason": "missing non-empty omission_declaration"}
 
-        return {"decision": "approve", "reason": "evidence independently verified"}
+        return {"decision": None, "reason": "evidence independently verified"}
     except Exception as exc:  # noqa: BLE001 — fail closed.
         return {"decision": "block", "reason": f"subagent_stop raised {type(exc).__name__}: {exc}"}
 
@@ -91,23 +92,35 @@ def main() -> int:
     try:
         event = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
-        print(json.dumps({"decision": "block", "reason": "unparseable event"}))
+        print("unparseable SubagentStop event JSON. Fail closed.", file=sys.stderr)
         return 2
+    record_fire("SubagentStop", event.get("session_id", ""),
+                agent_type=event.get("agent_type", ""))
     from tools.actor_identity import resolve_identity
     try:
         actor = resolve_identity(event).actor_agent
     except ValueError as exc:
-        print(json.dumps({"decision": "block", "reason": str(exc)}))
+        print(str(exc), file=sys.stderr)
         return 2
     ti = event.get("tool_input", event)
+    # The evidence gate applies ONLY to a proven-flip submission (an event that
+    # actually carries an Evidence_Record). An ordinary subagent finishing its
+    # turn submits no evidence — there is nothing to gate, so it is allowed to
+    # stop. Gating every SubagentStop would make it impossible for any non-flip
+    # subagent (e.g. an implementer) to ever terminate.
+    record = ti.get("evidence")
+    if not record:
+        return 0
     decision = evaluate(
-        record=ti.get("evidence", {}),
+        record=record,
         output=ti.get("output", ti.get("artifact")),
         resolved_actor=actor,
         omission_declaration=ti.get("omission_declaration"),
     )
-    print(json.dumps(decision))
-    return 0 if decision["decision"] == "approve" else 2
+    if decision["decision"] == "block":
+        print(decision["reason"], file=sys.stderr)   # block reason on STDERR
+        return 2
+    return 0   # accept: omit decision, allow the subagent to stop
 
 
 if __name__ == "__main__":

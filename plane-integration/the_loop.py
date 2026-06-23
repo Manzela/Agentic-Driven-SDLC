@@ -20,6 +20,7 @@ Evidence_Record + a legal predecessor (In-Verification/Human-Review). cap/budget
 => handoff (terminal, distinct from Done). State UUIDs + gate order are enforced in plane_client.
 """
 import sys, json, pathlib
+import importlib.util as _ilu
 from datetime import datetime, timezone
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -110,6 +111,42 @@ def prove(issue_id, test_file, test_name, output_hash):
     pc.post_evidence(issue_id, test_file, test_name, output_hash, record["collected_at"], "verifier")
     pc.transition(issue_id, "Done", "verifier")  # re-validates + read-back in plane_client
     print(json.dumps({"proven": issue_id, "evidence": record, "state": "Done"}))
+
+
+def _loop_gate():
+    spec = _ilu.spec_from_file_location(
+        "loop_gate", pathlib.Path(__file__).resolve().parents[1] / "tools/loop_gate.py"
+    )
+    m = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def gated_prove(*, issue_id, evidence, artifact, ledger, root):
+    """Gate a proven transition: only set Done when the evidence gate ACCEPTS.
+
+    On reject -> return the self-heal/HANDOFF decision; the board is NOT moved to Done.
+    On handoff -> post a HANDOFF comment and transition to HANDOFF state.
+    On self_heal -> no board change; caller feeds decision['prompt'] back to the verifier.
+
+    This is the programmatic gate for the autonomous loop (the dispatcher calls it with
+    the verifier-produced evidence + dispatch ledger); the `prove` CLI command above is
+    the manual path with four-field validation. Both reach Done only through the gate.
+    """
+    decision = _loop_gate().gated_advance(
+        root=root, evidence=evidence, artifact=artifact, ledger=ledger
+    )
+    if decision["action"] == "advance":
+        pc.post_evidence(
+            issue_id, evidence["test_file"], evidence["test_name"],
+            evidence["output_hash"], evidence["collected_at"], "verifier",
+        )
+        pc.transition(issue_id, "Done", "verifier")
+    elif decision["action"] == "handoff":
+        pc.comment(issue_id, f"<p><b>HANDOFF</b> — evidence gate: {decision['reason']}</p>")
+        pc.transition(issue_id, "HANDOFF", "verifier")
+    # self_heal -> no board change; caller feeds decision['prompt'] back to the verifier
+    return decision
 
 
 def handoff(issue_id, reason, role="verifier"):

@@ -32,11 +32,11 @@ def test_coverage_transitions_and_authority():
     assert_transition("unproven", "proven")  # ok
     with pytest.raises(TransitionError):
         assert_transition("failed", "proven")
-    assert_field_authority(field="status", actor_agent="verifier.md", human_signed=False)
+    assert_field_authority(field="status", actor_agent="verifier", human_signed=False)
     with pytest.raises(AuthorityError):
-        assert_field_authority(field="status", actor_agent="implementer.md", human_signed=False)
+        assert_field_authority(field="status", actor_agent="implementer", human_signed=False)
     with pytest.raises(AuthorityError):
-        assert_field_authority(field="in_scope", actor_agent="verifier.md", human_signed=False)
+        assert_field_authority(field="in_scope", actor_agent="verifier", human_signed=False)
     assert is_complete({"items": [{"in_scope": True, "status": "proven"}]}) is True
     assert is_complete({"items": [{"in_scope": True, "status": "unproven"}]}) is False
     assert is_complete({"items": []}) is False  # empty model is INIT, not COMPLETE

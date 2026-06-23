@@ -24,12 +24,19 @@ REGO_PATH = REPO_ROOT / ".github" / "policies" / "coverage_query.rego"
 
 
 def _complete_evidence(tag: str = "x") -> dict:
-    """A complete four-field Evidence_Record."""
+    """A complete four-field Evidence_Record.
+
+    Carries DISTINCT implementer/verifier session ids as provenance alongside the
+    four-field record so it satisfies the actor-separation gate (Rule 3). The
+    session ids are NOT part of the four-field validator; they are provenance.
+    """
     return {
         "test_file": f"tests/spine/test_{tag}.py",
         "test_name": f"test_{tag}",
         "output_hash": f"sha256:{tag * 8}",
         "collected_at": "2026-06-16T00:00:00Z",
+        "implementer_session_id": f"impl-{tag}",
+        "verifier_session_id": f"veri-{tag}",
     }
 
 
