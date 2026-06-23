@@ -20,7 +20,7 @@ jobs:
     name: Run command on the VM
     runs-on: ubuntu-latest
     env:
-      VM_HOST: ${{ vars.VM_HOST || '158.178.129.208' }}
+      VM_HOST: ${{ secrets.VM_HOST }}
       VM_USER: ${{ vars.VM_USER || 'opc' }}
     steps:
       - name: Guard — SSH key

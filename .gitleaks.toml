@@ -28,13 +28,24 @@ keywords = ["postgres", "postgresql", "mysql", "mongodb", "redis", "amqp"]
 
 [allowlist]
 description = "Known false positives: documentation, test fixtures, and planted-secret test data."
+# Match the `regexes` below against the full MATCH, not just the captured secret. The
+# custom `generic-connection-string` rule captures the SCHEME (postgres/amqp) as its
+# secret, so a value-allowlist for the default `plane:plane@` cred would never match the
+# secret; testing the full match (which contains `plane:plane@plane-db`) allowlists the
+# documented Plane default precisely, leaving every other line scanned.
+regexTarget = "match"
 
 # Paths whose matches are intentional (placeholders, example values, planted
 # fixtures used by the Property 32 acceptance test). A real secret must NOT be
 # added here to silence it — entries are reviewed in PR.
 paths = [
   '''(^|/)tests/fixtures/.*''',
-  '''(^|/)docs/.*\.md$''',
+  # NOTE: a previous blanket '(^|/)docs/.*\.md$' was REMOVED here. It allowlisted EVERY
+  # tracked docs/*.md, which both hid known non-secret values (Plane upstream defaults,
+  # author-redacted example tokens) AND would have masked any future REAL secret pasted
+  # into a runbook/postmortem. Docs are now SCANNED again; the known doc false positives
+  # are allowed precisely — by VALUE in `regexes` below — so the gate is clean by
+  # ABSENCE, never by a directory-wide mask.
   '''(^|/)\.gitleaks\.toml$''',
   '''(^|/)\.env\.example$''',
   # Generated Plane-board dumps (audit/plane-xref/board-snapshot*.json): machine-emitted
@@ -43,10 +54,25 @@ paths = [
   # dumped issue descriptions — NO live credentials (verified across BOTH snapshot files:
   # 0 plane_api_ / CF-secret / CF-client-id occurrences). Not a real-secret silencer.
   '''(^|/)audit/plane-xref/board-snapshot[^/]*\.json$''',
+  # Machine-dumped Plane upsert audit records. The "generic-api-key" rule matches the
+  # high-entropy `dedup_key` CONTENT-HASHES (sha-style idempotency keys) in these batch
+  # dumps — NOT credentials (verified: 0 plane_api_/CF-secret tokens). A data artifact,
+  # not a secret silencer.
+  '''(^|/)audit/validated-edits/(all-30|batch-a)\.json$''',
 ]
 
 # Obvious non-secret placeholder values seen in docs/examples.
 regexes = [
   '''(?i)(example|sample|dummy|placeholder|changeme|your[-_]?(api[-_]?key|token|secret))''',
   '''AKIAIOSFODNN7EXAMPLE''',
+  # Author-redacted example tokens in docs (e.g. `X-Api-Key: plane_api_7Qx...redacted`).
+  '''(?i)\.\.\.?redacted''',
+  # Plane self-host UPSTREAM PUBLIC DEFAULT credentials — shipped verbatim in Plane's
+  # official docker-compose, so they are well-known public values, never a real secret.
+  # The plane.env template + standalone-deploy generate/override these for production
+  # (openssl rand -hex 32). Allowed BY VALUE so they are FPs wherever documented (compose,
+  # deploy scripts, the blueprint) while every other docs/config line stays scanned.
+  '''60gp0byfz2dvffa45cxl20p1scy9xbpf6d8c5y0geejgkyp1b5''',
+  '''2FiJk1U2aiVPEQtzLehYGlTSnTnrs7LW''',
+  '''(?i)plane:plane@''',
 ]

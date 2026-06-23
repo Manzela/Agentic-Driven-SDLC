@@ -17,7 +17,7 @@ name: Deploy Plane (Oracle VM)
 #                         browser first-run that creates workspace `ascp` +
 #                         project `ASCP` + API token). Enables auto-provisioning.
 #   Variables (optional — sensible defaults shown):
-#     VM_HOST             default 158.178.129.208 (the 'Plane two' instance)
+#     VM_HOST             provided via the VM_HOST repo secret (the 'Plane two' instance)
 #     VM_USER             default opc (Oracle Linux)
 #     VM_DEPLOY_DIR       default /home/opc/agentic-sdlc
 #
@@ -47,7 +47,7 @@ jobs:
     name: SSH deploy to Oracle Ampere A1
     runs-on: ubuntu-latest
     env:
-      VM_HOST: ${{ vars.VM_HOST || '158.178.129.208' }}
+      VM_HOST: ${{ secrets.VM_HOST }}
       VM_USER: ${{ vars.VM_USER || 'opc' }}
       VM_DEPLOY_DIR: ${{ vars.VM_DEPLOY_DIR || '/home/opc/agentic-sdlc' }}
     steps:

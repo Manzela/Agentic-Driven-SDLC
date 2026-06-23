@@ -4,7 +4,7 @@ production-grade expectations (Plane's documented model + the ASCP blueprint).
 
 Read-only: hits the public REST API (X-API-Key) the same way provision_plane.py
 does, and reports PASS/FAIL per check. Env (or plane-selfhost/credentials.env):
-  PLANE_API_BASE   e.g. https://plane.autonomous-agent.dev/api/v1
+  PLANE_API_BASE   e.g. https://YOUR-PLANE-HOST.example.com/api/v1
   PLANE_WORKSPACE_SLUG   e.g. ascp
   PLANE_PROJECT_ID       project UUID
   PLANE_API_KEY          API token
