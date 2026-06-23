@@ -103,6 +103,8 @@ def test_wiring_minted_id_not_dangling():
         changed_files={"impl.py"},
     )
     assert result.get("dangling_refs", {}) == {}
+    assert result["ok"] is True            # has a (WIRING) reference -> not a forward orphan
+    assert result["forward_orphans"] == []
 
 
 # --- merge-base reachability (T4): CI fail-closed / local fallback ------------
@@ -168,3 +170,54 @@ def test_filter_keeps_changed_skips_allowlist():
         units, {"tools/helper.py", "module.py"}, allowlist_pattern="tools/.*"
     )
     assert [u["file"] for u in filtered] == ["module.py"]
+
+
+from tools.orphan_detector import _get_model_delta_ids
+
+
+# --- fixes from the Task-3 adversarial red-team (2026-06-23) ------------------
+def test_model_delta_ignores_metadata_only_change():
+    """F2: a change to a non-semantic field (timestamp) must NOT widen the delta."""
+    base = {"items": [{"id": "R1", "status": "unproven", "updated_at": "a"}]}
+    work = {"items": [{"id": "R1", "status": "unproven", "updated_at": "b"}]}
+    assert _get_model_delta_ids(base, work) == set()
+
+
+def test_model_delta_detects_new_modified_ignores_identical_and_no_id():
+    """F6: new + status-modified in delta; identical + no-id excluded."""
+    base = {"items": [{"id": "R1", "status": "unproven"}, {"id": "R2", "status": "proven"}]}
+    work = {"items": [
+        {"id": "R1", "status": "proven"},    # modified (status)
+        {"id": "R2", "status": "proven"},    # identical
+        {"id": "R3", "status": "unproven"},  # new
+        {"status": "unproven"},               # no id -> ignored
+    ]}
+    assert _get_model_delta_ids(base, work) == {"R1", "R3"}
+
+
+def test_dangling_ref_not_double_reported():
+    """F3: a dangling ref is in dangling_refs only, NOT also as a forward_orphans string."""
+    r = detect_orphans_diff(
+        impl_units=[{"file": "m.py", "text": "# implements REQ-FAKE-999"}],
+        requirements=[], known_ids={"REQ-REAL-001"}, changed_files={"m.py"},
+    )
+    assert "REQ-FAKE-999" in r.get("dangling_refs", {})
+    assert not any("dangling-ref" in str(x) for x in r["forward_orphans"])
+
+
+def test_empty_known_ids_skips_dangling_check():
+    """§3.1: an EMPTY model (pre-delivery) skips the dangling cross-check entirely."""
+    r = detect_orphans_diff(
+        impl_units=[{"file": "m.py", "text": "# implements REQ-FAKE-999"}],
+        requirements=[], known_ids=set(), changed_files={"m.py"},
+    )
+    assert r.get("dangling_refs", {}) == {}
+
+
+def test_model_delta_none_checks_all_requirements():
+    """F7: model_delta_ids=None => backward pass checks ALL requirements (conservative)."""
+    r = detect_orphans_diff(
+        impl_units=[], requirements=[{"id": "REQ-A-001"}, {"id": "REQ-B-002"}],
+        known_ids={"REQ-A-001", "REQ-B-002"}, changed_files={"x.py"}, model_delta_ids=None,
+    )
+    assert set(r["backward_orphans"]) == {"REQ-A-001", "REQ-B-002"}

@@ -301,10 +301,16 @@ def detect_orphans(
 # (ORPHAN_DETECTOR default "tools/.*"), matched with re.match (start-anchored).
 # --------------------------------------------------------------------------- #
 
-# Allowlist regex default (§3): forward-orphan path exemption. The execution_bounds
-# key ORPHAN_ALLOWLIST_PATTERN owns the runtime value; this is the in-module default
-# so the diff layer never NameErrors if called without an explicit pattern.
-_DEFAULT_ALLOWLIST_PATTERN = "tools/.*"
+# Allowlist regex default (§3 / §4.4): forward-orphan path exemption. SOURCED from
+# execution_bounds (the config registry owns the value — thresholds-from-execution_bounds
+# invariant), with a literal fallback only if that import is unavailable.
+try:  # absolute import when ``tools`` is on sys.path / run as a script
+    from execution_bounds import ORPHAN_ALLOWLIST_PATTERN as _DEFAULT_ALLOWLIST_PATTERN
+except ImportError:  # package-style import
+    try:
+        from tools.execution_bounds import ORPHAN_ALLOWLIST_PATTERN as _DEFAULT_ALLOWLIST_PATTERN
+    except ImportError:
+        _DEFAULT_ALLOWLIST_PATTERN = "tools/.*"
 
 
 def _get_merged_base(baseline_ref: str, cwd: str = ".") -> Optional[str]:
@@ -388,15 +394,24 @@ def _get_model_delta_ids(
     working_feature_list: Dict[str, Any],
 ) -> Set[str]:
     """Item IDs added or modified in feature_list.json relative to the baseline."""
+    # Diff only the SEMANTIC fields (F2) — comparing whole dicts would treat any
+    # auto-updating metadata field (e.g. a timestamp) as a modification and widen the
+    # backward scope to the entire model, the explosion model-delta scoping prevents.
+    _SEMANTIC = ("id", "type", "nfr_subtype", "status", "in_scope", "evidence",
+                 "priority", "dependencies", "acceptance_criteria")
+
+    def _proj(item: Dict[str, Any]) -> Dict[str, Any]:
+        return {k: item.get(k) for k in _SEMANTIC}
+
     baseline_ids = {
-        i.get("id"): i for i in baseline_feature_list.get("items", []) if i.get("id")
-    }
-    working_ids = {
-        i.get("id"): i for i in working_feature_list.get("items", []) if i.get("id")
+        i.get("id"): _proj(i) for i in baseline_feature_list.get("items", []) if i.get("id")
     }
     delta: Set[str] = set()
-    for item_id, working_item in working_ids.items():
-        if item_id not in baseline_ids or baseline_ids[item_id] != working_item:
+    for i in working_feature_list.get("items", []):
+        item_id = i.get("id")
+        if not item_id:
+            continue
+        if item_id not in baseline_ids or baseline_ids[item_id] != _proj(i):
             delta.add(item_id)
     return delta
 
@@ -438,7 +453,7 @@ def detect_orphans_diff(
         filtered_units = impl_units
         scoped_requirements = requirements
         fallback_reason = (
-            f"merge-base {baseline_commit!r} unreachable; full-repo fallback (local)"
+            f"diff not computed against {baseline_commit!r}; full-repo fallback (local)"
             if baseline_commit else None
         )
     else:
@@ -455,17 +470,26 @@ def detect_orphans_diff(
         report["baseline_fallback_reason"] = fallback_reason
 
     # Dangling-ref subclass: a forward unit citing an id NOT in the model (REQ-WIRE-* exempt).
+    # Skipped when the model is empty (pre-delivery local case, §3.1) — consistent with
+    # detect_orphans, which also guards the cross-check on a non-empty model.
     dangling_refs: Dict[str, Dict[str, str]] = {}
-    for unit in filtered_units:
-        for uid in _impl_unit_req_ids(unit):
-            if uid not in known_ids and not uid.startswith("REQ-WIRE"):
-                dangling_refs.setdefault(uid, {
-                    "unit": _impl_unit_ref(unit),
-                    "message": f"requirement ID '{uid}' does not exist in feature_list.json",
-                })
+    if known_ids:
+        for unit in filtered_units:
+            for uid in _impl_unit_req_ids(unit):
+                if uid not in known_ids and not uid.startswith("REQ-WIRE"):
+                    dangling_refs.setdefault(uid, {
+                        "unit": _impl_unit_ref(unit),
+                        "message": f"requirement ID '{uid}' does not exist in feature_list.json",
+                    })
     if dangling_refs:
         report["dangling_refs"] = dangling_refs
         report["ok"] = False
+        # De-dup (F3): detect_orphans already pushed "[dangling-ref: ...]" strings into
+        # forward_orphans; drop them so dangling_refs is the single structured source.
+        report["forward_orphans"] = [
+            fo for fo in report.get("forward_orphans", [])
+            if "[dangling-ref:" not in str(fo)
+        ]
 
     return report
 
