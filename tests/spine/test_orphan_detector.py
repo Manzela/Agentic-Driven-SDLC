@@ -107,3 +107,39 @@ def test_scan_commit_trailers_extracts_from_full_commit_message():
 
 def test_scan_commit_trailers_empty_when_no_trailer():
     assert scan_commit_trailers("chore: tidy up, no requirement here") == []
+
+
+# Property 11: §3.1 validity cross-check — fabricated/unknown req-id is a dangling-ref orphan (T1)
+def test_fabricated_req_id_without_known_id_is_dangling_ref_orphan():
+    """T1 closure: a reference to REQ-NONEXIST-999 that is not in the model is a dangling-ref orphan."""
+    impl_units = [
+        {"file": "tools/core.py", "function": "handler", "requirement_id": "REQ-NONEXIST-999"},
+    ]
+    requirements = []
+    known_ids = {"REQ-CORE-001"}  # non-empty model; the fabricated id is simply absent from it
+    report = detect_orphans(impl_units, requirements, known_ids=known_ids)
+    assert len(report.get("forward_orphans", [])) > 0
+    assert report["ok"] is False
+
+
+def test_validity_cross_check_known_id_is_not_dangling():
+    """When a requirement ID exists in known_ids, it's not a dangling ref."""
+    impl_units = [
+        {"file": "tools/core.py", "function": "run", "requirement_id": "REQ-CORE-001"},
+    ]
+    requirements = [{"id": "REQ-CORE-001"}]
+    known_ids = {"REQ-CORE-001"}
+    report = detect_orphans(impl_units, requirements, known_ids=known_ids)
+    assert report["forward_orphans"] == []
+    assert report["ok"] is True
+
+
+def test_wiring_prefixed_id_exempt_from_dangling_check():
+    """§3.1 caveat: WIRING-prefixed (REQ-WIRE-*) ids are minted per-analysis and exempt from dangling-ref."""
+    impl_units = [
+        {"file": "tools/wiring_check.py", "function": "analyze", "requirement_id": "REQ-WIRE-001"},
+    ]
+    requirements = []
+    known_ids = {"REQ-CORE-001"}  # non-empty model; REQ-WIRE-001 must still be EXEMPT
+    report = detect_orphans(impl_units, requirements, known_ids=known_ids)
+    assert report["ok"] is True or "REQ-WIRE-001" not in str(report.get("forward_orphans", []))

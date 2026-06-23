@@ -295,7 +295,9 @@ def test_fabricated_req_id_without_known_id_is_dangling_ref_orphan():
         },
     ]
     requirements = []
-    known_ids = set()  # empty — nothing is known
+    known_ids = {"REQ-CORE-001"}  # non-empty model; the fabricated id is simply ABSENT from it
+    # (an EMPTY known_ids is the pre-delivery case and SKIPS the cross-check per §3.1/§7,
+    #  so it must be non-empty to exercise the active dangling-ref check)
     
     report = detect_orphans(impl_units, requirements, known_ids=known_ids)
     
@@ -335,7 +337,7 @@ def test_wiring_prefixed_id_exempt_from_dangling_check():
         },
     ]
     requirements = []
-    known_ids = set()  # empty — WIRING is not in committed model
+    known_ids = {"REQ-CORE-001"}  # non-empty model; cross-check ACTIVE, but REQ-WIRE-* stays exempt
     
     report = detect_orphans(impl_units, requirements, known_ids=known_ids)
     

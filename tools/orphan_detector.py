@@ -212,6 +212,7 @@ def _requirement_has_artifact(req: Dict[str, Any], referenced_ids: Set[str]) -> 
 def detect_orphans(
     impl_units: List[Dict[str, Any]],
     requirements: List[Dict[str, Any]],
+    known_ids: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     """Bidirectional orphan detection over already-parsed inputs.
 
@@ -242,12 +243,26 @@ def detect_orphans(
     """
     impl_units = impl_units or []
     requirements = requirements or []
+    known_ids = known_ids or set()
 
     # Forward pass: impl units with no requirement ref (excluding exempt ones).
     forward_orphans: List[str] = []
     referenced_ids: Set[str] = set()
     for unit in impl_units:
         unit_ids = _impl_unit_req_ids(unit)
+
+        # Validity cross-check (§3.1, T1): when a model is supplied (non-empty
+        # known_ids — an EMPTY model is the pre-delivery local case and skips,
+        # §3.1/§7), a reference to an id NOT in the model is a dangling-ref
+        # orphan. WIRING-minted ids (REQ-WIRE-*) are exempt — they are minted
+        # per-analysis and may not yet be in the committed model (§3.1 caveat).
+        if known_ids:
+            for req_id in unit_ids:
+                if not req_id.startswith("REQ-WIRE") and req_id not in known_ids:
+                    forward_orphans.append(
+                        f"{_impl_unit_ref(unit)} [dangling-ref: {req_id} not in model]"
+                    )
+
         referenced_ids.update(unit_ids)
         if not unit_ids and not _impl_unit_is_exempt(unit):
             forward_orphans.append(_impl_unit_ref(unit))
