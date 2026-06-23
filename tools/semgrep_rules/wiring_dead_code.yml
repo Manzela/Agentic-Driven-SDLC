@@ -1,0 +1,175 @@
+# tools/semgrep_rules/wiring_dead_code.yml
+# Semgrep custom rules for WIRING dead-code detection (Phase-1 verification depth,
+# §2.5 / criterion 8.2 fourth category: jobs & scheduled tasks).
+#
+# Scope:
+#   - Decorator-routed HTTP handlers (@app.get/.post/.route, @router.get, ...)
+#   - Registered-but-uninvoked callbacks (@app.on_event, @app.middleware, emitter.on(...))
+#   - Job / scheduled-task registration (@celery.task, schedule.every(...).do(fn),
+#     consumer.register_handler(..., fn), entry-point dicts)
+#
+# Division of labor (AST checker vs Semgrep):
+#   - tools/wiring_checker.py (AST reachability) OWNS plain defined-but-never-called
+#     functions and is the REACHABILITY authority.
+#   - THIS file OWNS symbols whose registration happens via a decorator or a dynamic
+#     registration call/table — patterns a single-file AST pass under-detects.
+#
+# union-of-concerns (binding contract): A Semgrep clean result is ADVISORY METADATA;
+#   it cannot retract an AST orphan. Any symbol found reachable (or orphaned) by
+#   wiring_checker.py is a WIRING obligation regardless of the Semgrep verdict.
+#   De-dup (Task 10) merges Semgrep + AST results by qualname: a qualname flagged by
+#   EITHER source is a finding. Semgrep alone NEVER decides reachability — every
+#   message below hedges ("may not be reachable") and routes the decision to the
+#   Verifier, never a self-grade.
+#
+# Output: each match interpolates the matched function name into the message so the
+#   ingestion path (Task 19.3) can key WIRING items by qualname; --json carries
+#   results[].path and results[].start.line for location.
+
+rules:
+
+  # Rule 1 — decorator-routed HTTP handlers: @app.get(...), @router.post(...), etc.
+  - id: semgrep-wiring-dead-handler
+    patterns:
+      - pattern: |
+          @$APP.$METHOD(...)
+          def $HANDLER(...):
+              ...
+      - metavariable-pattern:
+          metavariable: $METHOD
+          patterns:
+            - pattern-regex: '^(get|post|put|patch|delete|head|options|route|websocket)$'
+      # NOTE: $APP is intentionally UNRESTRICTED — the HTTP-verb $METHOD regex is the
+      # real scope. Pinning $APP to ^(app|router)$ silently missed every real router
+      # name (api, users_router, v1_router, blueprint, ...) — red-team F1.
+    message: >
+      Dead decorator-routed handler: function '$HANDLER' is marked with a
+      route/handler decorator (@$APP.$METHOD) but may not be reachable from any real
+      execution path. Semgrep detected the registration; it cannot verify invocation.
+      The Verifier must confirm via integration test or flip status to 'failed'.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: wiring
+      wiring_type: decorator_handler
+      source: semgrep_custom_rule
+
+  # Rule 2 — registered callbacks via decorator: @app.on_event, @app.middleware, @bus.on, ...
+  - id: semgrep-wiring-dead-callback-decorator
+    patterns:
+      - pattern: |
+          @$EMITTER.$METHOD(...)
+          def $CALLBACK(...):
+              ...
+      - metavariable-pattern:
+          metavariable: $METHOD
+          patterns:
+            - pattern-regex: '^(on_event|middleware|on|subscribe|listen|before_request|after_request|exception_handler)$'
+    message: >
+      Dead registered callback: function '$CALLBACK' is registered as a
+      callback/listener (@$EMITTER.$METHOD) but may not be invoked from any real
+      execution path. Semgrep detected the registration; it cannot verify the
+      trigger/emission. The Verifier must confirm via integration test or flip to 'failed'.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: wiring
+      wiring_type: registered_callback
+      source: semgrep_custom_rule
+
+  # Rule 3 — job/scheduled-task registration via decorator: @celery.task(...) or bare @x.task
+  - id: semgrep-wiring-dead-job-decorator
+    pattern-either:
+      - patterns:
+          - pattern: |
+              @$CONTAINER.task(...)
+              def $JOB(...):
+                  ...
+      - patterns:
+          - pattern: |
+              @$DECORATOR
+              def $JOB(...):
+                  ...
+          - metavariable-pattern:
+              metavariable: $DECORATOR
+              # (^|.*\.) matches BOTH a bare name (@job) and a dotted one (@x.task).
+              # The old '.*\.' required a dot, so non-Celery bare decorators were a
+              # structural false-negative — red-team F2.
+              patterns:
+                - pattern-regex: '(^|.*\.)(task|job|scheduled_task|cron_job)$'
+    message: >
+      Dead job/scheduled-task registration: function '$JOB' is registered as a
+      task/job decorator but may not be executed from any real execution path.
+      Semgrep detected the registration; it cannot verify invocation. The Verifier
+      must confirm via integration test or flip status to 'failed'.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: wiring
+      wiring_type: job_registration
+      source: semgrep_custom_rule
+
+  # Rule 4 — job registration via scheduler call: schedule.every(...)[.unit].do($JOB)
+  - id: semgrep-wiring-dead-scheduler-call
+    patterns:
+      - pattern-either:
+          - pattern: schedule.every(...).do($JOB)
+          - pattern: schedule.every(...).seconds.do($JOB)
+          - pattern: schedule.every(...).minutes.do($JOB)
+          - pattern: schedule.every(...).hours.do($JOB)
+          - pattern: schedule.every(...).days.do($JOB)
+          - pattern: schedule.every(...).weeks.do($JOB)  # red-team F4: chained .weeks
+      - metavariable-pattern:
+          metavariable: $JOB
+          patterns:
+            # Only a NAMED symbol — skip lambdas / inline callables (not qualname-keyable).
+            - pattern-regex: '^[A-Za-z_][A-Za-z0-9_]*$'
+    message: >
+      Dead scheduler registration: function '$JOB' is registered to a scheduler
+      (schedule.every(...).do) but may not be executed from any real execution path.
+      Semgrep detected the registration call; it cannot verify invocation. The
+      Verifier must confirm via integration test or flip status to 'failed'.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: wiring
+      wiring_type: job_registration_call
+      source: semgrep_custom_rule
+
+  # Rule 5 — callback/handler registration via call: emitter.on / .subscribe / .register_handler
+  - id: semgrep-wiring-dead-registration-call
+    patterns:
+      - pattern-either:
+          # callback as the LAST positional arg: emitter.on("event", handler)
+          - pattern: $EMITTER.on(..., $CALLBACK)
+          - pattern: $EMITTER.subscribe(..., $CALLBACK)
+          - pattern: $EMITTER.register_handler(..., $CALLBACK)
+          - pattern: $EMITTER.add_listener(..., $CALLBACK)
+          # callback as the FIRST positional arg: bus.on(handler, "e") — blinker/aiohttp
+          # style (red-team F3). Only the UNAMBIGUOUS emitter methods are widened here.
+          - pattern: $EMITTER.on($CALLBACK, ...)
+          - pattern: $EMITTER.subscribe($CALLBACK, ...)
+          - pattern: $EMITTER.register_handler($CALLBACK, ...)
+          - pattern: $EMITTER.add_listener($CALLBACK, ...)
+          # NOTE: `.connect(...)` is intentionally OUT OF SCOPE — it collides with
+          # sqlite3.connect / psycopg.connect / socket.connect (DSN strings, not
+          # callbacks) and floods a real codebase with false positives (verified:
+          # 2 FPs in tools/store.py). Django-signal `.connect` wiring is left to the
+          # AST checker / a dedicated, emitter-scoped rule.
+      - metavariable-pattern:
+          metavariable: $CALLBACK
+          # Only a NAMED symbol — a string-literal first arg (e.g. "event") has quotes
+          # and fails this regex, so the first-arg patterns don't misfire on it.
+          patterns:
+            - pattern-regex: '^[A-Za-z_][A-Za-z0-9_]*$'
+    message: >
+      Dead callback registration: function '$CALLBACK' is registered to an event
+      emitter/consumer (.on/.subscribe/.register_handler) but may not be invoked from
+      any real execution path. Semgrep detected the registration call; it cannot
+      verify the trigger. The Verifier must confirm via integration test or flip to 'failed'.
+    languages: [python]
+    severity: WARNING
+    metadata:
+      category: wiring
+      wiring_type: registration_call
+      source: semgrep_custom_rule
