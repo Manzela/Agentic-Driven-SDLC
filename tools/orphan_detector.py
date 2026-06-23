@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from typing import Any, Dict, List, Optional, Set
 
@@ -62,6 +63,11 @@ __all__ = [
 # A unit annotated ``# orphan-exempt: <reason>`` is legitimately un-annotated
 # (helpers, generated code, config) and does NOT count as a forward orphan.
 ORPHAN_EXEMPT_MARKER = "orphan-exempt"
+
+# Reason-required exemption (§3.2, T2): a bare "# orphan-exempt" (no reason) does
+# NOT exempt — only "# orphan-exempt: <reason>" with a non-empty reason exempts.
+# This makes a self-exemption a reviewed, justified surface rather than a free pass.
+ORPHAN_EXEMPT_PATTERN = re.compile(r"#\s*orphan-exempt:\s*\S+")
 
 # Default forward-scan path excludes (tasks.md 20.1 run-scope reconciliation):
 # tests, generated/vendored dirs, package markers, and DB migrations are never
@@ -137,7 +143,9 @@ def _impl_unit_is_exempt(unit: Dict[str, Any]) -> bool:
     if reason:
         return True
     text = unit.get("text") or unit.get("source") or ""
-    return ORPHAN_EXEMPT_MARKER in text
+    # §3.2 (T2): reason REQUIRED — a bare "# orphan-exempt" does NOT exempt;
+    # only "# orphan-exempt: <reason>" with a non-empty reason exempts.
+    return bool(ORPHAN_EXEMPT_PATTERN.search(text))
 
 
 def _impl_unit_req_ids(unit: Dict[str, Any]) -> List[str]:

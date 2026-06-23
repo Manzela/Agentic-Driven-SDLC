@@ -143,3 +143,42 @@ def test_wiring_prefixed_id_exempt_from_dangling_check():
     known_ids = {"REQ-CORE-001"}  # non-empty model; REQ-WIRE-001 must still be EXEMPT
     report = detect_orphans(impl_units, requirements, known_ids=known_ids)
     assert report["ok"] is True or "REQ-WIRE-001" not in str(report.get("forward_orphans", []))
+
+
+# Property 11: §3.2 function-level units + reason-required exempt marker (T2)
+def test_function_level_unit_without_req_id_is_forward_orphan():
+    """§3.2: Function-level granularity — an unreferenced function is a forward orphan."""
+    impl_units = [
+        {"file": "tools/widget.py", "function": "orphaned_fn", "lineno": 10, "end_lineno": 20,
+         "text": "def orphaned_fn():\n    pass"},
+        {"file": "tools/widget.py", "function": "traced_fn", "lineno": 25, "end_lineno": 35,
+         "requirement_id": "REQ-WIDGET-001", "text": "def traced_fn():  # REQ-WIDGET-001\n    pass"},
+    ]
+    requirements = [{"id": "REQ-WIDGET-001"}]
+    known_ids = {"REQ-WIDGET-001"}
+    report = detect_orphans(impl_units, requirements, known_ids=known_ids)
+    assert "orphaned_fn" in str(report["forward_orphans"])
+    assert "traced_fn" not in str(report["forward_orphans"])
+    assert report["ok"] is False
+
+
+def test_exempt_marker_requires_reason():
+    """T2 closure: a bare # orphan-exempt (no reason) is NOT exempt."""
+    impl_units = [
+        {"file": "tools/helpers.py", "function": "bare_exempt", "lineno": 5, "end_lineno": 12,
+         "text": "def bare_exempt():\n    # orphan-exempt\n    pass"},
+    ]
+    report = detect_orphans(impl_units, [])
+    assert "bare_exempt" in str(report["forward_orphans"])
+    assert report["ok"] is False
+
+
+def test_reason_bearing_exempt_marker_exempts():
+    """A # orphan-exempt: <reason> marker with a reason IS exempt."""
+    impl_units = [
+        {"file": "tools/helpers.py", "function": "helper_fn", "lineno": 5, "end_lineno": 12,
+         "text": "def helper_fn():\n    # orphan-exempt: generated code, no traceability needed\n    pass"},
+    ]
+    report = detect_orphans(impl_units, [])
+    assert report["forward_orphans"] == []
+    assert report["ok"] is True

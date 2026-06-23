@@ -545,6 +545,9 @@ Expected: **FAIL** — `_scan_repo_impl_units` still returns file-level units, n
 ---
 
 #### - [ ] **Step 4: Implement function-level unit scanning and reason-required exempt check**
+
+> **Execution note (2026-06-23):** the **reason-required exempt** part (`ORPHAN_EXEMPT_PATTERN` + the `_impl_unit_is_exempt` change) is applied + tested (closes T2 marker-hardening). The **`_scan_repo_impl_units` function-level AST flip** below is **deferred to land WITH Task 3** — flipping the repo-wide scan to function-level granularity *without* Task 3's `tools/` allowlist + diff-awareness would make the orphan CLI flag every un-annotated function in the control plane (an orphan explosion). `detect_orphans` already handles function-level units when given them (tested), so the core logic is done; apply the scanner flip + add a real `_ast_scan_functions` test (the Step-3 tests pass pre-built units and do NOT exercise the scanner) alongside the Task-3 allowlist.
+
 **Modify** `tools/orphan_detector.py`:
 
 First, update the `ORPHAN_EXEMPT_MARKER` to require a reason:
