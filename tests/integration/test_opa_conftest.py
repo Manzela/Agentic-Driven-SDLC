@@ -108,3 +108,37 @@ def test_rego_twin_parity_with_python_gate(name, tmp_path: Path) -> None:
     python_denies = coverage_gate.deny_merge(model)["deny"]
     assert rego_denies == python_denies, (
         f"{name}: rego_denies={rego_denies} != python_denies={python_denies}")
+
+
+def test_conftest_pinned_binary_runs_and_policy_validates() -> None:
+    """Task 13: the pinned conftest binary is invokable and the policy bundle PARSES
+    clean (no rego syntax error). This is the version pin's behavioral check — conftest
+    is a Go binary (not pip-installable), so requirements-dev.txt documents the version
+    and this test fails loudly if the installed binary is broken/incompatible."""
+    ver = subprocess.run(["conftest", "--version"], capture_output=True, text=True, cwd=str(ROOT))
+    assert ver.returncode == 0 and "Conftest" in ver.stdout, ver.stderr
+    # `conftest verify`-style parse check: an all-valid model must produce 0 failures and,
+    # critically, 0 EXCEPTIONS (a rego parse error surfaces as an exception, not a deny).
+    valid = {"items": [{"id": "REQ-OK-001", "type": "functional", "in_scope": True,
+                        "status": "proven", "evidence": _ev()}]}
+    import tempfile
+    with tempfile.TemporaryDirectory() as t:
+        f = Path(t) / "feature_list.json"
+        f.write_text(json.dumps(valid))
+        proc = subprocess.run(
+            ["conftest", "test", str(f), "--policy", str(POLICY_DIR), "--no-color"],
+            capture_output=True, text=True, cwd=str(ROOT))
+    combined = (proc.stdout + proc.stderr).lower()
+    # A rego compile error surfaces as rego_parse_error / rego_type_error (NOT the benign
+    # "0 exceptions" summary token, which contains the substring "exception").
+    assert "rego_parse_error" not in combined and "rego_type_error" not in combined, proc.stdout
+    assert proc.returncode == 0, f"a valid all-proven model must not be denied: {proc.stdout}"
+
+
+def test_task13_required_fixture_cases_present() -> None:
+    """Task 13 mandates conftest fixtures for: all-proven+complete (allow), unproven
+    (deny), incomplete-evidence (deny), empty-model (deny), proven-WIRING-with-unit (deny).
+    Confirm each maps to a parity fixture so the integration leg covers the spec set."""
+    required = {"functional_proven_ok", "inscope_unproven", "field_null",
+                "empty_model", "wiring_unit"}
+    assert required <= set(_PARITY_MODELS), required - set(_PARITY_MODELS)
