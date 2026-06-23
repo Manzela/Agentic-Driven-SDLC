@@ -78,31 +78,28 @@ def _norm_session(value: Any) -> str:
     return s.casefold()  # == lower() for ASCII; matches the Rego twin
 
 
-def _evidence_complete(item: Dict[str, Any]) -> bool:
-    """Return True iff ``item`` carries a complete four-field Evidence_Record.
+def _is_nonempty_str_field(evidence: Dict[str, Any], field: str) -> bool:
+    """True iff ``evidence[field]`` is a present, NON-EMPTY STRING.
 
-    Complete means: an ``evidence`` object is present AND every field in
-    ``EVIDENCE_FIELDS`` is present and non-empty (after string-coercion and
-    whitespace strip). A missing ``evidence`` object, a non-mapping ``evidence``,
-    or any absent/empty field makes the record incomplete. Mirrors the Rego
-    ``evidence_incomplete`` helper (negated).
+    The schema declares every Evidence_Record field ``type: string, minLength: 1``,
+    so a NON-string value (null / bool / number / list) is invalid evidence — NOT a
+    present field. The earlier code coerced non-strings (``str(value)``) and so
+    accepted ``test_file: false`` as complete, while the Rego twin denied it: a
+    rego⇔python split exactly where this gate must be identical (red-team). Both
+    twins now require a non-empty string and agree across null/false/[]/number.
     """
+    value = evidence.get(field)
+    return isinstance(value, str) and value.strip() != ""
+
+
+def _evidence_complete(item: Dict[str, Any]) -> bool:
+    """Return True iff ``item`` carries a complete four-field Evidence_Record: an
+    ``evidence`` mapping present AND every ``EVIDENCE_FIELDS`` field a non-empty
+    string. Mirrors the Rego ``field_missing_or_empty`` helper (negated)."""
     evidence = item.get("evidence")
     if not isinstance(evidence, dict):
         return False
-    for field in EVIDENCE_FIELDS:
-        value = evidence.get(field)
-        if value is None:
-            return False
-        # Non-empty after strip. ``collected_at`` may arrive as a non-str in
-        # some serializations; coerce before the emptiness check so a present
-        # numeric/timestamp value is not spuriously treated as empty.
-        if isinstance(value, str):
-            if value.strip() == "":
-                return False
-        elif value == "" or value == []:
-            return False
-    return True
+    return all(_is_nonempty_str_field(evidence, field) for field in EVIDENCE_FIELDS)
 
 
 def deny_merge(feature_list: Dict[str, Any]) -> Dict[str, Any]:
@@ -183,13 +180,10 @@ def deny_merge(feature_list: Dict[str, Any]) -> Dict[str, Any]:
             # Rule 2 — evidence gate. A proven in-scope item MUST carry a
             # complete four-field Evidence_Record.
             if not _evidence_complete(item):
+                ev_obj = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
                 missing = [
-                    f
-                    for f in EVIDENCE_FIELDS
-                    if not (
-                        isinstance(item.get("evidence"), dict)
-                        and str(item["evidence"].get(f, "")).strip() != ""
-                    )
+                    f for f in EVIDENCE_FIELDS
+                    if not _is_nonempty_str_field(ev_obj, f)
                 ]
                 reasons.append(
                     f"Merge denied: in-scope item {item_id!r} is 'proven' but "
@@ -217,6 +211,20 @@ def deny_merge(feature_list: Dict[str, Any]) -> Dict[str, Any]:
             elif vs_norm == is_norm:
                 reasons.append(f"Merge denied: in-scope item {item_id!r} evidence has the same "
                                f"verifier and implementer session (self-grading).")
+
+            # Rule 4 — WIRING integration-evidence gate. A proven WIRING item MUST be
+            # proven with INTEGRATION-test evidence (evidence_kind == "integration"); a
+            # unit/behavioral/perf/a11y record cannot prove a wiring obligation (Req 8.3
+            # / Property 2). Rego twin: coverage_query.rego Rule 5; the schema allOf is
+            # the write-time gate. Non-WIRING items are unaffected (evidence_kind is
+            # provenance for them, not a gate input).
+            if item.get("type") == "WIRING":
+                kind = ev.get("evidence_kind")
+                if kind != "integration":
+                    reasons.append(
+                        f"Merge denied: in-scope WIRING item {item_id!r} is 'proven' but its "
+                        f"Evidence_Record.evidence_kind is {kind!r} (must be 'integration')."
+                    )
 
         return {"deny": bool(reasons), "reasons": reasons}
 

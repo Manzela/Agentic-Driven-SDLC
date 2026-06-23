@@ -124,6 +124,23 @@ _norm_session(value) := "" if {
 	not regex.match(`^[\x00-\x7f]+$`, trim_space(value))
 }
 
+# ── Rule 5: WIRING integration-evidence gate ─────────────────────────────────
+# A proven in-scope WIRING item MUST be proven with integration-test evidence
+# (evidence.evidence_kind == "integration"); a unit/behavioral/perf/a11y record
+# cannot prove a wiring obligation (Req 8.3 / Property 2). Rego twin of
+# coverage_gate.deny_merge's Rule 4 + the schema allOf write-time gate. A
+# non-WIRING item is unaffected (evidence_kind is provenance, not a gate input).
+deny contains msg if {
+	some item in in_scope_items
+	item.status == "proven"
+	item.type == "WIRING"
+	object.get(item.evidence, "evidence_kind", "") != "integration"
+	msg := sprintf(
+		"Merge denied: in-scope WIRING item %q is 'proven' but its Evidence_Record.evidence_kind is %q (must be 'integration').",
+		[object.get(item, "id", "<no-id>"), object.get(object.get(item, "evidence", {}), "evidence_kind", "<none>")],
+	)
+}
+
 # ── Helper: a field is missing or empty on an evidence object ─────────────────
 # True when the field is absent, or present but an empty/blank string.
 field_missing_or_empty(evidence, field) if {
@@ -134,4 +151,13 @@ field_missing_or_empty(evidence, field) if {
 	value := evidence[field]
 	is_string(value)
 	trim_space(value) == ""
+}
+
+# Present but a NON-STRING value (null / bool / number / array). The schema declares
+# every field type:string,minLength:1, so a non-string is invalid evidence. The first
+# branch (`not evidence[field]`) only catches `false`/undefined — it MISSES null/[]/
+# number, which the Python twin denies; this branch closes that rego⇔python split.
+field_missing_or_empty(evidence, field) if {
+	value := evidence[field]
+	not is_string(value)
 }
