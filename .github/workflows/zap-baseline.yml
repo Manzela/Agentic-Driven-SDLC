@@ -1,0 +1,98 @@
+name: ZAP Baseline DAST
+
+# Feature: spec-to-evidence-control
+# Requirement 31 / REQ-SEC-008 — DAST Baseline Security Scan (task 56).
+#
+# REQ-SEC-008.1: run an OWASP ZAP baseline PASSIVE scan on every PR via
+#   `zaproxy/action-baseline@v0.12.0` with `fail_action: true`.
+# REQ-SEC-008.2: register `zap-baseline` as a REQUIRED CI status check at merge.
+#   (Ruleset registration is the Phase-4 task 40.5 activity; canonical required-checks
+#   list = task 14.2. This Phase-2 file STANDS UP the workflow + check name `zap-baseline`.)
+# REQ-SEC-008.3: active/full ZAP scans are OUT OF SCOPE for v1 — baseline passive only.
+#
+# v1 TARGET (design.md Component-Inventory `zap-baseline.yml` row): the workflow boots
+# the app/service in CI at a known `http://localhost:<port>` URL (a job step stands the
+# app up BEFORE the scan), and the action's `target` input is that unauthenticated
+# localhost URL. An authenticated/active scan is added post-v1 when an authenticated
+# target exists.
+
+on:
+  # REQ-SEC-008.1 "on every PR" — concrete mechanism. Target-branch filter scopes the
+  # gate to PRs into the protected branch (mirrors task 56 / task 41.1).
+  pull_request:
+    branches: [main]
+  # Manual / out-of-band invocation.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # zaproxy/action-baseline opens/updates a GitHub issue with the scan report and
+  # writes the run summary; these require issue + PR write scopes.
+  issues: write
+  pull-requests: write
+
+# Pin the localhost target in one place. The boot step binds the app to this port and
+# the scan step targets it.
+env:
+  ZAP_TARGET_PORT: "8080"
+
+jobs:
+  zap-baseline:
+    # Job name doubles as the REQUIRED status-check context `zap-baseline` (REQ-SEC-008.2).
+    name: zap-baseline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # v1 target setup: stand the app up in CI at http://localhost:<port> so the
+      # baseline scan has a known, reachable, UNAUTHENTICATED target. The placeholder
+      # boot below is intentionally generic; replace `app start` with the real service
+      # entrypoint as the app gains a runnable surface (post-v1: authenticated target).
+      - name: Stand up app under test (unauthenticated localhost target)
+        run: |
+          # Boot the application/service on $ZAP_TARGET_PORT, backgrounded.
+          # TODO(app): swap in the real entrypoint once a runnable service exists.
+          # Until then a minimal static server provides a live HTTP target so the
+          # baseline passive scan is exercised end-to-end in CI.
+          #
+          # IMPORTANT: serve a DEDICATED minimal webroot, NOT the repo root. Serving the
+          # checkout exposes .git/ .claude/ docs/ etc. to the scanner, so passive rules
+          # (e.g. 90022 Application Error Disclosure, source/base64/timestamp disclosure)
+          # trip non-deterministically as the repo grows — flaky failures with FAIL-NEW: 0.
+          # A fixed one-page webroot keeps the baseline gate deterministic and real.
+          mkdir -p /tmp/zap-webroot
+          cat > /tmp/zap-webroot/index.html <<'HTML'
+          <!doctype html><html lang="en"><head><meta charset="utf-8">
+          <title>ASCP baseline target</title></head>
+          <body><h1>ASCP ZAP baseline target</h1>
+          <p>Placeholder unauthenticated surface for the OWASP ZAP baseline gate (REQ-SEC-008).</p>
+          </body></html>
+          HTML
+          nohup python3 -m http.server --directory /tmp/zap-webroot "${ZAP_TARGET_PORT}" >/tmp/app.log 2>&1 &
+          echo "Waiting for http://localhost:${ZAP_TARGET_PORT} to accept connections..."
+          for i in $(seq 1 30); do
+            if curl -fsS "http://localhost:${ZAP_TARGET_PORT}/" >/dev/null 2>&1; then
+              echo "App is up on port ${ZAP_TARGET_PORT}."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "App did not become reachable on port ${ZAP_TARGET_PORT}." >&2
+          cat /tmp/app.log >&2 || true
+          exit 1
+
+      # REQ-SEC-008.1/.3: OWASP ZAP BASELINE (passive) scan. Run zap-baseline.py via
+      # Docker directly so the REQUIRED gate is purely the scanner exit code (non-zero
+      # on any un-muted WARN/FAIL => merge blocked). The zaproxy/action-baseline@v0.12.0
+      # wrapper is avoided here ONLY because its internal artifact upload is incompatible
+      # with the current Actions artifact backend ("artifact name zap_scan is not valid")
+      # and fails the job even on a clean scan; this runs the identical scanner image.
+      # --user root avoids the mounted-workspace write-permission warning; .zap/rules.tsv
+      # IGNOREs the placeholder-target header noise (0 real findings on v1).
+      - name: OWASP ZAP baseline passive scan (REQ-SEC-008)
+        run: |
+          docker run --user root --network=host \
+            -v "${{ github.workspace }}:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t "http://localhost:${ZAP_TARGET_PORT}" -c .zap/rules.tsv -a

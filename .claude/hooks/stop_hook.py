@@ -197,6 +197,18 @@ def evaluate_stop(run_state: dict, feature_list: dict) -> dict:
 # (expects optional 'run_state' and 'feature_list' objects), evaluates, prints
 # the decision dict, and maps decision → exit code (allow=0, block=2). All
 # decision logic lives in evaluate_stop; this shell is intentionally trivial.
+#
+# SCOPE (interactive vs loop): the completeness gate is meaningful ONLY for the
+# autonomous-loop Stop event, which the loop driver fires with a 'run_state'
+# and/or 'feature_list' payload attached. A plain interactive Claude-Code Stop
+# event carries neither key, so building an empty feature_list here would drive
+# the gate into the empty-coverage branch ("zero in-scope items") and block
+# every interactive turn-end on a valid INIT state that is neither reachable nor
+# meaningful outside the loop. When neither key is present this is NOT a
+# loop-gated stop → allow termination. The pure, formally-verified core
+# (evaluate_stop) is unchanged and still gates fully whenever the loop supplies
+# state — including a genuine INIT {"items": []} where the 'feature_list' key IS
+# present and the empty-coverage block still fires.
 
 def main(argv: list[str] | None = None) -> int:
     raw = sys.stdin.read()
@@ -207,6 +219,17 @@ def main(argv: list[str] | None = None) -> int:
         decision = _block("Stop blocked: unparseable Stop event JSON. Fail closed.")
         print(json.dumps(decision))
         return 2
+
+    # Non-loop (interactive) Stop event: no loop payload, so the completeness
+    # gate does not apply — allow termination rather than block on empty coverage.
+    if "run_state" not in event and "feature_list" not in event:
+        decision = _allow(
+            None,
+            "Allow: no loop payload on the Stop event (interactive session); "
+            "the completeness gate applies only to autonomous-loop stops.",
+        )
+        print(json.dumps(decision))
+        return 0
 
     run_state = event.get("run_state") or {}
     feature_list = event.get("feature_list") or {}

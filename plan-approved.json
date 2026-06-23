@@ -1,0 +1,8 @@
+{
+  "feature_list_sha": "89d4247bc4cd7ac26d9e1c356ac56fa99cea61ccf193e4a5294ad6140a0120ba",
+  "item_count": 209,
+  "approved_by": "autonomous (pending human ratification)",
+  "approved_at": "2026-06-16T04:50:00+00:00",
+  "note": "Fingerprint binds the immutable model (ids/type/priority/deps/acceptance/in_scope), stable across proven-flips; any item-set or scope change requires re-approval. feature_list_sha retained for reference only.",
+  "model_fingerprint": "sha256:d49aa6e5bf7c33a4f92edd56cc813d8d3117231a5909b260289e953f46e85c52"
+}

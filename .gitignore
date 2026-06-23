@@ -51,3 +51,6 @@ plane-integration/.agent_queue.offset
 plane-selfhost/credentials.env
 plane-selfhost/plane.env
 venv/
+plane-integration/.reorg_state.json
+# Local MCP wiring may carry a machine-specific creds path; commit .mcp.json.example instead.
+.mcp.json

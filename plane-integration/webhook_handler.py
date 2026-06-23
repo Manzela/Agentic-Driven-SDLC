@@ -96,11 +96,13 @@ def _save_seen():
 
 
 def verify(sig, raw):
+    # FAIL-CLOSED: an unsigned/misconfigured receiver must NOT accept arbitrary payloads
+    # (those payloads enqueue agent_dispatch jobs the dispatcher will act on). When no
+    # secret is configured we reject — UNLESS the operator explicitly opts into the
+    # insecure dev path via ASCP_DEV_ALLOW_UNSIGNED=1.
     if not SECRET:
-        return False                          # fail-CLOSED (SEC-01)
-    if not sig:
-        return False
-    sig = sig.split("=", 1)[1] if sig.startswith("sha256=") else sig
+        return os.environ.get("ASCP_DEV_ALLOW_UNSIGNED") == "1"
+    if not sig: return False
     expected = hmac.new(SECRET.encode(), raw, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, sig)
 
@@ -188,10 +190,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    if not SECRET and not ALLOW_INSECURE:
-        raise SystemExit("REFUSING TO START: WEBHOOK_SECRET not set (fail-closed). "
-                         "Set WEBHOOK_SECRET, or ALLOW_INSECURE=1 for dev only.")
-    if not SECRET:
-        print("WARN: ALLOW_INSECURE=1 — signature verification DISABLED (dev only)")
-    print(f"webhook_handler listening on {BIND}:{PORT}  (queue -> {QUEUE.name})")
-    ThreadingHTTPServer((BIND, PORT), Handler).serve_forever()
+    if not SECRET and os.environ.get("ASCP_DEV_ALLOW_UNSIGNED") == "1":
+        print("WARN: WEBHOOK_SECRET not set and ASCP_DEV_ALLOW_UNSIGNED=1 — "
+              "signatures NOT verified (dev only, INSECURE)")
+    elif not SECRET:
+        print("WARN: WEBHOOK_SECRET not set — receiver is FAIL-CLOSED (all POSTs rejected). "
+              "Set WEBHOOK_SECRET, or ASCP_DEV_ALLOW_UNSIGNED=1 for insecure local dev.")
+    print(f"webhook_handler listening on :{PORT}  (queue -> {QUEUE.name})")
+    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

@@ -1,0 +1,50 @@
+name: Plane Config Audit (production conformance)
+
+# Verifies the LIVE Plane project's configuration (states/workflow, cycles,
+# labels, work items, project meta) against production expectations via the
+# REST API. Manual trigger. Reads Plane API creds from repo secrets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: "Plane REST API base (…/api/v1)"
+        default: "https://plane.autonomous-agent.dev/api/v1"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  config-audit:
+    name: Plane REST config conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Guard — require Plane API secrets
+        env:
+          WS: ${{ secrets.PLANE_WORKSPACE_SLUG }}
+          PROJ: ${{ secrets.PLANE_PROJECT_ID }}
+          KEY: ${{ secrets.PLANE_API_KEY }}
+        run: |
+          missing=""
+          [ -z "$WS" ] && missing="$missing PLANE_WORKSPACE_SLUG"
+          [ -z "$PROJ" ] && missing="$missing PLANE_PROJECT_ID"
+          [ -z "$KEY" ] && missing="$missing PLANE_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secret(s):$missing"
+            exit 1
+          fi
+          echo "Plane API secrets present."
+
+      - name: Run config audit
+        env:
+          PLANE_API_BASE: ${{ inputs.api_base }}
+          PLANE_WORKSPACE_SLUG: ${{ secrets.PLANE_WORKSPACE_SLUG }}
+          PLANE_PROJECT_ID: ${{ secrets.PLANE_PROJECT_ID }}
+          PLANE_API_KEY: ${{ secrets.PLANE_API_KEY }}
+        run: python3 tools/plane_config_audit.py

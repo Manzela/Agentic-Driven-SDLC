@@ -31,6 +31,16 @@ dependencies = [
     "z3-solver==4.16.0.0",
 ]
 
+# Dev/CI toolchain. Mirrors requirements-dev.txt (the CI install manifest) — keep both
+# in sync. Install with `pip install -e .[dev]` once a build-system/package exists; until
+# then CI installs from requirements-dev.txt (see .github/workflows/ci.yml).
+[project.optional-dependencies]
+dev = [
+    "jsonschema==4.26.0",
+    "hypothesis==6.155.3",
+    "pytest==9.1.0",
+]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 120
@@ -51,3 +61,4 @@ warn_unused_configs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
