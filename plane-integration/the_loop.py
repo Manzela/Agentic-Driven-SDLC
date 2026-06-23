@@ -137,12 +137,19 @@ def gated_prove(*, issue_id, evidence, artifact, ledger, root):
         root=root, evidence=evidence, artifact=artifact, ledger=ledger
     )
     if decision["action"] == "advance":
+        # Authority + gate-order BEFORE posting evidence — mirror prove()'s
+        # "no orphaned evidence" ordering (review MAJOR #1): if the actor/legal-edge
+        # check fails it raises HERE, before any Evidence_Record is written to the board.
+        _gate(issue_id, "Done", "verifier")
         pc.post_evidence(
             issue_id, evidence["test_file"], evidence["test_name"],
             evidence["output_hash"], evidence["collected_at"], "verifier",
         )
         pc.transition(issue_id, "Done", "verifier")
     elif decision["action"] == "handoff":
+        # Symmetric with the advance branch + the handoff() CLI: authority + gate-order
+        # BEFORE the comment write, so a rejected actor never orphans a HANDOFF comment.
+        _gate(issue_id, "HANDOFF", "verifier")
         pc.comment(issue_id, f"<p><b>HANDOFF</b> — evidence gate: {decision['reason']}</p>")
         pc.transition(issue_id, "HANDOFF", "verifier")
     # self_heal -> no board change; caller feeds decision['prompt'] back to the verifier
