@@ -6,7 +6,7 @@
 
 **Architecture.** Dual-layer diff-aware verification depth: a **local pre-advance gate** (`loop_gate.gated_advance` pillars — advisory to the run, cannot let an unproven item merge) and **binding CI required status checks** (`.github/workflows/*.yml` registered in the ruleset — the unbypassable backstop), both sharing one decision module (`evidence_gate` depth funcs) so the two layers never drift. Every blocking gate is **diff-aware against a merge-base** — it blocks only findings the PR introduces and exempts the existing `tools/` control-plane via a path allowlist, while still *reporting* exempted findings. The repo is **public**, so CodeQL + SonarCloud (same-repo-only) run free alongside Semgrep-OSS (the fork-safe primary), with each diff-aware soft edge hardened (§3, T1–T7) before any context is registered required.
 
-**Tech Stack.** Python stdlib (hooks, gates, ingester, AST orphan detection); pytest + hypothesis (unit/property/red-team suites, run `python -m pytest <path> -v`); Semgrep (custom OSS wiring/SAST rules), CodeQL, SonarCloud (CI SAST/quality); OPA/conftest (rego policy + Python twin); GitHub Actions (required-check workflows + ruleset).
+**Tech Stack.** Python stdlib (hooks, gates, ingester, AST orphan detection); pytest + hypothesis (unit/property/red-team suites, run `python3 -m pytest <path> -v`); Semgrep (custom OSS wiring/SAST rules), CodeQL, SonarCloud (CI SAST/quality); OPA/conftest (rego policy + Python twin); GitHub Actions (required-check workflows + ruleset).
 
 ## Global Constraints
 
@@ -151,7 +151,7 @@ def test_orphan_allowlist_pattern_env_override(monkeypatch):
 Run the test (expect FAIL — `_str` helper doesn't exist yet):
 
 ```bash
-python -m pytest tests/spine/test_execution_bounds_str.py -v
+python3 -m pytest tests/spine/test_execution_bounds_str.py -v
 ```
 
 Expected output: `AttributeError: module 'tools.execution_bounds' has no attribute '_str'` and `AttributeError: module 'tools.execution_bounds' has no attribute 'ORPHAN_DETECTOR_BASELINE'` etc.
@@ -208,7 +208,7 @@ ORPHAN_ALLOWLIST_PATTERN = _str("ORPHAN_ALLOWLIST_PATTERN", "tools/.*")
 Run the test suite to confirm all tests pass:
 
 ```bash
-python -m pytest tests/spine/test_execution_bounds_str.py -v
+python3 -m pytest tests/spine/test_execution_bounds_str.py -v
 ```
 
 Expected output: All tests pass with green checkmarks.
@@ -216,7 +216,7 @@ Expected output: All tests pass with green checkmarks.
 Also verify the existing `test_execution_bounds.py` still passes:
 
 ```bash
-python -m pytest tests/spine/test_execution_bounds.py -v
+python3 -m pytest tests/spine/test_execution_bounds.py -v
 ```
 
 Expected output: Existing tests still pass.
@@ -346,7 +346,7 @@ def test_wiring_prefixed_id_exempt_from_dangling_check():
 **Run it (expect FAIL):**
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/spine/test_orphan_detector.py::test_fabricated_req_id_without_known_id_is_dangling_ref_orphan -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_fabricated_req_id_without_known_id_is_dangling_ref_orphan -xvs
 ```
 
 Expected output: **FAIL** — `detect_orphans()` does not accept a `known_ids` param (TypeError).
@@ -408,7 +408,7 @@ def detect_orphans(
         # Validity cross-check (§3.1): flag references to unknown ids as dangling refs.
         if known_ids:
             for req_id in unit_ids:
-                if not req_id.startswith("WIRING-") and req_id not in known_ids:
+                if not req_id.startswith("REQ-WIRE") and req_id not in known_ids:
                     # Dangling ref: the cited id does not exist in the model.
                     forward_orphans.append(
                         f"{_impl_unit_ref(unit)} [dangling-ref: {req_id} not in model]"
@@ -438,14 +438,14 @@ def detect_orphans(
 
 **Run test:**
 ```bash
-python -m pytest tests/spine/test_orphan_detector.py::test_fabricated_req_id_without_known_id_is_dangling_ref_orphan -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_fabricated_req_id_without_known_id_is_dangling_ref_orphan -xvs
 ```
 
 Expected: **PASS** — the dangling ref is caught.
 
 ```bash
-python -m pytest tests/spine/test_orphan_detector.py::test_validity_cross_check_known_id_is_not_dangling -xvs
-python -m pytest tests/spine/test_orphan_detector.py::test_wiring_prefixed_id_exempt_from_dangling_check -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_validity_cross_check_known_id_is_not_dangling -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_wiring_prefixed_id_exempt_from_dangling_check -xvs
 ```
 
 Expected: **PASS** — valid ids and WIRING exemptions work.
@@ -533,9 +533,9 @@ def test_reason_bearing_exempt_marker_exempts():
 
 **Run them (expect FAIL):**
 ```bash
-python -m pytest tests/spine/test_orphan_detector.py::test_function_level_unit_without_req_id_is_forward_orphan -xvs
-python -m pytest tests/spine/test_orphan_detector.py::test_exempt_marker_requires_reason -xvs
-python -m pytest tests/spine/test_orphan_detector.py::test_reason_bearing_exempt_marker_exempts -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_function_level_unit_without_req_id_is_forward_orphan -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_exempt_marker_requires_reason -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_reason_bearing_exempt_marker_exempts -xvs
 ```
 
 Expected: **FAIL** — `_scan_repo_impl_units` still returns file-level units, not function-level.
@@ -784,9 +784,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 **Run tests:**
 ```bash
-python -m pytest tests/spine/test_orphan_detector.py::test_function_level_unit_without_req_id_is_forward_orphan -xvs
-python -m pytest tests/spine/test_orphan_detector.py::test_exempt_marker_requires_reason -xvs
-python -m pytest tests/spine/test_orphan_detector.py::test_reason_bearing_exempt_marker_exempts -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_function_level_unit_without_req_id_is_forward_orphan -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_exempt_marker_requires_reason -xvs
+python3 -m pytest tests/spine/test_orphan_detector.py::test_reason_bearing_exempt_marker_exempts -xvs
 ```
 
 Expected: **PASS** — function-level units are extracted, reason-required exempt works.
@@ -796,7 +796,7 @@ Expected: **PASS** — function-level units are extracted, reason-required exemp
 #### - [ ] **Step 5: Run full Property 11 test suite and commit**
 **Run all orphan detector tests:**
 ```bash
-python -m pytest tests/spine/test_orphan_detector.py -v
+python3 -m pytest tests/spine/test_orphan_detector.py -v
 ```
 
 Expected: **PASS** (all existing tests + new 3 tests above).
@@ -1353,7 +1353,7 @@ class TestFilterForwardUnitsByChanged:
 **Run the test (expect FAIL — functions not yet implemented):**
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/spine/test_orphan_detector_diff.py::TestDetectOrphansDiff::test_forward_orphan_in_changed_file_is_flagged -v
+python3 -m pytest tests/spine/test_orphan_detector_diff.py::TestDetectOrphansDiff::test_forward_orphan_in_changed_file_is_flagged -v
 # Expected: ImportError or AttributeError (detect_orphans_diff not defined)
 ```
 
@@ -1662,7 +1662,7 @@ def detect_orphans_diff(
         for uid in unit_ids:
             if uid not in known_ids:
                 # Skip WIRING-prefixed ids (per-analysis minting)
-                if uid.startswith("WIRING-"):
+                if uid.startswith("REQ-WIRE"):
                     continue
                 if uid not in dangling_refs:
                     dangling_refs[uid] = {
@@ -1854,14 +1854,14 @@ if __name__ == "__main__":
 
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/spine/test_orphan_detector_diff.py::TestDetectOrphansDiff::test_forward_orphan_in_changed_file_is_flagged -v
+python3 -m pytest tests/spine/test_orphan_detector_diff.py::TestDetectOrphansDiff::test_forward_orphan_in_changed_file_is_flagged -v
 # Expected PASS
 ```
 
 Run all new diff tests:
 
 ```bash
-python -m pytest tests/spine/test_orphan_detector_diff.py -v
+python3 -m pytest tests/spine/test_orphan_detector_diff.py -v
 # Expected: all tests pass
 ```
 
@@ -1950,7 +1950,7 @@ def detect_orphans(
             for uid in unit_ids:
                 if uid not in known_ids:
                     # Skip WIRING-prefixed ids (per-analysis minting)
-                    if not uid.startswith("WIRING-"):
+                    if not uid.startswith("REQ-WIRE"):
                         if uid not in dangling_refs:
                             dangling_refs[uid] = {
                                 "unit": _impl_unit_ref(unit),
@@ -2004,7 +2004,7 @@ def test_impl_unit_without_requirement_id_is_forward_orphan():
 
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/spine/test_orphan_detector.py -v
+python3 -m pytest tests/spine/test_orphan_detector.py -v
 # Expected: all pass (backward-compat maintained)
 ```
 
@@ -2102,7 +2102,7 @@ class TestOrphanDetectorCLI:
 **Run the integration test:**
 
 ```bash
-python -m pytest tests/spine/test_orphan_detector_diff.py::TestOrphanDetectorCLI -v
+python3 -m pytest tests/spine/test_orphan_detector_diff.py::TestOrphanDetectorCLI -v
 # Expected: PASS
 ```
 
@@ -2232,7 +2232,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
   **Run test and confirm FAIL:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/spine/test_evidence_gate_depth.py::TestNewCodesAndHeals -v
+  python3 -m pytest tests/spine/test_evidence_gate_depth.py::TestNewCodesAndHeals -v
   ```
 
   Expected: All 6 tests fail with `AssertionError` or `KeyError` (codes not in tuple, entries missing from _HEAL).
@@ -2310,7 +2310,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
   **Run test and confirm PASS:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/spine/test_evidence_gate_depth.py::TestNewCodesAndHeals -v
+  python3 -m pytest tests/spine/test_evidence_gate_depth.py::TestNewCodesAndHeals -v
   ```
 
   Expected: All 6 tests pass.
@@ -2393,7 +2393,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
   **Run test and confirm FAIL:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/spine/test_evidence_gate_depth.py::TestCheckSliceSemgrep -v
+  python3 -m pytest tests/spine/test_evidence_gate_depth.py::TestCheckSliceSemgrep -v
   ```
 
   Expected: All tests fail with `AttributeError` (function does not exist).
@@ -2497,7 +2497,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
   **Run test and confirm PASS (or clarify expectations):**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/spine/test_evidence_gate_depth.py::TestCheckSliceSemgrep -v
+  python3 -m pytest tests/spine/test_evidence_gate_depth.py::TestCheckSliceSemgrep -v
   ```
 
   Expected: Tests pass (most will see fail-open behavior due to tool limitations in test environment; the "clean" and "empty" cases should pass clearly).
@@ -2653,7 +2653,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
   **Run test and confirm FAIL:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/spine/test_evidence_gate_depth.py::TestCheckSliceOrphans -v
+  python3 -m pytest tests/spine/test_evidence_gate_depth.py::TestCheckSliceOrphans -v
   ```
 
   Expected: All tests fail with `AttributeError` (function does not exist).
@@ -2732,7 +2732,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
                       # Validity cross-check: every req-id must exist in known_ids
                       # (except WIRING-prefixed which are per-analysis minted)
                       for req_id in req_ids:
-                          if req_id not in known_ids and not req_id.startswith("WIRING-"):
+                          if req_id not in known_ids and not req_id.startswith("REQ-WIRE"):
                               # Dangling reference
                               return {
                                   "accepted": False,
@@ -2813,7 +2813,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
   **Run test and confirm PASS:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/spine/test_evidence_gate_depth.py::TestCheckSliceOrphans -v
+  python3 -m pytest tests/spine/test_evidence_gate_depth.py::TestCheckSliceOrphans -v
   ```
 
   Expected: Tests pass (most will see fail-open behavior on tool errors; the "empty" and "allowlist" cases should pass clearly).
@@ -2825,7 +2825,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
 
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/spine/test_evidence_gate_depth.py -v
+  python3 -m pytest tests/spine/test_evidence_gate_depth.py -v
   ```
 
   Expected: All tests pass.
@@ -2896,7 +2896,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_depth_check_codes_exist -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_depth_check_codes_exist -xvs
   ```
   Expected: FAIL — KeyError on "SAST_HIGH_CRITICAL" in CODES tuple.
   
@@ -2962,7 +2962,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_depth_check_codes_exist -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_depth_check_codes_exist -xvs
   ```
   Expected: PASS.
 
@@ -3010,7 +3010,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_check_slice_semgrep_empty_changed_files_accepts -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_check_slice_semgrep_empty_changed_files_accepts -xvs
   ```
   Expected: FAIL — `check_slice_semgrep` not found in evidence_gate.
   
@@ -3083,7 +3083,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_check_slice_semgrep_empty_changed_files_accepts -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_check_slice_semgrep_empty_changed_files_accepts -xvs
   ```
   Expected: PASS.
 
@@ -3133,7 +3133,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_check_slice_orphans_empty_changed_files_accepts -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_check_slice_orphans_empty_changed_files_accepts -xvs
   ```
   Expected: FAIL — `check_slice_orphans` not found.
   
@@ -3206,7 +3206,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_check_slice_orphans_empty_changed_files_accepts -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_check_slice_orphans_empty_changed_files_accepts -xvs
   ```
   Expected: PASS.
 
@@ -3249,7 +3249,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_gated_advance_accepts_depth_kwargs -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_gated_advance_accepts_depth_kwargs -xvs
   ```
   Expected: FAIL — TypeError on unexpected keyword arguments.
   
@@ -3355,7 +3355,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_gated_advance_accepts_depth_kwargs -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_gated_advance_accepts_depth_kwargs -xvs
   ```
   Expected: PASS.
 
@@ -3415,7 +3415,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_pillar0_reject_blocks_depth_checks -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_pillar0_reject_blocks_depth_checks -xvs
   ```
   Expected: FAIL — depth checks are currently running even on Pillar 0 reject.
   
@@ -3457,7 +3457,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_pillar0_reject_blocks_depth_checks -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_pillar0_reject_blocks_depth_checks -xvs
   ```
   Expected: PASS.
 
@@ -3505,7 +3505,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_pillar1_semgrep_rejection_self_heals -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_pillar1_semgrep_rejection_self_heals -xvs
   ```
   Expected: FAIL — prompts not yet joined, or Semgrep logic not integrated.
   
@@ -3514,7 +3514,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_pillar1_semgrep_rejection_self_heals -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_pillar1_semgrep_rejection_self_heals -xvs
   ```
   Expected: PASS.
 
@@ -3562,7 +3562,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_pillar2_orphan_rejection_self_heals -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_pillar2_orphan_rejection_self_heals -xvs
   ```
   Expected: FAIL — orphan check integration not yet complete.
   
@@ -3571,7 +3571,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_pillar2_orphan_rejection_self_heals -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_pillar2_orphan_rejection_self_heals -xvs
   ```
   Expected: PASS.
 
@@ -3630,7 +3630,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_dual_pillar_rejection_joins_prompts -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_dual_pillar_rejection_joins_prompts -xvs
   ```
   Expected: FAIL — join logic not yet tested.
   
@@ -3639,7 +3639,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_dual_pillar_rejection_joins_prompts -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_dual_pillar_rejection_joins_prompts -xvs
   ```
   Expected: PASS.
 
@@ -3688,7 +3688,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_empty_changed_files_skips_depth_checks -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_empty_changed_files_skips_depth_checks -xvs
   ```
   Expected: FAIL or PASS (depends on current implementation).
   
@@ -3697,7 +3697,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_empty_changed_files_skips_depth_checks -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_empty_changed_files_skips_depth_checks -xvs
   ```
   Expected: PASS.
 
@@ -3771,7 +3771,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_block_streak_handoff_escalation -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_block_streak_handoff_escalation -xvs
   ```
   Expected: FAIL or PASS (depends on current streak logic).
   
@@ -3780,7 +3780,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py::test_block_streak_handoff_escalation -xvs
+  python3 -m pytest tests/spine/test_loop_gate.py::test_block_streak_handoff_escalation -xvs
   ```
   Expected: PASS.
 
@@ -3792,7 +3792,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
   **Run the full test suite:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && \
-  python -m pytest tests/spine/test_loop_gate.py -v
+  python3 -m pytest tests/spine/test_loop_gate.py -v
   ```
   Expected: All tests PASS.
 
@@ -4158,7 +4158,7 @@ def test_union_of_concerns_comment_present():
 
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/spine/test_semgrep_wiring_rules.py -v
+python3 -m pytest tests/spine/test_semgrep_wiring_rules.py -v
 ```
 
 **Expected output:** FAIL (file does not exist yet).
@@ -4378,7 +4378,7 @@ semgrep --config tools/semgrep_rules/wiring_dead_code.yml --validate
 
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/spine/test_semgrep_wiring_rules.py::test_semgrep_detects_dead_decorator_and_callback_symbols -v
+python3 -m pytest tests/spine/test_semgrep_wiring_rules.py::test_semgrep_detects_dead_decorator_and_callback_symbols -v
 ```
 
 **Expected output:** PASS (or XFAIL if Semgrep's pattern precision is limited — that is acceptable; the rules are advisory and refined iteratively).
@@ -4389,7 +4389,7 @@ python -m pytest tests/spine/test_semgrep_wiring_rules.py::test_semgrep_detects_
 
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/spine/test_semgrep_wiring_rules.py -v
+python3 -m pytest tests/spine/test_semgrep_wiring_rules.py -v
 ```
 
 **Expected output:** 3+ tests pass (parametrized fixtures + shape + comment).
@@ -4896,7 +4896,7 @@ git status
   - **Run the failing test:**
     ```bash
     cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-    python -m pytest tests/spine/test_pre_tool_use_insertion.py::test_new_item_unproven_birth_by_initializer_allows -xvs
+    python3 -m pytest tests/spine/test_pre_tool_use_insertion.py::test_new_item_unproven_birth_by_initializer_allows -xvs
     ```
     Expected: **FAIL** — the current `_changed_coverage_fields` does not distinguish insertion from mutation, so a new-id write is reported as a `status` change and blocked.
 
@@ -4993,13 +4993,13 @@ git status
 
   - **Run the test again:**
     ```bash
-    python -m pytest tests/spine/test_pre_tool_use_insertion.py::test_new_item_unproven_birth_by_initializer_allows -xvs
+    python3 -m pytest tests/spine/test_pre_tool_use_insertion.py::test_new_item_unproven_birth_by_initializer_allows -xvs
     ```
     Expected: **PASS** — the insertion of F-999 is now distinguished from a mutation.
 
   - **Run all Step 3 tests:**
     ```bash
-    python -m pytest tests/spine/test_pre_tool_use_insertion.py::test_new_item_unproven_birth_by_initializer_allows tests/spine/test_pre_tool_use_insertion.py::test_new_item_unproven_birth_by_implementer_allows tests/spine/test_pre_tool_use_insertion.py::test_deletion_in_scope_unproven_by_implementer_blocks -xvs
+    python3 -m pytest tests/spine/test_pre_tool_use_insertion.py::test_new_item_unproven_birth_by_initializer_allows tests/spine/test_pre_tool_use_insertion.py::test_new_item_unproven_birth_by_implementer_allows tests/spine/test_pre_tool_use_insertion.py::test_deletion_in_scope_unproven_by_implementer_blocks -xvs
     ```
     Expected: some PASS, some still FAIL (because `evaluate` hasn't been updated yet).
 
@@ -5142,7 +5142,7 @@ git status
 
   - **Run all insertion + deletion + MultiEdit tests:**
     ```bash
-    python -m pytest tests/spine/test_pre_tool_use_insertion.py -xvs
+    python3 -m pytest tests/spine/test_pre_tool_use_insertion.py -xvs
     ```
     Expected: **ALL PASS**.
 
@@ -5155,7 +5155,7 @@ git status
 
   - **Verify the hook still exits correctly:**
     ```bash
-    python -m pytest tests/spine/test_pre_tool_use_insertion.py::test_real_insertion_unproven_by_initializer_subprocess_allows -xvs
+    python3 -m pytest tests/spine/test_pre_tool_use_insertion.py::test_real_insertion_unproven_by_initializer_subprocess_allows -xvs
     ```
     Expected: **PASS** — exit 0 on allowed insertions.
 
@@ -5247,14 +5247,14 @@ Claude-Session: https://claude.ai/code/session_01TjBbqEt9GCaT5WuBKEyaVy"
 
   - **Run the verification:**
     ```bash
-    python -m pytest tests/spine/test_pre_tool_use_insertion.py::test_new_item_actor_matrix -xvs
+    python3 -m pytest tests/spine/test_pre_tool_use_insertion.py::test_new_item_actor_matrix -xvs
     ```
     Expected: **PASS** — all matrix entries match spec.
 
 - [ ] **Step 7: Final validation — run the full spine test suite**
   - **Command:**
     ```bash
-    python -m pytest tests/spine/test_pre_tool_use_insertion.py tests/spine/test_pre_tool_use_authority.py -v
+    python3 -m pytest tests/spine/test_pre_tool_use_insertion.py tests/spine/test_pre_tool_use_authority.py -v
     ```
     Expected: **ALL PASS** — no regression on existing tests, all new tests green.
 
@@ -5588,7 +5588,7 @@ def test_mark_wiring_failed_handles_missing_feature_list(tmp_path: Path) -> None
 
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/integration/test_wiring_ingest.py -v
+python3 -m pytest tests/integration/test_wiring_ingest.py -v
 ```
 
 Expected: **FAIL** — `ModuleNotFoundError: No module named 'tools.wiring_ingest'`
@@ -5828,8 +5828,8 @@ def mark_wiring_failed(
 
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/integration/test_wiring_ingest.py::test_ingest_wiring_candidates_creates_items -v
-python -m pytest tests/integration/test_wiring_ingest.py -v
+python3 -m pytest tests/integration/test_wiring_ingest.py::test_ingest_wiring_candidates_creates_items -v
+python3 -m pytest tests/integration/test_wiring_ingest.py -v
 ```
 
 Expected: **PASS** — all 5 test cases pass.
@@ -5989,7 +5989,7 @@ Expected: **COMMIT SUCCEEDS** (tests/ and tools/ are implementer-writable).
 
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/integration/test_wiring_ingest.py -v
+python3 -m pytest tests/integration/test_wiring_ingest.py -v
 ```
 
 Expected output:
@@ -6131,7 +6131,7 @@ Task 8 completes the **WIRING ingestion write-path** and the **verifier unproven
   **Run the test (expected FAIL before implementation):**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/property/test_invariants.py::test_deny_merge_wiring_requires_integration_evidence -v
+  python3 -m pytest tests/property/test_invariants.py::test_deny_merge_wiring_requires_integration_evidence -v
   ```
   **Expected output:** FAILED — `coverage_gate.deny_merge` does not yet check `evidence_kind` for WIRING.
 
@@ -6156,7 +6156,7 @@ Task 8 completes the **WIRING ingestion write-path** and the **verifier unproven
 
   **Run the test (expected PASS):**
   ```bash
-  python -m pytest tests/property/test_invariants.py::test_deny_merge_wiring_requires_integration_evidence -v
+  python3 -m pytest tests/property/test_invariants.py::test_deny_merge_wiring_requires_integration_evidence -v
   ```
   **Expected output:** PASSED — coverage_gate.deny_merge now enforces WIRING integration evidence.
 
@@ -6380,7 +6380,7 @@ Task 8 completes the **WIRING ingestion write-path** and the **verifier unproven
 
   **Run the conftest tests (expected PASS after rego is updated):**
   ```bash
-  python -m pytest tests/integration/test_opa_conftest.py -v
+  python3 -m pytest tests/integration/test_opa_conftest.py -v
   ```
   **Expected output:** PASSED (all 5 tests) — rego enforces WIRING integration evidence identically to the twin.
 
@@ -6411,19 +6411,19 @@ Task 8 completes the **WIRING ingestion write-path** and the **verifier unproven
 
   **Run the Property 2 WIRING test:**
   ```bash
-  python -m pytest tests/property/test_invariants.py::test_deny_merge_wiring_requires_integration_evidence -v
+  python3 -m pytest tests/property/test_invariants.py::test_deny_merge_wiring_requires_integration_evidence -v
   ```
   **Expected output:** PASSED.
 
   **Run the conftest integration test (if conftest is available):**
   ```bash
-  python -m pytest tests/integration/test_opa_conftest.py::TestOPAConftest -v
+  python3 -m pytest tests/integration/test_opa_conftest.py::TestOPAConftest -v
   ```
   **Expected output:** PASSED (all tests, or skipped if conftest not installed).
 
   **Verify the existing Property 22 test still passes (unchanged twin behavior):**
   ```bash
-  python -m pytest tests/property/test_invariants.py::test_deny_merge_iff_some_in_scope_item_not_proven_with_evidence -v
+  python3 -m pytest tests/property/test_invariants.py::test_deny_merge_iff_some_in_scope_item_not_proven_with_evidence -v
   ```
   **Expected output:** PASSED (backward compat — non-WIRING items unaffected).
 
@@ -6689,7 +6689,7 @@ Task 8 completes the **WIRING ingestion write-path** and the **verifier unproven
       assert merged["type"] == "WIRING"
   ```
   
-  Run: `python -m pytest tests/spine/test_wiring_dedup.py -v`
+  Run: `python3 -m pytest tests/spine/test_wiring_dedup.py -v`
   
   Expected: **FAIL** — `tools/wiring_dedup.py` does not exist yet.
 
@@ -6764,13 +6764,13 @@ def merge(
       # Index both sources by qualname for fast lookup.
       ast_by_qualname: Dict[str, Dict[str, Any]] = {}
       for item in ast_candidates or []:
-          qualname = item.get("qualname")
+          qualname = item.get("qualname") or item.get("wiring", {}).get("qualname")
           if qualname:
               ast_by_qualname[qualname] = item
   
       semgrep_by_qualname: Dict[str, Dict[str, Any]] = {}
       for item in semgrep_candidates or []:
-          qualname = item.get("qualname")
+          qualname = item.get("qualname") or item.get("wiring", {}).get("qualname")
           if qualname:
               semgrep_by_qualname[qualname] = item
   
@@ -6835,7 +6835,7 @@ def merge(
       return result
   ```
   
-  Run: `python -m pytest tests/spine/test_wiring_dedup.py -v`
+  Run: `python3 -m pytest tests/spine/test_wiring_dedup.py -v`
   
   Expected: **PASS** — all 7 test cases pass.
 
@@ -6896,7 +6896,7 @@ def merge(
       assert result[0]["wiring"]["reachable"] is False
   ```
   
-  Run: `python -m pytest tests/spine/test_wiring_dedup.py::test_merge_idempotent_on_empty_inputs -v`
+  Run: `python3 -m pytest tests/spine/test_wiring_dedup.py::test_merge_idempotent_on_empty_inputs -v`
   
   Expected: **PASS**.
 
@@ -6960,7 +6960,7 @@ def merge(
       assert merged.get("decorator") == "app.route"
   ```
   
-  Run: `python -m pytest tests/spine/test_wiring_dedup.py::test_merged_shape_ready_for_ingest_write -v`
+  Run: `python3 -m pytest tests/spine/test_wiring_dedup.py::test_merged_shape_ready_for_ingest_write -v`
   
   Expected: **PASS**.
 
@@ -6971,7 +6971,7 @@ def merge(
   Run:
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/spine/test_wiring_dedup.py -v
+  python3 -m pytest tests/spine/test_wiring_dedup.py -v
   ```
   
   Expected: **PASS** — all tests green.
@@ -7184,7 +7184,7 @@ Produces:
   
   Run the test:
   ```bash
-  python -m pytest tests/spine/test_post_tool_use_wiring.py::test_real_wiring_imports_analyze_and_emit -xvs
+  python3 -m pytest tests/spine/test_post_tool_use_wiring.py::test_real_wiring_imports_analyze_and_emit -xvs
   ```
   
   **Expected FAIL:** `ImportError: cannot import name 'check_wiring' from 'tools.wiring_checker'` (the live hook imports a nonexistent function).
@@ -7249,7 +7249,7 @@ Produces:
   
   Run the test:
   ```bash
-  python -m pytest tests/spine/test_post_tool_use_wiring.py::test_real_wiring_imports_analyze_and_emit -xvs
+  python3 -m pytest tests/spine/test_post_tool_use_wiring.py::test_real_wiring_imports_analyze_and_emit -xvs
   ```
   
   **Expected PASS.**
@@ -7258,7 +7258,7 @@ Produces:
   
   The test `test_real_wiring_output_shape_normalized_to_feedback` should now pass. Run:
   ```bash
-  python -m pytest tests/spine/test_post_tool_use_wiring.py::test_real_wiring_output_shape_normalized_to_feedback -xvs
+  python3 -m pytest tests/spine/test_post_tool_use_wiring.py::test_real_wiring_output_shape_normalized_to_feedback -xvs
   ```
   
   **Expected PASS.**
@@ -7351,7 +7351,7 @@ Produces:
   
   Run:
   ```bash
-  python -m pytest tests/spine/test_post_tool_use_wiring.py::test_real_mypy_runs_on_python_files_only -xvs
+  python3 -m pytest tests/spine/test_post_tool_use_wiring.py::test_real_mypy_runs_on_python_files_only -xvs
   ```
   
   **Expected PASS** (empty result for non-Python files).
@@ -7416,7 +7416,7 @@ Produces:
   
   Run:
   ```bash
-  python -m pytest tests/spine/test_post_tool_use_wiring.py -xvs
+  python3 -m pytest tests/spine/test_post_tool_use_wiring.py -xvs
   ```
   
   **Expected PASS** (all tests).
@@ -7478,7 +7478,7 @@ This is the complete Task 11 markdown block with real code, bite-sized TDD steps
 #### - [ ] **Step 1: Write the failing test (test the round-trip contract)**
 **Command:**
 ```bash
-cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && python -m pytest tests/spine/test_pre_compact_resume_hash.py::test_pre_compact_writes_resume_hash_and_equals_recomputation -v
+cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && python3 -m pytest tests/spine/test_pre_compact_resume_hash.py::test_pre_compact_writes_resume_hash_and_equals_recomputation -v
 ```
 
 **Test file:** `tests/spine/test_pre_compact_resume_hash.py` (complete, real code):
@@ -7722,7 +7722,7 @@ def test_pre_compact_hash_changes_on_progress_state_change():
 #### - [ ] **Step 2: Implement the resume-hash producer in pre_compact**
 **Command:**
 ```bash
-cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && python -m pytest tests/spine/test_pre_compact_resume_hash.py -v
+cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && python3 -m pytest tests/spine/test_pre_compact_resume_hash.py -v
 ```
 
 **Modification:** `.claude/hooks/pre_compact_hook.py` (complete updated code):
@@ -8016,7 +8016,7 @@ This is a **[H] protected artifact** — the implementer describes the change; m
 **Test:** Read `requirements-dev.txt` to verify current state.
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest --version 2>&1 | grep pytest
+python3 -m pytest --version 2>&1 | grep pytest
 conftest --version 2>&1 || echo "conftest not installed"
 ```
 **Expected output:** pytest version shown; conftest may not be installed initially.
@@ -8190,7 +8190,7 @@ cat /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agenti
 **Test:** Run the failing conftest tests (rego evaluation) to verify they fail as expected before implementation.
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/integration/test_opa_conftest.py -v 2>&1 | head -50
+python3 -m pytest tests/integration/test_opa_conftest.py -v 2>&1 | head -50
 ```
 **Expected (before implementing test):** tests do not exist or import fails.
 
@@ -8442,7 +8442,7 @@ class TestRegoTwinEquivalence:
 **Run (initially, expect failures until conftest/rego properly configured):**
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/integration/test_opa_conftest.py -v 2>&1
+python3 -m pytest tests/integration/test_opa_conftest.py -v 2>&1
 ```
 **Expected (Step 3 fail):** conftest command may fail if rego policy is not properly set up or conftest invocation path is wrong. Tests may skip or error. This is normal; Step 4 refines the rego to ensure tests pass.
 
@@ -8498,7 +8498,7 @@ conftest test tests/integration/opa/fixture_deny_wiring_unit_evidence.json -o js
 **Test:** Run all conftest integration tests and verify they pass.
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/integration/test_opa_conftest.py::TestConftest -v
+python3 -m pytest tests/integration/test_opa_conftest.py::TestConftest -v
 ```
 **Expected PASS:** All 6 TestConftest test cases pass:
 - `test_conftest_denies_unproven_item` → conftest exits non-zero / deny fired
@@ -8523,7 +8523,7 @@ Check exit code and output.
 **Test:** Run the twin-equivalence property checks.
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/integration/test_opa_conftest.py::TestRegoTwinEquivalence -v
+python3 -m pytest tests/integration/test_opa_conftest.py::TestRegoTwinEquivalence -v
 ```
 **Expected PASS:**
 - `test_python_twin_denies_unproven` → coverage_gate.deny_merge returns deny=True
@@ -8568,7 +8568,7 @@ cat .github/workflows/coverage-gate.yml | head -50
 **Test:** Run all tests in the integration suite and the property suite.
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/integration/test_opa_conftest.py tests/property/test_invariants.py -v --tb=short 2>&1 | tail -50
+python3 -m pytest tests/integration/test_opa_conftest.py tests/property/test_invariants.py -v --tb=short 2>&1 | tail -50
 ```
 **Expected PASS:** All tests pass; no import errors or conftest runtime failures.
 
@@ -8602,7 +8602,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
 
 **Owner:** [I] implementer-writable
 
-**Files:** Modify tools/governed_pilot.py; Modify tools/loop_gate.py (extend `gated_advance` signature); Test tests/integration/test_local_depth_feed.py (create)
+**Files:** Modify tools/governed_pilot.py; Modify tools/loop_gate.py (extend `gated_advance` signature); Modify plane-integration/the_loop.py (amend `gated_prove` to receive + forward the feed); Test tests/integration/test_local_depth_feed.py (create)
 
 **Interfaces:**
 
@@ -8621,7 +8621,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Write the failing test (uses a string config value):
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_execution_bounds_str_helper -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_execution_bounds_str_helper -xvs
   ```
   Expected: **FAIL** — `_str` does not exist.
   
@@ -8638,7 +8638,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Run the test:
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_execution_bounds_str_helper -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_execution_bounds_str_helper -xvs
   ```
   Expected: **PASS**.
   
@@ -8651,7 +8651,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Write the failing test (calls gated_advance with new kwargs):
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_gated_advance_accepts_depth_kwargs -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_gated_advance_accepts_depth_kwargs -xvs
   ```
   Expected: **FAIL** — `gated_advance` does not accept `changed_files`, `baseline_commit`, `feature_list_path`, `known_ids`.
   
@@ -8711,7 +8711,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Run the test:
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_gated_advance_accepts_depth_kwargs -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_gated_advance_accepts_depth_kwargs -xvs
   ```
   Expected: **PASS**.
   
@@ -8724,7 +8724,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Write the failing test (calls the producer and threads its output into gated_advance):
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_production_feed_computes_baseline_and_changed_files -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_production_feed_computes_baseline_and_changed_files -xvs
   ```
   Expected: **FAIL** — the producer function does not exist in `governed_pilot.py`.
   
@@ -8823,7 +8823,13 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
               artifact=artifact,
               ledger=ledger,
               root=root,
-              # Thread the feed into gated_advance (if it wires through the_loop)
+              # Thread the production feed end-to-end so the LOCAL depth pillars
+              # actually run (LOCKED #5) — without these kwargs gated_advance
+              # receives changed_files=None and the depth pillars silently skip.
+              changed_files=feed.get("changed_files"),
+              baseline_commit=feed.get("baseline_commit"),
+              feature_list_path=feed.get("feature_list_path"),
+              known_ids=feed.get("known_ids"),
           )
       except Exception as exc:
           raised = f"{type(exc).__name__}: {exc}"
@@ -8845,7 +8851,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Run the test:
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_production_feed_computes_baseline_and_changed_files -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_production_feed_computes_baseline_and_changed_files -xvs
   ```
   Expected: **PASS**.
   
@@ -8858,7 +8864,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Write the failing test (asserts depth pillars are invoked when changed_files is supplied):
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_depth_pillars_run_when_changed_files_supplied -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_depth_pillars_run_when_changed_files_supplied -xvs
   ```
   Expected: **FAIL** — the depth pillars are not called; gated_advance ignores the depth kwargs.
   
@@ -8953,7 +8959,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Run the test:
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_depth_pillars_run_when_changed_files_supplied -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_depth_pillars_run_when_changed_files_supplied -xvs
   ```
   Expected: **PASS**.
   
@@ -8966,32 +8972,31 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Write the failing test (gated_advance receives the feed and depth pillars are invoked):
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_gated_prove_receives_feed_from_governed_pilot -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_gated_prove_receives_feed_from_governed_pilot -xvs
   ```
   Expected: **FAIL** — gated_prove does not forward the feed to gated_advance.
   
-  Inspect `plane-integration/the_loop.py` to understand the gated_prove signature and where it calls gated_advance. Modify the call to pass the feed kwargs. Assuming the_loop has a driver context, thread the feed as:
+  In `plane-integration/the_loop.py`, the live `gated_prove(*, issue_id, evidence, artifact, ledger, root)` has **no** `feed`/`max_self_heal` in scope — referencing them would `NameError`. AMEND its signature to RECEIVE the feed kwargs and FORWARD them to `gated_advance` (the existing advance/handoff/self_heal board-write logic below is unchanged):
   ```python
-  # In plane-integration/the_loop.py, in the gated_prove function:
-  # Before calling gated_advance, compute or receive the feed
-  # Then pass it to gated_advance:
-  
-  gate_result = gated_advance(
-      root=root,
-      evidence=evidence,
-      artifact=artifact,
-      ledger=ledger,
-      max_self_heal=max_self_heal,
-      changed_files=feed.get("changed_files"),
-      baseline_commit=feed.get("baseline_commit"),
-      feature_list_path=feed.get("feature_list_path"),
-      known_ids=feed.get("known_ids"),
-  )
+  # plane-integration/the_loop.py
+  def gated_prove(*, issue_id, evidence, artifact, ledger, root,
+                  changed_files=None, baseline_commit=None,
+                  feature_list_path=None, known_ids=None, max_self_heal=None):
+      decision = _loop_gate().gated_advance(
+          root=root, evidence=evidence, artifact=artifact, ledger=ledger,
+          max_self_heal=max_self_heal,
+          changed_files=changed_files,         # forwarded from governed_pilot's feed
+          baseline_commit=baseline_commit,
+          feature_list_path=feature_list_path,
+          known_ids=known_ids,
+      )
+      # ... existing advance / handoff / self_heal board-write logic UNCHANGED ...
+      return decision
   ```
   
   Run the test:
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py::test_gated_prove_receives_feed_from_governed_pilot -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py::test_gated_prove_receives_feed_from_governed_pilot -xvs
   ```
   Expected: **PASS**.
   
@@ -9189,7 +9194,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   
   Run the test suite:
   ```bash
-  python -m pytest tests/integration/test_local_depth_feed.py -xvs
+  python3 -m pytest tests/integration/test_local_depth_feed.py -xvs
   ```
   Expected: **ALL PASS**.
   
@@ -9281,7 +9286,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest -xvs - <<'PYTEST'
+  python3 -m pytest -xvs - <<'PYTEST'
   # (test code above)
   PYTEST
   ```
@@ -9293,7 +9298,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run test again:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest -xvs tests/integration/test_ci_merge_base.py
+  python3 -m pytest -xvs tests/integration/test_ci_merge_base.py
   ```
 
   **Expected PASS:** Test logic confirmed.
@@ -9387,7 +9392,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_codeql_workflow.py -xvs
+  python3 -m pytest tests/integration/test_codeql_workflow.py -xvs
   ```
 
   **Expected FAIL:** File does not exist.
@@ -9474,7 +9479,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run test again:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_codeql_workflow.py -xvs
+  python3 -m pytest tests/integration/test_codeql_workflow.py -xvs
   ```
 
   **Expected PASS:** File exists and passes all structure checks.
@@ -9588,7 +9593,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_semgrep_workflow.py -xvs
+  python3 -m pytest tests/integration/test_semgrep_workflow.py -xvs
   ```
 
   **Expected FAIL:** File does not exist.
@@ -9665,7 +9670,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run test again:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_semgrep_workflow.py -xvs
+  python3 -m pytest tests/integration/test_semgrep_workflow.py -xvs
   ```
 
   **Expected PASS:** File exists and passes all checks.
@@ -9770,7 +9775,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_traceability_gate_workflow.py -xvs
+  python3 -m pytest tests/integration/test_traceability_gate_workflow.py -xvs
   ```
 
   **Expected FAIL:** File does not exist.
@@ -9889,7 +9894,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run test again:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_traceability_gate_workflow.py -xvs
+  python3 -m pytest tests/integration/test_traceability_gate_workflow.py -xvs
   ```
 
   **Expected PASS:** File exists and passes all structure checks.
@@ -9967,7 +9972,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_sonar_integration.py -xvs
+  python3 -m pytest tests/integration/test_sonar_integration.py -xvs
   ```
 
   **Expected FAIL:** `sonar-project.properties` does not exist.
@@ -10033,7 +10038,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run test again:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_sonar_integration.py -xvs
+  python3 -m pytest tests/integration/test_sonar_integration.py -xvs
   ```
 
   **Expected PASS:** File exists and passes all checks.
@@ -10109,7 +10114,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_ruleset_doc.py -xvs
+  python3 -m pytest tests/integration/test_ruleset_doc.py -xvs
   ```
 
   **Expected FAIL:** Docs not yet updated.
@@ -10190,7 +10195,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run test again:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_ruleset_doc.py -xvs
+  python3 -m pytest tests/integration/test_ruleset_doc.py -xvs
   ```
 
   **Expected PASS:** Documentation updated.
@@ -10320,7 +10325,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run failing test:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_ci_workflows_task15.py -xvs
+  python3 -m pytest tests/integration/test_ci_workflows_task15.py -xvs
   ```
 
   **Expected FAIL:** (Some workflows exist from prior steps; test validates all are correctly configured.)
@@ -10330,7 +10335,7 @@ python -m pytest tests/integration/test_opa_conftest.py tests/property/test_inva
   **Run test again:**
   ```bash
   cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-  python -m pytest tests/integration/test_ci_workflows_task15.py -xvs
+  python3 -m pytest tests/integration/test_ci_workflows_task15.py -xvs
   ```
 
   **Expected PASS:** All workflows pass structural checks.
@@ -10357,7 +10362,7 @@ Task 15 creates four new CI workflows (CodeQL, Semgrep, traceability-gate) and i
 **Files:**
 - Create: `tests/integration/test_phase1_integration.py`
 - Consume (read for reference): `tools/orphan_detector.py`, `tools/evidence_gate.py`, `tools/wiring_checker.py`, `tools/execution_bounds.py`, `.claude/hooks/pre_tool_use_hook.py`, `tools/loop_gate.py`, `tools/coverage_gate.py`, `tools/feature_list_init.py`, `schema/feature_list.schema.json`
-- Test path: `python -m pytest tests/integration/test_phase1_integration.py -v`
+- Test path: `python3 -m pytest tests/integration/test_phase1_integration.py -v`
 
 **Interfaces:**
 Consumes: 
@@ -10528,7 +10533,7 @@ def orphan_candidate_backward(unproven_item_dict) -> dict:
 
 **Command to run the fixtures (just to validate they compile):**
 ```bash
-python -m pytest tests/integration/conftest_phase1.py --collect-only -v
+python3 -m pytest tests/integration/conftest_phase1.py --collect-only -v
 ```
 
 **Expected:** pytest reports the fixtures are valid (no import errors).
@@ -10928,7 +10933,7 @@ if __name__ == "__main__":
 **Command to run:**
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-python -m pytest tests/integration/test_phase1_integration.py::test_t1_fabricated_req_id_dangling_ref -v
+python3 -m pytest tests/integration/test_phase1_integration.py::test_t1_fabricated_req_id_dangling_ref -v
 ```
 
 **Expected FAIL:** `FAILED` because `detect_orphans` does not yet accept `known_ids` parameter (it will be added in task 20.2).
@@ -10953,7 +10958,7 @@ Now that T1/T2 tests are in place, refine the backward-orphan test when task 20.
 
 **Command (post-task-20.3):**
 ```bash
-python -m pytest tests/integration/test_phase1_integration.py::test_t3_backward_orphan_model_delta_blocks -v
+python3 -m pytest tests/integration/test_phase1_integration.py::test_t3_backward_orphan_model_delta_blocks -v
 ```
 
 **Expected (after implementation):** PASS.
@@ -11004,7 +11009,7 @@ def test_depth_pillar_orphans_backward_model_delta(temp_feature_list):
 - [ ] **Step 6: Commit the full test suite as a placeholder + re-run all tests**
 
 ```bash
-python -m pytest tests/integration/test_phase1_integration.py -v
+python3 -m pytest tests/integration/test_phase1_integration.py -v
 ```
 
 **Expected:** All tests except the pre-implementation ones SKIP or FAIL with clear messages pointing to unbuilt tasks.
@@ -11165,7 +11170,7 @@ git commit -m "Add Phase-1 integration test acceptance oracle documentation"
   2. Run to confirm tests FAIL (they document the acceptance oracle; they will pass after verification):
      ```bash
      cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-     python -m pytest tests/integration/test_public_repo_hygiene.py -v
+     python3 -m pytest tests/integration/test_public_repo_hygiene.py -v
      ```
      **Expected:** Tests fail or skip if `gitleaks` is not installed, OR tests pass if the repo is clean. The failing case is that the tests CANNOT RUN yet (gitleaks not in CI image). We document the oracle first.
 
@@ -11305,7 +11310,7 @@ git commit -m "Add Phase-1 integration test acceptance oracle documentation"
      
      **Test oracle:** `tests/integration/test_public_repo_hygiene.py`
      - Automated acceptance tests for clean-by-absence
-     - Rerun after any code change: `python -m pytest tests/integration/test_public_repo_hygiene.py -v`
+     - Rerun after any code change: `python3 -m pytest tests/integration/test_public_repo_hygiene.py -v`
      
      ---
      
@@ -11316,7 +11321,7 @@ git commit -m "Add Phase-1 integration test acceptance oracle documentation"
      2. [ ] Data artifacts identified and deferred (Part 2)
      3. [ ] CI preconditions are registered as blockers on new Phase-1 gates (Part 3 — see Task 18 / 40.x)
      4. [ ] Owner confirms infra lock + SECRET_KEY archaeology (Part 4)
-     5. [ ] Test oracle passes: `python -m pytest tests/integration/test_public_repo_hygiene.py -v` (exit 0)
+     5. [ ] Test oracle passes: `python3 -m pytest tests/integration/test_public_repo_hygiene.py -v` (exit 0)
      
      **Current gate status:** Phase-1 diff-aware gates are **NOT YET REQUIRED** (pending Part 3 completion). The existing required checks (Z3, coverage-gate, gitleaks, ZAP) remain binding.
      
@@ -11366,8 +11371,8 @@ git commit -m "Add Phase-1 integration test acceptance oracle documentation"
   5. Run the full test suite on test_public_repo_hygiene.py (will fail until gitleaks is in the image, but documents the oracle):
      ```bash
      cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-     python -m pytest tests/integration/test_public_repo_hygiene.py::test_gitleaks_no_over_broad_docs_mask -v
-     python -m pytest tests/integration/test_public_repo_hygiene.py::test_secret_key_doc_redaction -v
+     python3 -m pytest tests/integration/test_public_repo_hygiene.py::test_gitleaks_no_over_broad_docs_mask -v
+     python3 -m pytest tests/integration/test_public_repo_hygiene.py::test_secret_key_doc_redaction -v
      ```
      **Expected:** The mask and redaction tests pass (they only check .gitleaks.toml and PLANE_BLUEPRINT.md, which are present).
 
@@ -11382,7 +11387,7 @@ git commit -m "Add Phase-1 integration test acceptance oracle documentation"
   1. Run all tests in test_public_repo_hygiene.py:
      ```bash
      cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization
-     python -m pytest tests/integration/test_public_repo_hygiene.py -v --tb=short
+     python3 -m pytest tests/integration/test_public_repo_hygiene.py -v --tb=short
      ```
      **Expected:** 
      - `test_gitleaks_no_over_broad_docs_mask` → PASS (checks .gitleaks.toml syntax)
@@ -11591,7 +11596,7 @@ Human-visible summary: **Task 17 documents the post-public hygiene acceptance or
         "Property + spine test suite",
         "Zero-evidence coverage gate (block merge on un-proven coverage)",
         "gitleaks secrets diff-scan (block merge on detected secret)",
-        "Orphan + Traceability Detection",
+        "traceability-gate",
         "sast-semgrep",
         "sast-codeql",
         "coverage-gate-sonar",
@@ -11610,7 +11615,7 @@ Human-visible summary: **Task 17 documents the post-public hygiene acceptance or
   ```
   
   **Note on context names (RT-04 caveat):** The long job `name:` strings MUST match the registered contexts exactly. From task 40.4 and §5.2, the Phase-1 contexts are:
-  - Task 20: `Orphan + Traceability Detection` (or the exact name from task 40.4's traceability-gate.yml `name:` field)
+  - Task 20: `traceability-gate` (or the exact name from task 40.4's traceability-gate.yml `name:` field)
   - Task 24: `sast-semgrep` (or the exact `name:` from the Semgrep workflow)
   - Task 23: `sast-codeql` (or the exact `name:` from the CodeQL workflow)
   - Task 22: `coverage-gate-sonar` (or the exact `name:` from the SonarCloud step)
@@ -11642,6 +11647,14 @@ Human-visible summary: **Task 17 documents the post-public hygiene acceptance or
     - _Requirements: 10.3, 18.3_
   ```
 
+- [ ] **Step 6b: Void the stale tasks.md instructions + SonarQube→SonarCloud term swap (spec §9 / §5.1) — [H], described for main/human**
+
+  The spec's §9 dependency table and §5.1 require two further `tasks.md` amendments Step 6 does not cover; surface them in the implementer's summary for main/human to apply:
+  - **Void the "add to `coverage-gate.yml`" instructions in tasks 15.1 (Playwright) and 22.1 (SonarQube):** the gating leg is the Python twin, and SonarCloud/Playwright run as their OWN required checks (not co-tenants of `coverage-gate.yml`), so those instructions are stale. Annotate both with *(Reconciliation 2026-06-23: void — runs as an independent required check, not a `coverage-gate.yml` co-tenant; see plan §5.1/§5.2.)*
+  - **Term reconciliation "SonarQube" → "SonarCloud":** in `tasks.md` lines 463/466/467 (the task-22 header + co-tenancy note). `requirements.md` never contained the term — do not edit it.
+
+  No file is committed by the implementer in this step (`tasks.md` is human-owned); the change set is recorded in the summary.
+
 - [ ] **Step 7: Update `docs/github-ruleset.md` to reflect the full Phase-1 + deferred topology (§5.4)**
   
   **Replace the table (current lines 11–17) with the full Phase-1 + deferred enumeration:**
@@ -11655,7 +11668,7 @@ Human-visible summary: **Task 17 documents the post-public hygiene acceptance or
   | `Property + spine test suite` | `.github/workflows/ci.yml` | The Hypothesis property suite + spine unit tests (Properties 1–32) | Phase 0 ✓ |
   | `Zero-evidence coverage gate (block merge on un-proven coverage)` | `.github/workflows/coverage-gate.yml` | REQ-GATE-002 / Property 22 — no merge while any in-scope item is un-proven | Phase 0 ✓ |
   | `gitleaks secrets diff-scan (block merge on detected secret)` | `.github/workflows/secrets-scan.yml` | REQ-17.2 / Property 32 — secret in the diff blocks merge | Phase 0 ✓ |
-  | `Orphan + Traceability Detection` | `.github/workflows/traceability-gate.yml` | REQ-6.3 / Property 11 — forward + backward orphans block merge; diff-aware §3.3 | Phase 1 (task 20 + 40.4) |
+  | `traceability-gate` | `.github/workflows/traceability-gate.yml` | REQ-6.3 / Property 11 — forward + backward orphans block merge; diff-aware §3.3 | Phase 1 (task 20 + 40.4) |
   | `sast-semgrep` | `.github/workflows/semgrep.yml` | REQ-SEC-001 — HIGH/CRITICAL findings on PR-introduced code block merge; diff-aware §3 | Phase 1 (task 24) |
   | `sast-codeql` | `.github/workflows/codeql.yml` | REQ-SEC-001 — CodeQL SAST analysis; same-repo-only fork-guard §3.6; baseline-seeded §3.8 | Phase 1 (task 23) |
   | `coverage-gate-sonar` | `.github/workflows/coverage-gate.yml` (sonar step) | REQ-QUAL-001 — SonarCloud code-quality gate 85% coverage; new-code baseline; same-repo-only §3.6 | Phase 1 (task 22) |
@@ -11673,7 +11686,7 @@ Human-visible summary: **Task 17 documents the post-public hygiene acceptance or
   1. **`sast-semgrep`** — diff-aware Semgrep with custom WIRING dead-code rules (task 24); binds fork PRs (§3.6).
   2. **`sast-codeql`** — GitHub CodeQL SAST with `main`-baseline seeding (task 23); same-repo-only (§3.6).
   3. **`coverage-gate-sonar`** — SonarCloud code-quality gate (task 22) with New-Code definition = `main`; same-repo-only (§3.6).
-  4. **`Orphan + Traceability Detection`** — bidirectional orphan + requirement-ID traceability verification (task 20 + 40.4); diff-aware forward/backward scopes §3.2–3.3; `tools/` allowlist for forward orphans only; fork-safe (no secrets).
+  4. **`traceability-gate`** — bidirectional orphan + requirement-ID traceability verification (task 20 + 40.4); diff-aware forward/backward scopes §3.2–3.3; `tools/` allowlist for forward orphans only; fork-safe (no secrets).
   
   All three SAST gates plus traceability-gate run with `fetch-depth: 0` and fail-closed on unreachable merge-base (§3.4). CodeQL/Sonar are same-repo-only; Semgrep-OSS is the binding fork backstop (§3.6).
   
