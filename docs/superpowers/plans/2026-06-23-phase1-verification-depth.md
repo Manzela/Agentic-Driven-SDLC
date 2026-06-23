@@ -280,8 +280,7 @@ Expected: Commit succeeds with the new code staged and committed.
 
 ---
 
-#### Step 1: Write the failing test for validity cross-check (dangling-ref rejection)
-
+#### - [ ] **Step 1: Write the failing test for validity cross-check (dangling-ref rejection)**
 **Failing test fixture:** Add to `tests/spine/test_orphan_detector.py`
 
 ```python
@@ -354,8 +353,7 @@ Expected output: **FAIL** — `detect_orphans()` does not accept a `known_ids` p
 
 ---
 
-#### Step 2: Implement validity cross-check in `detect_orphans()`
-
+#### - [ ] **Step 2: Implement validity cross-check in `detect_orphans()`**
 **Modify** `tools/orphan_detector.py`:
 
 ```python
@@ -454,8 +452,7 @@ Expected: **PASS** — valid ids and WIRING exemptions work.
 
 ---
 
-#### Step 3: Write failing tests for function-level units and reason-required exempt marker
-
+#### - [ ] **Step 3: Write failing tests for function-level units and reason-required exempt marker**
 **Failing test fixture:** Add to `tests/spine/test_orphan_detector.py`
 
 ```python
@@ -545,8 +542,7 @@ Expected: **FAIL** — `_scan_repo_impl_units` still returns file-level units, n
 
 ---
 
-#### Step 4: Implement function-level unit scanning and reason-required exempt check
-
+#### - [ ] **Step 4: Implement function-level unit scanning and reason-required exempt check**
 **Modify** `tools/orphan_detector.py`:
 
 First, update the `ORPHAN_EXEMPT_MARKER` to require a reason:
@@ -797,8 +793,7 @@ Expected: **PASS** — function-level units are extracted, reason-required exemp
 
 ---
 
-#### Step 5: Run full Property 11 test suite and commit
-
+#### - [ ] **Step 5: Run full Property 11 test suite and commit**
 **Run all orphan detector tests:**
 ```bash
 python -m pytest tests/spine/test_orphan_detector.py -v
@@ -877,8 +872,7 @@ Expected: **PASS** — commit succeeds, all tests green.
 
 ## Step-by-step TDD implementation
 
-### Step 1: Add `_str` helper + config keys to `execution_bounds.py`
-
+#### - [ ] **Step 1: Add `_str` helper + config keys to `execution_bounds.py`**
 **Failing test first:**
 
 Create test file (inline, for verification):
@@ -997,8 +991,7 @@ Task 3 / Step 1.
 
 ---
 
-### Step 2: Refactor `orphan_detector.py` to support diff-mode + baseline-commit CLI
-
+#### - [ ] **Step 2: Refactor `orphan_detector.py` to support diff-mode + baseline-commit CLI**
 **Failing test first:**
 
 Create `tests/spine/test_orphan_detector_diff.py`:
@@ -1912,8 +1905,7 @@ Task 3 / Step 2.
 
 ---
 
-### Step 3: Extend `detect_orphans()` signature to accept `known_ids` (Task 2 interface)
-
+#### - [ ] **Step 3: Extend `detect_orphans()` signature to accept `known_ids` (Task 2 interface)**
 Update the function signature in `tools/orphan_detector.py`:
 
 ```python
@@ -2037,8 +2029,7 @@ Task 3 / Step 3 (Task 2 interface alignment).
 
 ---
 
-### Step 4: Integration test — end-to-end diff-aware CLI
-
+#### - [ ] **Step 4: Integration test — end-to-end diff-aware CLI**
 Create integration test to verify the full CLI works:
 
 ```python
@@ -2182,8 +2173,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
 
 ---
 
-#### Step 1: Write failing tests for new CODES and _HEAL entries
-
+#### - [ ] **Step 1: Write failing tests for new CODES and _HEAL entries**
 - [ ] **Step 1: Write test for new reject codes and heal prompts**
 
   **Test file:** `tests/spine/test_evidence_gate_depth.py`
@@ -2249,8 +2239,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
 
 ---
 
-#### Step 2: Implement new CODES and _HEAL entries
-
+#### - [ ] **Step 2: Implement new CODES and _HEAL entries**
 - [ ] **Step 2: Add new reject codes and heal prompts to evidence_gate.py**
 
   **Modify:** `tools/evidence_gate.py` lines 21–29 and 201–226.
@@ -2328,8 +2317,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
 
 ---
 
-#### Step 3: Write failing tests for check_slice_semgrep function
-
+#### - [ ] **Step 3: Write failing tests for check_slice_semgrep function**
 - [ ] **Step 3: Write tests for check_slice_semgrep (SAST depth check)**
 
   **Append to:** `tests/spine/test_evidence_gate_depth.py`
@@ -2412,8 +2400,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
 
 ---
 
-#### Step 4: Implement check_slice_semgrep function
-
+#### - [ ] **Step 4: Implement check_slice_semgrep function**
 - [ ] **Step 4: Implement check_slice_semgrep in evidence_gate.py**
 
   **Append to:** `tools/evidence_gate.py`
@@ -2517,8 +2504,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
 
 ---
 
-#### Step 5: Write failing tests for check_slice_orphans function
-
+#### - [ ] **Step 5: Write failing tests for check_slice_orphans function**
 - [ ] **Step 5: Write tests for check_slice_orphans (orphan depth check)**
 
   **Append to:** `tests/spine/test_evidence_gate_depth.py`
@@ -2674,8 +2660,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
 
 ---
 
-#### Step 6: Implement check_slice_orphans function
-
+#### - [ ] **Step 6: Implement check_slice_orphans function**
 - [ ] **Step 6: Implement check_slice_orphans in evidence_gate.py**
 
   **Append to:** `tools/evidence_gate.py`
@@ -2835,8 +2820,7 @@ This task implements §3.3–3.7 of the Phase-1 spec: diff-aware orphan detectio
 
 ---
 
-#### Step 7: Run all tests together and commit
-
+#### - [ ] **Step 7: Run all tests together and commit**
 - [ ] **Step 7: Run all evidence_gate_depth tests and commit**
 
   ```bash
@@ -2892,7 +2876,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 1: Extend evidence_gate.CODES + heal prompts
+#### - [ ] **Step 1: Extend evidence_gate.CODES + heal prompts**
 - [ ] **Step 1: Add depth-check rejection codes and heal prompts.**
   
   **Write the test (tests/spine/test_loop_gate.py):**
@@ -2984,7 +2968,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 2: Define check_slice_semgrep stub + test rejection
+#### - [ ] **Step 2: Define check_slice_semgrep stub + test rejection**
 - [ ] **Step 2: Add check_slice_semgrep (fail-open on tool error, reject on finding).**
   
   **Write the test:**
@@ -3105,7 +3089,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 3: Define check_slice_orphans stub + test rejection
+#### - [ ] **Step 3: Define check_slice_orphans stub + test rejection**
 - [ ] **Step 3: Add check_slice_orphans (forward + backward, fail-open on tool error).**
   
   **Write the test:**
@@ -3228,7 +3212,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 4: Extend gated_advance signature with depth kwargs
+#### - [ ] **Step 4: Extend gated_advance signature with depth kwargs**
 - [ ] **Step 4: Extend gated_advance to accept depth-check kwargs (backward-compatible).**
   
   **Write the test:**
@@ -3377,7 +3361,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 5: Test Pillar 0 isolation (fail-closed, no depth leak)
+#### - [ ] **Step 5: Test Pillar 0 isolation (fail-closed, no depth leak)**
 - [ ] **Step 5: Verify Pillar 0 rejects without running depth checks.**
   
   **Write the test:**
@@ -3479,7 +3463,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 6: Test Pillar 1 (Semgrep) rejection + self-heal
+#### - [ ] **Step 6: Test Pillar 1 (Semgrep) rejection + self-heal**
 - [ ] **Step 6: Verify Semgrep rejection routes to self-heal with specific prompt.**
   
   **Write the test:**
@@ -3536,7 +3520,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 7: Test Pillar 2 (orphans) rejection + self-heal
+#### - [ ] **Step 7: Test Pillar 2 (orphans) rejection + self-heal**
 - [ ] **Step 7: Verify orphan rejection routes to self-heal with ORPHAN prompt.**
   
   **Write the test:**
@@ -3593,7 +3577,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 8: Test dual rejection (Pillar 1 + 2) joins prompts
+#### - [ ] **Step 8: Test dual rejection (Pillar 1 + 2) joins prompts**
 - [ ] **Step 8: Verify multiple rejections are joined in a single prompt.**
   
   **Write the test:**
@@ -3661,7 +3645,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 9: Test empty changed_files skips depth pillars
+#### - [ ] **Step 9: Test empty changed_files skips depth pillars**
 - [ ] **Step 9: Verify empty changed_files makes depth checks not run.**
   
   **Write the test:**
@@ -3719,7 +3703,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 10: Test block_streak escalation to handoff
+#### - [ ] **Step 10: Test block_streak escalation to handoff**
 - [ ] **Step 10: Verify block_streak ≥ max_self_heal → handoff (no new C-LOOP-04).**
   
   **Write the test:**
@@ -3802,7 +3786,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 11: Run full test suite to confirm integration
+#### - [ ] **Step 11: Run full test suite to confirm integration**
 - [ ] **Step 11: Run all loop_gate tests to confirm integration.**
   
   **Run the full test suite:**
@@ -3814,7 +3798,7 @@ Task 4 extends `evidence_gate.py` with the depth-check functions mandated by Pha
 
 ---
 
-#### Step 12: Commit Task 5 changes
+#### - [ ] **Step 12: Commit Task 5 changes**
 - [ ] **Step 12: Commit the loop_gate dual-enforcement implementation.**
   
   **Run git status to see changes:**
@@ -7491,8 +7475,7 @@ This is the complete Task 11 markdown block with real code, bite-sized TDD steps
 
 ---
 
-#### Step 1: Write the failing test (test the round-trip contract)
-
+#### - [ ] **Step 1: Write the failing test (test the round-trip contract)**
 **Command:**
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && python -m pytest tests/spine/test_pre_compact_resume_hash.py::test_pre_compact_writes_resume_hash_and_equals_recomputation -v
@@ -7736,8 +7719,7 @@ def test_pre_compact_hash_changes_on_progress_state_change():
 
 ---
 
-#### Step 2: Implement the resume-hash producer in pre_compact
-
+#### - [ ] **Step 2: Implement the resume-hash producer in pre_compact**
 **Command:**
 ```bash
 cd /Users/danielmanzela/Agentic-Driven\ SDLC\ Platform/.claude/worktrees/agentic-sdlc-optimization && python -m pytest tests/spine/test_pre_compact_resume_hash.py -v
