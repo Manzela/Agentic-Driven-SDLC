@@ -15,6 +15,13 @@ def _make_stub():
     pc.STATES = {}
     pc.post_evidence = lambda *a, **k: None
     pc.comment = lambda *a, **k: None
+    # _gate() runs on the advance path BEFORE post_evidence (no orphaned evidence):
+    # it checks actor authority + gate-order against the board. Benign defaults let a
+    # valid advance through; a test wanting a board-side REJECT overrides these.
+    pc.check_actor = lambda *a, **k: None
+    pc.get_issue = lambda *a, **k: {"state": "in-verification"}
+    pc.id2state = lambda *a, **k: "In-Verification"
+    pc.legal_edge = lambda *a, **k: True
     # Default: transitions must NOT happen unless a test explicitly allows them.
     pc.transition = lambda *a, **k: (_ for _ in ()).throw(
         AssertionError(f"unexpected pc.transition call: {a!r} {k!r}")
@@ -116,8 +123,11 @@ def test_prove_advance_sets_done(tmp_path):
 # 3. HANDOFF path: repeated rejections exhaust max_self_heal → handoff.
 # ---------------------------------------------------------------------------
 def test_prove_handoff_after_max_self_heal(tmp_path):
-    """After max_self_heal (3) consecutive rejects, action must be 'handoff'
+    """After BLOCK_STREAK_HANDOFF consecutive rejects, action must be 'handoff'
     and pc.comment + pc.transition('HANDOFF') must both be called.
+
+    The bound is read from execution_bounds (NOT a memorized 3) so this test tracks
+    the SAME threshold the Stop hook escalates on — the config registry owns the value.
     """
     comment_calls = []
     transition_calls = []
@@ -137,8 +147,12 @@ def test_prove_handoff_after_max_self_heal(tmp_path):
         "verifier_session_id": "i",
     }
 
-    # max_self_heal=3 → first 2 calls are self_heal, 3rd tips into handoff.
-    max_sh = 3
+    # Config-sourced bound: first (max_sh-1) calls are self_heal, the max_sh-th tips
+    # into handoff. Imported here so a change to BLOCK_STREAK_HANDOFF can't silently
+    # desync this test from loop_gate.gated_advance / the Stop hook.
+    sys.path.insert(0, str(ROOT))
+    from tools.execution_bounds import BLOCK_STREAK_HANDOFF
+    max_sh = BLOCK_STREAK_HANDOFF
     out = None
     for _ in range(1, max_sh + 1):
         out = tl.gated_prove(

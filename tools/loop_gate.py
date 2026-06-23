@@ -12,9 +12,16 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools import evidence_gate, run_state_driver  # noqa: E402
+from tools import evidence_gate, execution_bounds, run_state_driver  # noqa: E402
 
-def gated_advance(*, root, evidence, artifact, ledger, max_self_heal: int = 3) -> dict:
+def gated_advance(*, root, evidence, artifact, ledger, max_self_heal: int | None = None) -> dict:
+    # Threshold is CONFIG-SOURCED, never memorized (CLAUDE.md: "thresholds come from
+    # execution_bounds, not memory"). Default to the SAME bound the authoritative Stop
+    # hook escalates on (BLOCK_STREAK_HANDOFF) so the local pre-advance gate and the
+    # Stop gate AGREE — a previously hardcoded 3 disagreed with the Stop hook's 5 and
+    # ignored the SPINE_BLOCK_STREAK_HANDOFF override entirely.
+    if max_self_heal is None:
+        max_self_heal = execution_bounds.BLOCK_STREAK_HANDOFF
     res = evidence_gate.check_slice(evidence=evidence, artifact=artifact, ledger=ledger)
     if res["accepted"]:
         rs = run_state_driver.tick(root, made_progress=True, violation_count=0)
