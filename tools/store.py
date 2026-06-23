@@ -92,7 +92,10 @@ COVERAGE_STATUSES = ("unproven", "proven", "failed")          # 002_coverage_ite
 REQUIREMENT_TYPES = ("functional", "NFR", "WIRING")           # 001_requirements
 RUN_STATE_STATUSES = ("running", "complete", "handoff", "blocked")  # 005_run_state
 
-VERIFIER_AGENT = "verifier.md"  # Property 24 — evidence is captured only by the Verifier.
+import sys as _sys  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
+from tools.spine_roles import VERIFIER_ROLE  # noqa: E402  (single-source role constant)
 
 
 class StoreError(Exception):
@@ -587,7 +590,7 @@ class Store:
         record: Dict[str, Any],
         *,
         commit_sha: str = "",
-        actor_agent: str = VERIFIER_AGENT,
+        actor_agent: str = VERIFIER_ROLE,
         flip_to_proven: bool = True,
     ) -> None:
         """Store an Evidence_Record for ``requirement_id`` and (by default) flip
@@ -607,7 +610,8 @@ class Store:
         and writes nothing — the proven transition is refused.
 
         Provenance (Property 24): ``actor_agent`` defaults to and is asserted to
-        be the Verifier (``verifier.md``). Implementer-authored evidence is
+        be the Verifier (``VERIFIER_ROLE`` == ``"verifier"``, suffix-less).
+        Implementer-authored evidence is
         rejected — evidence is captured only by the Verifier, never the
         Implementer.
 
@@ -622,9 +626,9 @@ class Store:
         # Provenance gate (Property 24): evidence is captured only by the Verifier.
         record_actor = record.get("actor_agent") if isinstance(record, dict) else None
         effective_actor = record_actor or actor_agent
-        if effective_actor != VERIFIER_AGENT:
+        if effective_actor != VERIFIER_ROLE:
             raise StoreError(
-                f"evidence actor_agent must be {VERIFIER_AGENT!r} (Property 24 — "
+                f"evidence actor_agent must be {VERIFIER_ROLE!r} (Property 24 — "
                 f"evidence is captured by the Verifier, never the Implementer); got "
                 f"{effective_actor!r}"
             )
@@ -693,7 +697,7 @@ class Store:
         record: Dict[str, Any],
         *,
         commit_sha: str = "",
-        actor_agent: str = VERIFIER_AGENT,
+        actor_agent: str = VERIFIER_ROLE,
         gate_already_checked: bool = False,
     ) -> None:
         """Low-level evidence_records INSERT. Ensures the parent requirement row.

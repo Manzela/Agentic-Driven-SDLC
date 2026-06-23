@@ -10,7 +10,13 @@ Pure stdlib; importable and side-effect free.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+
+# Ensure ``from tools.spine_roles import ...`` resolves under either import
+# convention (repo root on the path).
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.spine_roles import VERIFIER_ROLE  # noqa: E402  (single-source role constant)
 
 ALLOWED_TRANSITIONS = {
     ("unproven", "proven"),
@@ -18,7 +24,6 @@ ALLOWED_TRANSITIONS = {
     ("failed", "unproven"),
     ("proven", "unproven"),  # amendment re-entry only
 }
-VERIFIER_AGENT = "verifier.md"
 
 
 class TransitionError(Exception): ...
@@ -49,8 +54,8 @@ def assert_transition(frm: str, to: str) -> None:
 
 def assert_field_authority(*, field: str, actor_agent: str, human_signed: bool) -> None:
     if field == "status":
-        if actor_agent != VERIFIER_AGENT:
-            raise AuthorityError(f"status is writable only by {VERIFIER_AGENT}")
+        if actor_agent != VERIFIER_ROLE:
+            raise AuthorityError(f"status is writable only by {VERIFIER_ROLE}")
     elif field == "in_scope":
         if not human_signed:
             raise AuthorityError("in_scope is mutable only via a human-signed change")

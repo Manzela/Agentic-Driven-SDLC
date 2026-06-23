@@ -103,6 +103,11 @@ complete_evidence = st.fixed_dictionaries(
         "test_name": nonempty_text,
         "output_hash": valid_output_hash,
         "collected_at": valid_collected_at,
+        # Actor-separation (Phase A, commit d98a3b8): a proven item's evidence must
+        # name DISTINCT implementer/verifier sessions, else deny_merge denies it as a
+        # self-grade. Distinct ids keep "all proven + complete evidence => mergeable".
+        "implementer_session_id": st.just("sess-impl"),
+        "verifier_session_id": st.just("sess-veri"),
     }
 )
 

@@ -1,65 +1,22 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enabledPlugins": { "ralph-loop@claude-plugins-official": false },
+  "env": {
+    "SPINE_REQUIRED_EVENTS": "PreToolUse,PostToolUse,Stop,SubagentStop,SessionStart,PreCompact",
+    "SPINE_HOOK_TELEMETRY": "${CLAUDE_PROJECT_DIR}/.spine_hook_fires.jsonl"
+  },
   "hooks": {
-    "PreToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pre_tool_use_hook.py"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/post_tool_use_hook.py"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/stop_hook.py"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/subagent_stop_hook.py"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/session_start_hook.py"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pre_compact_hook.py"
-          }
-        ]
-      }
-    ]
+    "SessionStart": [{ "matcher": "startup|resume|compact", "hooks": [
+      { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session_start_hook.py\"", "timeout": 20 }]}],
+    "PreToolUse": [{ "matcher": "Edit|Write|MultiEdit|Bash", "hooks": [
+      { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_tool_use_hook.py\"", "timeout": 15 }]}],
+    "PostToolUse": [{ "matcher": "Edit|Write|MultiEdit", "hooks": [
+      { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/post_tool_use_hook.py\"", "timeout": 120 }]}],
+    "SubagentStop": [{ "hooks": [
+      { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/subagent_stop_hook.py\"", "timeout": 30 }]}],
+    "Stop": [{ "hooks": [
+      { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/stop_hook.py\"", "timeout": 30 }]}],
+    "PreCompact": [{ "hooks": [
+      { "type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_compact_hook.py\"", "timeout": 20 }]}]
   }
 }

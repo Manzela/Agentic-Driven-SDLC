@@ -50,7 +50,7 @@ def valid_item():
             "output_hash": "sha256:"
             + "a" * 64,
             "collected_at": "2026-06-15T12:00:00Z",
-            "actor_agent": "verifier.md",
+            "actor_agent": "verifier",
             "evidence_kind": "unit",
         },
     }

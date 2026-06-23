@@ -14,8 +14,8 @@ from tools.audit_log import GENESIS_PREV_HASH, AuditLog, verify_chain
 
 
 def _append_three(log: AuditLog):
-    e1 = log.append("PreToolUse", "Write", "allow", "first", "REQ-AUDIT-001", "implementer.md")
-    e2 = log.append("PreToolUse", "Edit", "block", "second", "REQ-AUDIT-002", "implementer.md")
+    e1 = log.append("PreToolUse", "Write", "allow", "first", "REQ-AUDIT-001", "implementer")
+    e2 = log.append("PreToolUse", "Edit", "block", "second", "REQ-AUDIT-002", "implementer")
     e3 = log.append("Stop", None, "allow", "third", None, "main")
     return e1, e2, e3
 

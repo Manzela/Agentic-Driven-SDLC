@@ -131,12 +131,16 @@ def validate_evidence_record(record: dict) -> bool:
     if OUTPUT_HASH_PATTERN.match(record["output_hash"]) is None:
         return False
 
-    # (4) collected_at must parse as ISO-8601. ``fromisoformat`` raises
-    # ValueError on a malformed string; a TypeError guards against any non-str
-    # slipping past the presence check above.
+    # (4) collected_at must parse as ISO-8601 AND be timezone-aware (RFC-3339).
+    # ``fromisoformat`` raises ValueError on a malformed string; a TypeError
+    # guards against any non-str slipping past the presence check above.
+    # A naive timestamp (no UTC offset / tzinfo) is explicitly rejected — the
+    # spec requires 'timezone-aware RFC-3339'; a naive datetime has no offset
+    # and cannot be compared across zones (evidence forgery vector: a backdated
+    # naive timestamp passes parse but violates the tz-awareness requirement).
     try:
-        datetime.fromisoformat(record["collected_at"])
+        dt = datetime.fromisoformat(record["collected_at"])
     except (ValueError, TypeError):
         return False
-
-    return True
+    # Naive timestamps have no UTC offset; RFC-3339 requires tz-awareness.
+    return dt.tzinfo is not None

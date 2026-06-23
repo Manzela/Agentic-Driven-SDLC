@@ -172,6 +172,13 @@ def test_spine_end_to_end(tmp_path: Path) -> None:
         test_name="test_spine_end_to_end",
         output="PASS: spine functional item behavioral proof artifact",
     )
+    # Actor-separation (Phase A, commit d98a3b8): the merge gate also requires DISTINCT
+    # verifier/implementer session provenance on a proven item's evidence. collect()
+    # emits only the four-field core; the VERIFIER stamps the provenance. The canonical
+    # EvidenceRecord schema permits these named fields, so the on-disk round-trip below
+    # stays schema-valid while deny_merge (step 5) accepts the actor-independent slice.
+    evidence["implementer_session_id"] = "impl-sess-e2e"
+    evidence["verifier_session_id"] = "veri-sess-e2e"
     # The collected record must satisfy the SHARED validator the in-session
     # SubagentStop gate uses — proving collect() and the gate agree.
     assert validate_evidence_record(evidence) is True, evidence
