@@ -190,6 +190,18 @@ def test_out_of_scope_backward_not_flagged():
         assert r["accepted"] is True  # out-of-scope items are not backward orphans
 
 
+def test_backward_skipped_when_model_file_unchanged():
+    """F3 (red-team): a change that does NOT touch feature_list.json introduces no model
+    delta -> a pre-existing in-scope unproven item is NOT a backward orphan (no wedge)."""
+    with tempfile.TemporaryDirectory() as t:
+        fl = _repo(t, {"README.md": "docs"},
+                   {"items": [{"id": "REQ-1", "in_scope": True, "status": "unproven"}]})
+        # changed files are docs/data only — feature_list.json is NOT among them
+        r = eg.check_slice_orphans(["README.md", "data.json"], fl, {"REQ-1"})
+        assert r["accepted"] is True
+        assert r["code"] == "OK"
+
+
 def test_orphans_fail_open_on_internal_error():
     with tempfile.TemporaryDirectory() as t:
         fl = _repo(t, {"m.py": "def f():\n    pass\n"}, {"items": []})

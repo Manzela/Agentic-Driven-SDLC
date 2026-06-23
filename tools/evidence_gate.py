@@ -369,8 +369,17 @@ def check_slice_orphans(changed_files, feature_list_path, known_ids,
             model = _json.loads(pathlib.Path(feature_list_path).read_text(encoding="utf-8"))
         except (FileNotFoundError, _json.JSONDecodeError, UnicodeDecodeError):
             model = {}
-        # Backward pass is over IN-SCOPE items only (§4.2 / Req 5.7).
-        requirements = [i for i in model.get("items", []) if i.get("in_scope")]
+        # Backward pass is over IN-SCOPE items only (§4.2 / Req 5.7), AND only when the
+        # model file ITSELF is among the changed files. A slice that did not touch
+        # feature_list.json introduces no model delta, hence no NEW backward orphan
+        # (diff-aware §3.3). Without this guard a docs-only change is rejected for a
+        # pre-existing unproven item it never touched — wedging the advance (red-team F3).
+        _fl_name = pathlib.Path(feature_list_path).name
+        model_changed = any(pathlib.Path(str(f)).name == _fl_name for f in changed_files)
+        requirements = (
+            [i for i in model.get("items", []) if i.get("in_scope")]
+            if model_changed else []
+        )
 
         # F4 (defensive): the dangling cross-check's known-id universe is the UNION of
         # the caller's known_ids AND every id already in the loaded model, so a real
