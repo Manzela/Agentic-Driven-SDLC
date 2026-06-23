@@ -118,13 +118,62 @@ def _collect_targets(root: Path, state: dict) -> tuple[list[str], list[str]]:
     return found, missing
 
 
-def pre_compact(state: dict) -> dict:
-    """Checkpoint progress + evidence + feature_list. NON-BLOCKING.
+def _read_feature_list(root: Path, state: dict) -> dict:
+    """Parse the checkpointed coverage model, or {} when absent/unreadable."""
+    override = (state or {}).get("feature_list")
+    p = Path(override) if override else _first_existing(root, _FEATURE_CANDIDATES)
+    if p and p.is_file():
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            return {}
+    return {}
 
-    Returns ``{"checkpointed": [<relpaths>], "ok": True, "missing": [...],
-    "root": <root>}``. ``ok`` is ``True`` whenever the hook completed without an
-    unhandled error — a missing artifact does not flip it to False, because this
-    is a best-effort checkpoint, not a gate.
+
+def _read_progress(root: Path, state: dict) -> str:
+    """Read the checkpointed progress text, or "" when absent/unreadable."""
+    override = (state or {}).get("progress_file")
+    p = Path(override) if override else _first_existing(root, _PROGRESS_CANDIDATES)
+    if p and p.is_file():
+        try:
+            return p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return ""
+    return ""
+
+
+def _git_status(root: Path, state: dict) -> str:
+    """The porcelain git status to hash. Prefer an explicit state value (so the hash is
+    reproducible without a subprocess); else shell out best-effort, "" on any error."""
+    explicit = (state or {}).get("git_status")
+    if explicit is not None:
+        return str(explicit)
+    try:
+        import subprocess
+        return subprocess.run(["git", "status", "--porcelain"], cwd=str(root),
+                              capture_output=True, text=True, timeout=10).stdout
+    except Exception:  # noqa: BLE001 — checkpoint must never raise on a git error.
+        return ""
+
+
+def _resume_state_hash(root: Path, state: dict) -> str:
+    """Compute the resume_state_hash over the checkpointed durable state (feature_list,
+    progress, git_status) via the SAME state_integrity hash SessionStart recomputes —
+    so check_resume_integrity matches and Property 26 (COH-2) is not neutered."""
+    from tools.state_integrity import compute_state_hash
+    return compute_state_hash(
+        _git_status(root, state), _read_progress(root, state), _read_feature_list(root, state))
+
+
+def pre_compact(state: dict) -> dict:
+    """Checkpoint progress + evidence + feature_list, and record the resume_state_hash.
+    NON-BLOCKING.
+
+    Returns ``{"checkpointed": [<relpaths>], "ok": True, "missing": [...], "root": <root>,
+    "run_state": {"resume_state_hash": <sha256>}}``. ``ok`` is ``True`` whenever the hook
+    completed without an unhandled error — a missing artifact does not flip it to False,
+    because this is a best-effort checkpoint, not a gate.
     """
     try:
         root = _resolve_root(state)
@@ -134,6 +183,8 @@ def pre_compact(state: dict) -> dict:
             "ok": True,
             "missing": missing,
             "root": str(root),
+            # The resume baseline SessionStart matches against (Property 26 / COH-2).
+            "run_state": {"resume_state_hash": _resume_state_hash(root, state)},
         }
     except Exception as exc:  # noqa: BLE001 — non-blocking by contract.
         # Even on failure the payload is well-formed; ok stays True because a
@@ -143,6 +194,7 @@ def pre_compact(state: dict) -> dict:
             "ok": True,
             "missing": ["<error>"],
             "root": "",
+            "run_state": {"resume_state_hash": ""},  # shape-consistent degenerate fallback.
             "error": f"pre_compact raised {type(exc).__name__}: {exc}",
         }
 
@@ -160,10 +212,37 @@ def main() -> int:
     # raw {"checkpointed":…} payload is INVALID INPUT. The pure core
     # (pre_compact) keeps returning the payload for the verifier; the shell just
     # runs it and exits 0 silently.
-    pre_compact(state)
+    result = pre_compact(state)
+    # Deliver the resume baseline to the next SessionStart: persist resume_state_hash
+    # into run_state.json (the durable channel SessionStart reads), MERGING so the
+    # loop-driver's other keys survive. Best-effort — a checkpoint must never raise.
+    try:
+        _persist_resume_hash(result)
+    except Exception:  # noqa: BLE001 — never block compaction on a delivery error.
+        pass
     # Exit 0 — PreCompact is a non-blocking checkpoint write; it cannot block
     # compaction. (Exit 2 is the blocking channel and is intentionally unused.)
     return 0
+
+
+def _persist_resume_hash(result: dict) -> None:
+    """Merge result['run_state']['resume_state_hash'] into run_state.json at the
+    checkpoint root, preserving any existing loop-driver keys."""
+    rs = (result or {}).get("run_state") or {}
+    digest = rs.get("resume_state_hash")
+    root = (result or {}).get("root")
+    if not digest or not root:
+        return
+    p = Path(root) / "run_state.json"
+    row: dict = {}
+    if p.is_file():
+        try:
+            loaded = json.loads(p.read_text(encoding="utf-8"))
+            row = loaded if isinstance(loaded, dict) else {}
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            row = {}
+    row["resume_state_hash"] = digest
+    p.write_text(json.dumps(row, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
