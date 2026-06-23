@@ -997,6 +997,13 @@ Task 3 / Step 1.
 ---
 
 #### - [ ] **Step 2: Refactor `orphan_detector.py` to support diff-mode + baseline-commit CLI**
+
+> **Execution findings (2026-06-23) — fix these while building this step:**
+> 1. **`baseline_has_file` is spurious** — the test calls `detect_orphans_diff(..., baseline_has_file={})` but the function signature has no such param (and never uses it). Remove `baseline_has_file=` from the test calls.
+> 2. **Add the imports** `import subprocess` and `from fnmatch import fnmatch` to `orphan_detector.py` — the new git helpers + `_is_path_exempt` use them; without them this step is a `NameError`.
+> 3. **Reconcile the `tools/` allowlist representation** — Task 1 sets `ORPHAN_ALLOWLIST_PATTERN = "tools/.*"` (a **regex**), but `_is_path_exempt` here uses `fnmatch` (a **glob**) and Task 4 uses a `"tools/"` **prefix**. Pick ONE: make `_is_path_exempt` use `re.match(allowlist_pattern, path)` against the regex default (then `"tools/.*"` exempts `tools/helper.py`), and have Task 4's `allowlist_dirs` derive from the same regex. Otherwise the default allowlist silently fails to exempt anything (fnmatch of `"tools/.*"` does NOT match `tools/helper.py`).
+> *(Steps 1 and 3 of this task are redundant — Step 1 re-does Task 1's `execution_bounds` keys, Step 3 re-adds `known_ids` to `detect_orphans`; both are already built. Skip them.)*
+
 **Failing test first:**
 
 Create `tests/spine/test_orphan_detector_diff.py`:
