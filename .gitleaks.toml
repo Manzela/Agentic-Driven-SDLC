@@ -37,6 +37,11 @@ paths = [
   '''(^|/)docs/.*\.md$''',
   '''(^|/)\.gitleaks\.toml$''',
   '''(^|/)\.env\.example$''',
+  # Generated Plane-board dump (audit/plane-xref): machine-emitted board data — the
+  # gitleaks "generic-connection-string" rule matches plain http(s):// URLs inside
+  # issue descriptions, but they carry NO live credentials (verified: 0 plane_api_/
+  # CF/DB-URI/PEM secrets present in the file). Not a real-secret silencer.
+  '''(^|/)audit/plane-xref/board-snapshot\.json$''',
 ]
 
 # Obvious non-secret placeholder values seen in docs/examples.

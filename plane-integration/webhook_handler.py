@@ -103,6 +103,8 @@ def verify(sig, raw):
     if not SECRET:
         return os.environ.get("ASCP_DEV_ALLOW_UNSIGNED") == "1"
     if not sig: return False
+    # Accept the GitHub-style 'sha256=<hex>' prefixed form as well as the bare hex digest.
+    sig = sig.split("=", 1)[1] if sig.startswith("sha256=") else sig
     expected = hmac.new(SECRET.encode(), raw, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, sig)
 
