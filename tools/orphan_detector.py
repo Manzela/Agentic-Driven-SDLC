@@ -42,6 +42,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Set
 
@@ -290,6 +291,183 @@ def detect_orphans(
         "backward_orphans": backward_orphans,
         "ok": ok,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Diff-aware layer (Task 3 §3.3-3.7): scope the forward pass to changed .py files
+# (minus the tools/ allowlist), the backward pass to feature_list.json
+# model-deltas; fail CLOSED in CI when the merge-base is unreachable, full-repo
+# fallback (+ logged reason) locally. The allowlist pattern is a REGEX
+# (ORPHAN_DETECTOR default "tools/.*"), matched with re.match (start-anchored).
+# --------------------------------------------------------------------------- #
+
+# Allowlist regex default (§3): forward-orphan path exemption. The execution_bounds
+# key ORPHAN_ALLOWLIST_PATTERN owns the runtime value; this is the in-module default
+# so the diff layer never NameErrors if called without an explicit pattern.
+_DEFAULT_ALLOWLIST_PATTERN = "tools/.*"
+
+
+def _get_merged_base(baseline_ref: str, cwd: str = ".") -> Optional[str]:
+    """The merge-base SHA between ``baseline_ref`` and HEAD, or None if unreachable."""
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", baseline_ref, "HEAD"],
+            cwd=cwd, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:  # noqa: BLE001 — git absent/unreachable => None (caller decides)
+        pass
+    return None
+
+
+def _get_changed_files(baseline_commit: str, cwd: str = ".") -> List[str]:
+    """Relative paths changed between ``baseline_commit`` and HEAD (caller filters)."""
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", baseline_commit, "HEAD"],
+            cwd=cwd, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
+    except Exception:  # noqa: BLE001
+        pass
+    return []
+
+
+def _load_feature_list_from_commit(commit_ref: str, cwd: str = ".") -> Dict[str, Any]:
+    """Parsed feature_list.json at ``commit_ref``, or {} if absent/unparseable."""
+    try:
+        result = subprocess.run(
+            ["git", "show", f"{commit_ref}:feature_list.json"],
+            cwd=cwd, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    except Exception:  # noqa: BLE001
+        pass
+    return {}
+
+
+def _is_path_exempt(path: str, allowlist_pattern: str) -> bool:
+    """True when ``path`` matches the forward-orphan allowlist REGEX (start-anchored).
+
+    The pattern is a regex (default "tools/.*"), NOT a glob — re.match anchors at the
+    start, so "tools/.*" exempts ``tools/anything`` and nothing outside ``tools/``.
+    """
+    if not allowlist_pattern:
+        return False
+    try:
+        return bool(re.match(allowlist_pattern, path))
+    except re.error:
+        return False
+
+
+def _filter_forward_units_by_changed(
+    impl_units: List[Dict[str, Any]],
+    changed_files: Optional[Set[str]],
+    allowlist_pattern: str = "",
+) -> List[Dict[str, Any]]:
+    """Keep only units in a changed file, minus the allowlist. None => all units."""
+    if changed_files is None:
+        return impl_units
+    changed = set(changed_files)
+    filtered: List[Dict[str, Any]] = []
+    for unit in impl_units:
+        file_path = unit.get("file") or unit.get("path")
+        if not file_path or file_path not in changed:
+            continue
+        if _is_path_exempt(file_path, allowlist_pattern):
+            continue
+        filtered.append(unit)
+    return filtered
+
+
+def _get_model_delta_ids(
+    baseline_feature_list: Dict[str, Any],
+    working_feature_list: Dict[str, Any],
+) -> Set[str]:
+    """Item IDs added or modified in feature_list.json relative to the baseline."""
+    baseline_ids = {
+        i.get("id"): i for i in baseline_feature_list.get("items", []) if i.get("id")
+    }
+    working_ids = {
+        i.get("id"): i for i in working_feature_list.get("items", []) if i.get("id")
+    }
+    delta: Set[str] = set()
+    for item_id, working_item in working_ids.items():
+        if item_id not in baseline_ids or baseline_ids[item_id] != working_item:
+            delta.add(item_id)
+    return delta
+
+
+def detect_orphans_diff(
+    impl_units: List[Dict[str, Any]],
+    requirements: List[Dict[str, Any]],
+    known_ids: Set[str],
+    changed_files: Optional[Set[str]] = None,
+    baseline_commit: Optional[str] = None,
+    model_delta_ids: Optional[Set[str]] = None,
+    allowlist_pattern: str = "",
+    fail_closed_on_unreachable: bool = False,
+    root: str = ".",
+) -> Dict[str, Any]:
+    """Diff-aware bidirectional orphan detection (Task 3 §3.3-3.7).
+
+    Forward: scoped to ``changed_files`` (minus the ``allowlist_pattern`` regex).
+    Backward: scoped to ``model_delta_ids`` (NEVER path-exempt — a requirement still
+    needs proof). Dangling-ref: a unit citing only ids absent from ``known_ids``
+    (REQ-WIRE-* exempt) is flagged. CI (``fail_closed_on_unreachable``): if the
+    merge-base for ``baseline_commit`` is unreachable, fail CLOSED. Local: when
+    ``changed_files is None`` (no diff), fall back to full-repo + a logged reason.
+    """
+    if not allowlist_pattern:
+        allowlist_pattern = _DEFAULT_ALLOWLIST_PATTERN
+
+    # CI fail-closed: an unreachable merge-base is a misconfiguration (fetch-depth:0),
+    # never a silent full-repo widening of the gate (§3.4, closes T4).
+    if fail_closed_on_unreachable and baseline_commit and _get_merged_base(baseline_commit, root) is None:
+        return {
+            "forward_orphans": [], "backward_orphans": [], "ok": False,
+            "error": f"merge-base {baseline_commit!r} unreachable — fetch-depth:0 required "
+                     f"(CI misconfiguration, not a degrade)",
+        }
+
+    if changed_files is None:
+        # Full-repo mode (local fallback or no baseline supplied).
+        filtered_units = impl_units
+        scoped_requirements = requirements
+        fallback_reason = (
+            f"merge-base {baseline_commit!r} unreachable; full-repo fallback (local)"
+            if baseline_commit else None
+        )
+    else:
+        filtered_units = _filter_forward_units_by_changed(impl_units, changed_files, allowlist_pattern)
+        # Backward scope: only model-delta items (never path-exempt). None => all.
+        scoped_requirements = (
+            [r for r in requirements if r.get("id") in model_delta_ids]
+            if model_delta_ids is not None else requirements
+        )
+        fallback_reason = None
+
+    report = detect_orphans(filtered_units, scoped_requirements, known_ids)
+    if fallback_reason:
+        report["baseline_fallback_reason"] = fallback_reason
+
+    # Dangling-ref subclass: a forward unit citing an id NOT in the model (REQ-WIRE-* exempt).
+    dangling_refs: Dict[str, Dict[str, str]] = {}
+    for unit in filtered_units:
+        for uid in _impl_unit_req_ids(unit):
+            if uid not in known_ids and not uid.startswith("REQ-WIRE"):
+                dangling_refs.setdefault(uid, {
+                    "unit": _impl_unit_ref(unit),
+                    "message": f"requirement ID '{uid}' does not exist in feature_list.json",
+                })
+    if dangling_refs:
+        report["dangling_refs"] = dangling_refs
+        report["ok"] = False
+
+    return report
 
 
 # --------------------------------------------------------------------------- #
