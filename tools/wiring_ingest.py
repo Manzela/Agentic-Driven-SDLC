@@ -74,35 +74,25 @@ def _atomic_write(content: Dict[str, Any], feature_list_path: str) -> bool:
     return True
 
 
-def ingest_wiring_candidates(candidates: List[Dict[str, Any]], feature_list_path: str) -> int:
-    """Append WIRING candidates to feature_list.json as unproven items, de-duped by id.
+def _qualname(item: Dict[str, Any]):
+    """The candidate's stable symbol identity (``wiring.qualname``), or None."""
+    return (item.get("wiring") or {}).get("qualname") if isinstance(item, dict) else None
 
-    Append-only: existing items are never mutated (the verifier owns status flips). A
-    candidate whose id already exists is skipped. Returns the count actually written
-    (<= len(candidates)); 0 if the model is absent/unreadable or nothing new was added.
-    """
-    if not candidates:
-        return 0
-    content = _load_model(feature_list_path)
-    if content is None:
-        return 0
 
-    items = content["items"]
-
-    def _qual(it: Dict[str, Any]):
-        return (it.get("wiring") or {}).get("qualname") if isinstance(it, dict) else None
-
-    # De-dup by the STABLE symbol identity (wiring.qualname), NOT the ordinal id.
-    # emit_wiring_items mints REQ-WIRE-NNN by POSITION, so prepending a function shifts
-    # every later id — id-keyed de-dup then drops a genuinely-new symbol and duplicates
-    # an existing one (red-team F-3). qualname is position-independent. (A candidate
-    # without a qualname falls back to id de-dup.)
-    existing_quals: Set[str] = {q for q in (_qual(it) for it in items) if q is not None}
+def _select_new_candidates(
+    candidates: List[Dict[str, Any]], items: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Append the de-duped, NORMALIZED new WIRING candidates to ``items`` (in place) and
+    return them. De-dup by the STABLE symbol identity (wiring.qualname), NOT the ordinal id:
+    emit_wiring_items mints REQ-WIRE-NNN by POSITION, so prepending a function shifts every
+    later id — id-keyed de-dup then drops a genuinely-new symbol and duplicates an existing
+    one (red-team F-3). A candidate without a qualname falls back to id de-dup. Existing items
+    are never mutated (append-only; the verifier owns status flips)."""
+    existing_quals: Set[str] = {q for q in (_qualname(it) for it in items) if q is not None}
     existing_ids: Set[str] = {it.get("id") for it in items if isinstance(it, dict) and "id" in it}
-
     appended: List[Dict[str, Any]] = []
     for candidate in candidates:
-        qual = _qual(candidate)
+        qual = _qualname(candidate)
         cand_id = candidate.get("id")
         if qual is not None:
             if qual in existing_quals:
@@ -117,16 +107,45 @@ def ingest_wiring_candidates(candidates: List[Dict[str, Any]], feature_list_path
             existing_quals.add(qual)
         if cand_id is not None:
             existing_ids.add(cand_id)
+    return appended
 
-    if not appended:
-        return 0
-    # Never persist a schema-invalid model (F-1): validate the FULL post-append content
-    # first and REFUSE the write (returning 0, file untouched) if it would corrupt.
+
+def _validate_or_rollback(
+    content: Dict[str, Any], items: List[Dict[str, Any]], appended: List[Dict[str, Any]]
+) -> bool:
+    """Validate the FULL post-append model; never persist a schema-invalid one (F-1). On a
+    schema failure, ROLL BACK the in-memory append (remove ``appended`` from ``items``) and
+    return False; on success return True. Kept as ONE unit so the validate+rollback bookkeeping
+    cannot be split apart."""
     try:
         validate_against_schema(content)
     except Exception:  # noqa: BLE001 — any validation failure rolls back the in-memory append.
         for it in appended:
             items.remove(it)
+        return False
+    return True
+
+
+def ingest_wiring_candidates(candidates: List[Dict[str, Any]], feature_list_path: str) -> int:
+    """Append WIRING candidates to feature_list.json as unproven items, de-duped by id.
+
+    Append-only: existing items are never mutated (the verifier owns status flips). A
+    candidate whose id already exists is skipped. Returns the count actually written
+    (<= len(candidates)); 0 if the model is absent/unreadable or nothing new was added.
+
+    Orchestrator over _select_new_candidates (de-dup + normalize + append) and
+    _validate_or_rollback (the F-1 validate-before-write with in-memory rollback).
+    """
+    if not candidates:
+        return 0
+    content = _load_model(feature_list_path)
+    if content is None:
+        return 0
+    items = content["items"]
+    appended = _select_new_candidates(candidates, items)
+    if not appended:
+        return 0
+    if not _validate_or_rollback(content, items, appended):
         return 0
     return len(appended) if _atomic_write(content, feature_list_path) else 0
 
