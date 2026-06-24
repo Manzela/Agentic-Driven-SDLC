@@ -44,7 +44,7 @@ import os
 import re
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Shared, single-source requirement-ID extraction (also used by
 # traceability_writer.py) — prevents regex drift between the two tools.
@@ -218,6 +218,44 @@ def _requirement_has_artifact(req: Dict[str, Any], referenced_ids: Set[str]) -> 
     return False
 
 
+def _forward_pass(
+    impl_units: List[Dict[str, Any]], known_ids: Set[str]
+) -> Tuple[List[str], Set[str]]:
+    """Forward orphan pass over impl units. Returns ``(forward_orphans, referenced_ids)``.
+    A unit with no requirement ref (and not exempt) is a forward orphan; and — when a model
+    is supplied (non-empty ``known_ids``; an EMPTY model is the pre-delivery local case and
+    skips, §3.1/§7) — a reference to an id NOT in the model is a dangling-ref orphan
+    (``[dangling-ref: …]`` string). WIRING-minted ids (REQ-WIRE-*) are exempt (§3.1 caveat, T1)."""
+    forward_orphans: List[str] = []
+    referenced_ids: Set[str] = set()
+    for unit in impl_units:
+        unit_ids = _impl_unit_req_ids(unit)
+        if known_ids:
+            for req_id in unit_ids:
+                if not req_id.startswith("REQ-WIRE") and req_id not in known_ids:
+                    forward_orphans.append(
+                        f"{_impl_unit_ref(unit)} [dangling-ref: {req_id} not in model]"
+                    )
+        referenced_ids.update(unit_ids)
+        if not unit_ids and not _impl_unit_is_exempt(unit):
+            forward_orphans.append(_impl_unit_ref(unit))
+    return forward_orphans, referenced_ids
+
+
+def _backward_pass(
+    requirements: List[Dict[str, Any]], referenced_ids: Set[str]
+) -> List[str]:
+    """Backward orphan pass: requirement ids that map to no verification artifact."""
+    backward_orphans: List[str] = []
+    for req in requirements:
+        rid = _requirement_id(req)
+        if rid is None:
+            continue
+        if not _requirement_has_artifact(req, referenced_ids):
+            backward_orphans.append(rid)
+    return backward_orphans
+
+
 def detect_orphans(
     impl_units: List[Dict[str, Any]],
     requirements: List[Dict[str, Any]],
@@ -253,43 +291,12 @@ def detect_orphans(
     impl_units = impl_units or []
     requirements = requirements or []
     known_ids = known_ids or set()
-
-    # Forward pass: impl units with no requirement ref (excluding exempt ones).
-    forward_orphans: List[str] = []
-    referenced_ids: Set[str] = set()
-    for unit in impl_units:
-        unit_ids = _impl_unit_req_ids(unit)
-
-        # Validity cross-check (§3.1, T1): when a model is supplied (non-empty
-        # known_ids — an EMPTY model is the pre-delivery local case and skips,
-        # §3.1/§7), a reference to an id NOT in the model is a dangling-ref
-        # orphan. WIRING-minted ids (REQ-WIRE-*) are exempt — they are minted
-        # per-analysis and may not yet be in the committed model (§3.1 caveat).
-        if known_ids:
-            for req_id in unit_ids:
-                if not req_id.startswith("REQ-WIRE") and req_id not in known_ids:
-                    forward_orphans.append(
-                        f"{_impl_unit_ref(unit)} [dangling-ref: {req_id} not in model]"
-                    )
-
-        referenced_ids.update(unit_ids)
-        if not unit_ids and not _impl_unit_is_exempt(unit):
-            forward_orphans.append(_impl_unit_ref(unit))
-
-    # Backward pass: requirements that map to no verification artifact.
-    backward_orphans: List[str] = []
-    for req in requirements:
-        rid = _requirement_id(req)
-        if rid is None:
-            continue
-        if not _requirement_has_artifact(req, referenced_ids):
-            backward_orphans.append(rid)
-
-    ok = not forward_orphans and not backward_orphans
+    forward_orphans, referenced_ids = _forward_pass(impl_units, known_ids)
+    backward_orphans = _backward_pass(requirements, referenced_ids)
     return {
         "forward_orphans": forward_orphans,
         "backward_orphans": backward_orphans,
-        "ok": ok,
+        "ok": not forward_orphans and not backward_orphans,
     }
 
 
@@ -432,6 +439,65 @@ def _get_model_delta_ids(
     return delta
 
 
+def _scope_diff_inputs(
+    impl_units: List[Dict[str, Any]],
+    requirements: List[Dict[str, Any]],
+    changed_files: Optional[Set[str]],
+    model_delta_ids: Optional[Set[str]],
+    allowlist_pattern: str,
+    baseline_commit: Optional[str],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
+    """Scope the diff-aware inputs → ``(filtered_units, scoped_requirements, fallback_reason)``.
+    ``changed_files is None`` ⇒ full-repo fallback (+ a logged reason if a baseline was given);
+    else forward = changed-files-minus-allowlist, backward = model-delta items only
+    (``None`` ⇒ all; never path-exempt — a requirement still needs proof)."""
+    if changed_files is None:
+        fallback_reason = (
+            f"diff not computed against {baseline_commit!r}; full-repo fallback (local)"
+            if baseline_commit else None
+        )
+        return impl_units, requirements, fallback_reason
+    filtered_units = _filter_forward_units_by_changed(impl_units, changed_files, allowlist_pattern)
+    scoped_requirements = (
+        [r for r in requirements if r.get("id") in model_delta_ids]
+        if model_delta_ids is not None else requirements
+    )
+    return filtered_units, scoped_requirements, None
+
+
+def _collect_dangling_refs(
+    filtered_units: List[Dict[str, Any]], known_ids: Set[str]
+) -> Dict[str, Dict[str, str]]:
+    """Structured dangling-ref map: a forward unit citing an id NOT in the model (REQ-WIRE-*
+    exempt). Empty when the model is empty (pre-delivery local case, §3.1) — consistent with
+    detect_orphans, which also guards the cross-check on a non-empty model."""
+    dangling_refs: Dict[str, Dict[str, str]] = {}
+    if not known_ids:
+        return dangling_refs
+    for unit in filtered_units:
+        for uid in _impl_unit_req_ids(unit):
+            if uid not in known_ids and not uid.startswith("REQ-WIRE"):
+                dangling_refs.setdefault(uid, {
+                    "unit": _impl_unit_ref(unit),
+                    "message": f"requirement ID '{uid}' does not exist in feature_list.json",
+                })
+    return dangling_refs
+
+
+def _apply_dangling_refs(report: Dict[str, Any], dangling_refs: Dict[str, Dict[str, str]]) -> None:
+    """Fold the structured dangling-ref map into ``report`` in place: attach it, set ok=False,
+    and drop the ``[dangling-ref: …]`` strings detect_orphans pushed into forward_orphans so
+    dangling_refs is the single structured source (F3 de-dup). No-op when empty."""
+    if not dangling_refs:
+        return
+    report["dangling_refs"] = dangling_refs
+    report["ok"] = False
+    report["forward_orphans"] = [
+        fo for fo in report.get("forward_orphans", [])
+        if "[dangling-ref:" not in str(fo)
+    ]
+
+
 def detect_orphans_diff(
     impl_units: List[Dict[str, Any]],
     requirements: List[Dict[str, Any]],
@@ -464,49 +530,13 @@ def detect_orphans_diff(
                      f"(CI misconfiguration, not a degrade)",
         }
 
-    if changed_files is None:
-        # Full-repo mode (local fallback or no baseline supplied).
-        filtered_units = impl_units
-        scoped_requirements = requirements
-        fallback_reason = (
-            f"diff not computed against {baseline_commit!r}; full-repo fallback (local)"
-            if baseline_commit else None
-        )
-    else:
-        filtered_units = _filter_forward_units_by_changed(impl_units, changed_files, allowlist_pattern)
-        # Backward scope: only model-delta items (never path-exempt). None => all.
-        scoped_requirements = (
-            [r for r in requirements if r.get("id") in model_delta_ids]
-            if model_delta_ids is not None else requirements
-        )
-        fallback_reason = None
-
+    filtered_units, scoped_requirements, fallback_reason = _scope_diff_inputs(
+        impl_units, requirements, changed_files, model_delta_ids, allowlist_pattern, baseline_commit
+    )
     report = detect_orphans(filtered_units, scoped_requirements, known_ids)
     if fallback_reason:
         report["baseline_fallback_reason"] = fallback_reason
-
-    # Dangling-ref subclass: a forward unit citing an id NOT in the model (REQ-WIRE-* exempt).
-    # Skipped when the model is empty (pre-delivery local case, §3.1) — consistent with
-    # detect_orphans, which also guards the cross-check on a non-empty model.
-    dangling_refs: Dict[str, Dict[str, str]] = {}
-    if known_ids:
-        for unit in filtered_units:
-            for uid in _impl_unit_req_ids(unit):
-                if uid not in known_ids and not uid.startswith("REQ-WIRE"):
-                    dangling_refs.setdefault(uid, {
-                        "unit": _impl_unit_ref(unit),
-                        "message": f"requirement ID '{uid}' does not exist in feature_list.json",
-                    })
-    if dangling_refs:
-        report["dangling_refs"] = dangling_refs
-        report["ok"] = False
-        # De-dup (F3): detect_orphans already pushed "[dangling-ref: ...]" strings into
-        # forward_orphans; drop them so dangling_refs is the single structured source.
-        report["forward_orphans"] = [
-            fo for fo in report.get("forward_orphans", [])
-            if "[dangling-ref:" not in str(fo)
-        ]
-
+    _apply_dangling_refs(report, _collect_dangling_refs(filtered_units, known_ids))
     return report
 
 
