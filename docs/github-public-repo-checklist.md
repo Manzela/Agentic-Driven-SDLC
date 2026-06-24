@@ -39,18 +39,21 @@ landed; the one documented deferral is contained).
 
 ## 3. CI / branch-protection preconditions — CROSS-TASK
 
-- [x] **3 of 4 Phase-1 gates REGISTERED as required checks on `main`** (2026-06-24, via the
+- [x] **All 4 Phase-1 gates REGISTERED as required checks on `main`** (2026-06-24, via the
       narrow `PATCH .../branches/main/protection/required_status_checks` sub-resource so the
       existing 5 Phase-0 contexts + the PR-review/force-push/deletion posture were preserved):
-      `sast-codeql`, `sast-semgrep`, `traceability-gate` — each verified VERBATIM against a
-      live green run on `main`. `main` now requires **8 contexts**; `enforce_admins=false`,
-      `strict=false`, `required_approving_review_count=1` unchanged.
-- [ ] **`SonarCloud Code Analysis` NOT yet registered — owner-gated.** Its exact name is now
-      confirmed verbatim (`SonarCloud Code Analysis`, app `sonarqubecloud`), but its **main-branch
-      analysis fails on every push** ("SonarQube Cloud analysis failed", conclusion *cancelled*),
-      while PR analyses pass. It also emits a duplicate check-run that auto-cancels. Registering
-      it now risks a perpetual-pending merge block. Register it only **after** the owner fixes
-      the Sonar dashboard (see §4) and confirms it reports `success` reliably on a real PR.
+      `sast-codeql`, `sast-semgrep`, `traceability-gate`, and **`SonarCloud Code Analysis`**
+      (verbatim, app `sonarqubecloud`) — each verified against a live green run. `main` now
+      requires **9 contexts**; `enforce_admins=false`, `strict=false`,
+      `required_approving_review_count=1` unchanged.
+- [x] **SonarCloud `main`-analysis ROOT CAUSE found + fixed.** The failure was NOT a branch
+      config issue — the Compute-Engine log read *"…reach the maximum allowed lines limit
+      (having 59,303 lines)"*: the SonarCloud project was **private** while the GitHub repo is
+      public, so it counted against the free-tier private LOC cap (~50k) and the ~59k-line repo
+      was rejected on every full scan, while diff-only PR scans passed (the exact private/public
+      tell). Fixed by setting the SonarCloud project **public** (matches the public repo — no new
+      code exposure; public projects are free + unlimited LOC). The baseline seeds on the next
+      `main` scan (this merge).
 - CodeQL/Sonar are same-repo-only (a fork's read-only token can't write SARIF/use the
   SONAR_TOKEN); **Semgrep (OSS, no secrets) is the binding SAST check on fork PRs.** Once
   required, fork PRs cannot satisfy the same-repo-only checks — acceptable for the current
@@ -92,13 +95,13 @@ scope**:
       `plane-selfhost/oci-lock-ingress.sh` — dry-runs by default (set `SSH_MGMT_CIDR` +
       `INSTANCE_OCID`, review, then re-run with `APPLY=1`); backs up the current rules first
       and refuses to run without `SSH_MGMT_CIDR` (SSH-lockout guard).
-- [ ] **Fix the SonarCloud `main`-branch analysis (dashboard).** Open
-      `sonarcloud.io/dashboard?id=Manzela_Agentic-Driven-SDLC&branch=main`, read the
-      "analysis failed" reason, confirm Automatic Analysis is enabled for `main`, set `main`
-      as the project's main branch + the New-Code definition, and land one **successful** main
-      analysis. Precondition for both the SonarCloud baseline (§3) and registering its required
-      check. (`sonar-project.properties` is inert under Automatic Analysis — its `sonar.projectKey`
-      uses a slash; SonarCloud's real key is the underscore form `Manzela_Agentic-Driven-SDLC`.)
+- [x] **FIXED — SonarCloud `main`-branch analysis.** Diagnosed via the Compute-Engine API
+      (`api/ce/activity?status=FAILED`): the failure was the **free-tier private LOC cap**, not a
+      branch/New-Code misconfig — the project was private while the repo is public. Resolved by
+      setting the SonarCloud project **public**; the `main` baseline seeds on the next scan and
+      the `SonarCloud Code Analysis` required check is registered (§3). (`sonar-project.properties`
+      is inert under Automatic Analysis — its `sonar.projectKey` uses a slash while SonarCloud's
+      real key is the underscore form `Manzela_Agentic-Driven-SDLC`; cosmetic, left as-is.)
 - [x] **CONFIRMED never live — the `a411f976…` doc `SECRET_KEY`.** Forensic verdict
       (`git rev-list --all` blob-grep of the full 64-hex value across all 241 commits / 41 refs):
       it appears in **exactly one path, ever** — `docs/plane/PLANE_BLUEPRINT.md` — as a captioned
