@@ -12,17 +12,48 @@ rather than silently shipped.
 ## Pre-existing trust-model holes → Phase B (RT-03 crypto chain-of-custody)
 
 These concern the CORE proven-flip authority model (the Phase-A spine), NOT the Phase-1
-depth pillars this PR delivers. They predate Phase 1; the spec/plan defer the cryptographic
-chain-of-custody that closes them to **Phase B (RT-03)**. They are recorded here so
-registration of the new required checks (Task 18 owner action) is made with eyes open.
+depth pillars this PR delivers. They predate Phase 1; the cryptographic chain-of-custody that
+fully closes them is deferred to **Phase B (RT-03)**. They are recorded here so registration
+of the new required checks (Task 18 owner action) is made with eyes open. **C1 has since been
+hardened (defense-in-depth) for the statically-parseable shell-write surface** after an
+adversarial red-team — see its entry; only its undecidable residual (and C2/C3) still wait on
+Phase B.
 
-- **C1 — Bash program-exec write vector is not gated.** The PreToolUse gate's
-  `_bash_write_targets` parses only `>`/`>>`/`tee`, so a non-verifier `python -c "open('feature_list.json','w')…"`
-  or `python tools/<writer>.py` yields no targets and is allowed. A tool-interception gate
-  fundamentally cannot statically analyze arbitrary program execution; the real defense is
-  (a) the cryptographic evidence chain (Phase B) and (b) verifier-session isolation. A
-  substring path-block would over-block legitimate *reads* (`cat feature_list.json`), so it
-  is intentionally NOT added here.
+- **C1 — Bash shell-write vector (now hardened defense-in-depth; an undecidable residual
+  remains for Phase B).** An adversarial red-team showed the *original* disclosure here
+  understated this: `_bash_write_targets` parsed only `>`/`>>`/`tee`, so a non-verifier could
+  write the coverage model **or any protected artifact (tests/hooks/CI/schema)** via a long
+  tail of common, statically-parseable shell verbs — not just `python -c`. Confirmed
+  empirically: `sed -i 's/unproven/proven/' feature_list.json` (a direct in-place status
+  flip), `cp`/`mv`/`install`/`ln`/`rsync` to a protected dest, `dd of=`, `perl -i`,
+  `truncate`, `patch`, `tar -x -C`, `ed`/`ex`, the `busybox` multiplexer, macOS `g`-prefixed
+  coreutils, `timeout`/`flock`/`time` wrappers, the `>|` noclobber redirect, a leading `./`
+  or absolute-under-repo path, and `$'…'` quoting — all yielded `[]` and **allowed** the
+  write (the `./`-prefix and bare-dir gaps also defeated the R3 protected-artifact guard).
+
+  **Closed in this change.** `_bash_write_targets` now recognizes those verbs/redirects and
+  flags only the write *destination* (sources/reads stay allowed — verified zero false
+  positives), and protected-path matching is normalized (`os.path.normpath` + relativize an
+  absolute path under the repo root + bare-dir trailing slash, applied to both the Bash and
+  Edit/Write guards). Two parser false-positives the red-team surfaced (`cp -t DIR src`
+  reading the model out; `sed -i -f script.sed out` reading a script under a protected dir)
+  were fixed. The full matrix is regression-locked in
+  `tests/spine/test_pre_tool_use_authority.py` (`_REDTEAM_BLOCK` / `_REDTEAM_ALLOW`).
+
+  **Residual → Phase B.** This is defense-in-depth, **not** a complete gate. Verb/wrapper
+  recognition is a best-effort allowlist (three adversarial red-team rounds drove it to no
+  known false positives and only the residual below). A target produced by stdin
+  (`find … | xargs sed -i`), command substitution (`$(printf cp) … f`), a launcher taking a
+  quoted command STRING (`bash -c`, `eval`, `su -c '…'`) or a command TEMPLATE (GNU
+  `parallel`), arbitrary program execution (`python -c "open('feature_list.json','w')…"`, a
+  compiler `-o`, any interpreter), interactive-editor scripting (`vim -c 'wq'`), or a
+  cwd-relative path to a protected dir *outside* the repo root has **no static literal target**
+  at the tool-call boundary and is still allowed (`_REDTEAM_RESIDUAL` asserts this explicitly).
+  Closing the residual is the same RT-03 mechanism as C2/C3: a tool-interception gate
+  fundamentally cannot analyze arbitrary program execution, so the real defense is the Phase-B
+  cryptographic evidence chain (a raw write of `status:proven` produces no valid signed
+  attestation, so the binding gate rejects it however the bytes reached disk) plus
+  verifier-session isolation.
 - **C2 — verifier helper tools self-assert identity.** `prove_trivial_slice.py` (Phase A)
   and `wiring_ingest.mark_wiring_failed` (Task 8) write `status` directly with no runtime
   `actor_identity` resolution — their authority is the verifier *session* they run in (the
