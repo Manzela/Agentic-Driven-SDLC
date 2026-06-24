@@ -604,15 +604,9 @@ def _requirements_from_feature_list(feature_list: Dict[str, Any]) -> List[Dict[s
     return list(feature_list.get("items", []) or [])
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    """CLI entry point.
-
-    Loads ``feature_list.json`` (requirement IDs + their evidence/links) and the
-    repo Python source (impl units), runs ``detect_orphans``, prints the
-    structured JSON report to stdout, and returns the exit code:
-    ``0`` when ``ok`` (no orphans), ``1`` when any orphan exists — the
-    "block the run" contract consumed by the ``traceability-gate`` CI check.
-    """
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """The orphan_detector CLI parser (--feature-list/--links/--root/--baseline-commit/
+    --exempt-paths)."""
     parser = argparse.ArgumentParser(
         prog="orphan_detector.py",
         description="Bidirectional spec-to-evidence orphan check (REQ-6.3 / Property 11).",
@@ -644,68 +638,91 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Forward-orphan allowlist as a glob (e.g. 'tools/**'); a changed file under "
              "it is exempt from the forward (no-req) orphan check. Diff-aware mode only.",
     )
-    args = parser.parse_args(argv)
+    return parser
 
+
+def _load_model_or_error(path: str) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Load feature_list.json → ``(model, None)``, or ``(None, error_report)`` on an
+    OSError/JSONDecodeError. The error report is the COMPACT (no-indent) JSON the gate's
+    load-failure contract expects (distinct from the indented success report)."""
     try:
-        feature_list = _load_feature_list(args.feature_list)
+        return _load_feature_list(path), None
     except (OSError, json.JSONDecodeError) as exc:
-        print(
-            json.dumps(
-                {
-                    "forward_orphans": [],
-                    "backward_orphans": [],
-                    "ok": False,
-                    "error": f"cannot load feature_list: {exc}",
-                }
-            )
-        )
+        return None, {
+            "forward_orphans": [],
+            "backward_orphans": [],
+            "ok": False,
+            "error": f"cannot load feature_list: {exc}",
+        }
+
+
+def _fold_in_links(requirements: List[Dict[str, Any]], links_path: str) -> None:
+    """Fold an optional external links file into each requirement's ``traceability_links``
+    (in place) so the backward-orphan lookup sees test/evidence links not inlined in the
+    coverage model. Absence / parse-failure is non-fatal — links are an enrichment."""
+    try:
+        with open(links_path, "r", encoding="utf-8") as fh:
+            links_doc = json.load(fh)
+        links_by_req: Dict[str, List[Any]] = {}
+        for link in links_doc if isinstance(links_doc, list) else links_doc.get("links", []):
+            rid = link.get("requirement_id") or link.get("id")
+            if rid:
+                links_by_req.setdefault(str(rid), []).append(link)
+        for req in requirements:
+            rid = _requirement_id(req)
+            if rid and rid in links_by_req:
+                merged = list(req.get("traceability_links", []) or [])
+                merged.extend(links_by_req[rid])
+                req["traceability_links"] = merged
+    except (OSError, json.JSONDecodeError):
+        pass  # links are an optional enrichment; absence is not fatal
+
+
+def _run_diff_aware(
+    args: argparse.Namespace,
+    impl_units: List[Dict[str, Any]],
+    requirements: List[Dict[str, Any]],
+    feature_list: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Diff-aware orphan check (the traceability-gate CI path): orphan-check ONLY the PR's
+    changes vs the merge-base, CI fail-CLOSED on an unreachable base (§3.3/§3.4). The BACKWARD
+    pass is scoped to the PR's model-delta (red-team I3); an unreadable baseline model → None →
+    conservative all-in-scope (the fail-closed direction), consistent with detect_orphans_diff."""
+    known_ids = {rid for r in requirements if (rid := _requirement_id(r))}
+    changed_files = set(_get_changed_files(args.baseline_commit, args.root))
+    allowlist_pattern = _exempt_glob_to_regex(args.exempt_paths) if args.exempt_paths else ""
+    baseline_model = _load_feature_list_from_commit(args.baseline_commit, args.root)
+    model_delta_ids = (
+        _get_model_delta_ids(baseline_model, feature_list) if baseline_model else None
+    )
+    return detect_orphans_diff(
+        impl_units=impl_units, requirements=requirements, known_ids=known_ids,
+        changed_files=changed_files, baseline_commit=args.baseline_commit,
+        model_delta_ids=model_delta_ids, allowlist_pattern=allowlist_pattern,
+        fail_closed_on_unreachable=True, root=args.root,
+    )
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """CLI entry point.
+
+    Loads ``feature_list.json`` (requirement IDs + their evidence/links) and the
+    repo Python source (impl units), runs ``detect_orphans``, prints the
+    structured JSON report to stdout, and returns the exit code:
+    ``0`` when ``ok`` (no orphans), ``1`` when any orphan exists — the
+    "block the run" contract consumed by the ``traceability-gate`` CI check.
+    """
+    args = _build_arg_parser().parse_args(argv)
+    feature_list, error = _load_model_or_error(args.feature_list)
+    if error is not None:
+        print(json.dumps(error))   # COMPACT (no indent) — the load-failure contract.
         return 1
-
     requirements = _requirements_from_feature_list(feature_list)
-
-    # Fold an optional external links file into the requirement records so the
-    # backward-orphan lookup can see test/evidence links not inlined in the
-    # coverage model.
     if args.links:
-        try:
-            with open(args.links, "r", encoding="utf-8") as fh:
-                links_doc = json.load(fh)
-            links_by_req: Dict[str, List[Any]] = {}
-            for link in links_doc if isinstance(links_doc, list) else links_doc.get("links", []):
-                rid = link.get("requirement_id") or link.get("id")
-                if rid:
-                    links_by_req.setdefault(str(rid), []).append(link)
-            for req in requirements:
-                rid = _requirement_id(req)
-                if rid and rid in links_by_req:
-                    merged = list(req.get("traceability_links", []) or [])
-                    merged.extend(links_by_req[rid])
-                    req["traceability_links"] = merged
-        except (OSError, json.JSONDecodeError):
-            pass  # links are an optional enrichment; absence is not fatal
-
+        _fold_in_links(requirements, args.links)
     impl_units = _scan_repo_impl_units(args.root, set(DEFAULT_EXCLUDE_DIRS))
-
     if args.baseline_commit:
-        # Diff-aware mode (the traceability-gate CI check): orphan-check only the PR's
-        # changes vs the merge-base, CI fail-CLOSED on an unreachable base (§3.3/§3.4).
-        known_ids = {rid for r in requirements if (rid := _requirement_id(r))}
-        changed_files = set(_get_changed_files(args.baseline_commit, args.root))
-        allowlist_pattern = _exempt_glob_to_regex(args.exempt_paths) if args.exempt_paths else ""
-        # Scope the BACKWARD pass to the PR's model-delta (red-team I3): without this the
-        # backward pass checks ALL in-scope requirements, so any pre-existing un-evidenced
-        # item blocks UNRELATED PRs. An unreadable baseline model -> None -> conservative
-        # all-in-scope (the fail-closed direction), consistent with detect_orphans_diff.
-        baseline_model = _load_feature_list_from_commit(args.baseline_commit, args.root)
-        model_delta_ids = (
-            _get_model_delta_ids(baseline_model, feature_list) if baseline_model else None
-        )
-        report = detect_orphans_diff(
-            impl_units=impl_units, requirements=requirements, known_ids=known_ids,
-            changed_files=changed_files, baseline_commit=args.baseline_commit,
-            model_delta_ids=model_delta_ids, allowlist_pattern=allowlist_pattern,
-            fail_closed_on_unreachable=True, root=args.root,
-        )
+        report = _run_diff_aware(args, impl_units, requirements, feature_list)
     else:
         report = detect_orphans(impl_units, requirements)
     print(json.dumps(report, indent=2, sort_keys=True))
