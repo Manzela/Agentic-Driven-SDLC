@@ -88,7 +88,10 @@ scope**:
       - IPv6: `2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32`
       Verify: from a non-CF host `curl -m5 https://<origin-ip>` should time out; the app stays
       reachable only via the edge hostname. Durability: capture as `oci_core_security_list`
-      Terraform in-repo so future audits diff it.
+      Terraform in-repo so future audits diff it. **Runnable helper:**
+      `plane-selfhost/oci-lock-ingress.sh` — dry-runs by default (set `SSH_MGMT_CIDR` +
+      `INSTANCE_OCID`, review, then re-run with `APPLY=1`); backs up the current rules first
+      and refuses to run without `SSH_MGMT_CIDR` (SSH-lockout guard).
 - [ ] **Fix the SonarCloud `main`-branch analysis (dashboard).** Open
       `sonarcloud.io/dashboard?id=Manzela_Agentic-Driven-SDLC&branch=main`, read the
       "analysis failed" reason, confirm Automatic Analysis is enabled for `main`, set `main`
