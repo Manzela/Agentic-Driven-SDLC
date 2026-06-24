@@ -91,6 +91,17 @@ def test_semgrep_nondict_result_entry_skipped_real_finding_still_blocks():
     assert r["accepted"] is False and r["code"] == "SAST_HIGH_CRITICAL"
 
 
+def test_semgrep_pre_subprocess_error_fails_open():
+    """Whole-branch I11: a changed_files element whose __str__ raises ran OUTSIDE the try
+    (the cmd build), so it propagated and could WEDGE the proof path instead of failing-OPEN
+    like check_slice_orphans. Now any pre-subprocess error fails open."""
+    class _Boom:
+        def __str__(self):
+            raise ValueError("boom-str")
+    r = eg.check_slice_semgrep([_Boom()], None)
+    assert r["accepted"] is True and r["code"] == "OK"
+
+
 def test_semgrep_timeout_is_config_sourced():
     """F6: the subprocess timeout comes from execution_bounds.SEMGREP_TIMEOUT_SECONDS."""
     import tools.execution_bounds as _eb

@@ -458,6 +458,17 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    # Valid-JSON-but-non-dict stdin (e.g. `[]`, `5`) parses fine but is a malformed event.
+    # The `event.get(...)` below would raise AttributeError that escapes main() -> exit 1,
+    # a NON-blocking code = FAIL OPEN on the one true prevention gate. Treat a non-dict
+    # event as denied (fail-CLOSED), matching the docstring contract (whole-branch I10).
+    if not isinstance(event, dict):
+        print(
+            "Malformed tool event (not an object); treating the write as denied "
+            f"(fail-closed). HANDOFF to {MAIN_ACTOR} if this is a harness issue.",
+            file=sys.stderr,
+        )
+        return 2
     record_fire("PreToolUse", event.get("session_id", ""),
                 agent_type=event.get("agent_type", ""))
     from tools.actor_identity import resolve_identity

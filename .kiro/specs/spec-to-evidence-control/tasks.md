@@ -460,11 +460,11 @@ Build the autonomous agentic software-delivery control plane on the Claude Code 
   - [ ] 21.4 Re-confirm the swapped policy is still the gating one *(Reconciliation 2026-06-16: task 21 replaces the `.rego` content (stub→full) but no task previously verified the swapped policy is still invoked and required.)*
     - Confirm `.github/workflows/coverage-gate.yml` (created in task 14.1) invokes the Phase-1 **full** policy after the stub→full swap (not the Phase-0 stub)
     - Confirm `coverage-gate` remains in the GitHub repository ruleset's required checks (cross-ref task 14.2) — the required-status-check registration must survive the swap; re-register, do NOT assume continuity (the Phase-0 stub is intentionally weaker than the Phase-1 full policy, so Phase-0 green does not imply Phase-1 green)
-    - *(Co-tenancy note for traceability):* the single required status check `coverage-gate` co-hosts three independent tools in `.github/workflows/coverage-gate.yml` — OPA/Conftest (task 14.1), Playwright (task 15.1), and SonarQube (task 22.1). Because all three run under one check name, a Playwright or SonarQube failure blocks merge under the same name, so the OPA policy is NOT independently gating; REQ-GATE-003's "THE OPA_Conftest required CI status check SHALL run" is satisfied only as a co-tenant. Either document this co-tenancy explicitly (done here) so the OPA leg's gating role is traceable, or split the OPA policy into its own job/required check so it gates independently.
+    - *(Co-tenancy note for traceability):* the single required status check `coverage-gate` co-hosts three independent tools in `.github/workflows/coverage-gate.yml` — OPA/Conftest (task 14.1), Playwright (task 15.1), and SonarCloud (task 22.1). Because all three run under one check name, a Playwright or SonarCloud failure blocks merge under the same name, so the OPA policy is NOT independently gating; REQ-GATE-003's "THE OPA_Conftest required CI status check SHALL run" is satisfied only as a co-tenant. Either document this co-tenancy explicitly (done here) so the OPA leg's gating role is traceable, or split the OPA policy into its own job/required check so it gates independently.
     - _Requirements: 10.3_
 
-- [ ] 22. SonarQube AI Code Assurance quality gate in CI
-  - [ ] 22.1 Add SonarQube scan step to `.github/workflows/coverage-gate.yml`
+- [ ] 22. SonarCloud AI Code Assurance quality gate in CI
+  - [ ] 22.1 Add SonarCloud scan step to `.github/workflows/coverage-gate.yml`
     - Add `sonarcloud-github-action` step (or equivalent) with project key configured
     - Configure quality gate: fail on any new HIGH/CRITICAL finding or coverage drop below 85%
     - _Requirements: 9.1, 9.6_

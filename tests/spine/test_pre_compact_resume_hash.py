@@ -101,6 +101,27 @@ def _load_session_start():
     return m
 
 
+def test_round_trip_holds_for_kiro_layout(tmp_path):
+    """I4 (whole-branch review): the producer resolves durable files via root/.kiro/state
+    candidates; the consumer must use the SAME resolution. With the model+progress under
+    .kiro/ (not root), the producer hash must still verify on the consumer side — previously
+    the consumer read root-only and resume_integrity_ok was permanently False here."""
+    pre = _load()
+    ss = _load_session_start()
+    (tmp_path / ".kiro").mkdir()
+    (tmp_path / ".kiro" / "feature_list.json").write_text(json.dumps(_FL))
+    (tmp_path / ".kiro" / "claude-progress.txt").write_text(_PROGRESS)
+
+    written = pre.pre_compact({"repo_root": str(tmp_path), "git_status": _GIT}
+                              )["run_state"]["resume_state_hash"]
+    # Consumer resolves via the SAME candidate list (root absent -> falls through to .kiro/).
+    progress = ss._read_text(ss._first_existing(tmp_path, ss._PROGRESS_CANDIDATES))
+    feature_list = ss._read_feature_list(ss._first_existing(tmp_path, ss._FEATURE_CANDIDATES))
+    result = ss.session_start(feature_list=feature_list, progress=progress,
+                              git_status=_GIT, durable_hash=written)
+    assert result["resume_integrity_ok"] is True, result
+
+
 def test_full_round_trip_pre_compact_to_session_start(tmp_path, monkeypatch):
     """END-TO-END (red-team F1/F2/F3): pre_compact persists the hash to run_state.json,
     and SessionStart's main reads it and verifies resume_integrity_ok=True over the SAME

@@ -339,6 +339,8 @@ def main() -> int:
         event = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
         event = {}
+    if not isinstance(event, dict):  # valid-JSON-but-non-dict -> avoid AttributeError (whole-branch).
+        event = {}
     record_fire("PostToolUse", event.get("session_id", ""))
     result = post_tool_use(event)
     feedback = result.get("feedback") or []

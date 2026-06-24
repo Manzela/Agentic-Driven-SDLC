@@ -165,6 +165,28 @@ def test_bare_string_changed_files_normalized_to_list(tmp_path, monkeypatch):
     assert seen["changed_files"] == ["mod.py"]
 
 
+def test_config_default_handoff_at_exactly_block_streak(tmp_path, monkeypatch):
+    """Whole-branch I7: when max_self_heal is NOT passed, gated_advance must use the
+    config default (execution_bounds.BLOCK_STREAK_HANDOFF) EXACTLY — self_heal on streaks
+    1..N-1, handoff at exactly N. Hardcoding a smaller bound (the regression this delivery
+    fixed, desyncing from the Stop hook) would handoff early; the old test only checked
+    handoff occurred WITHIN the window, so any smaller bound passed it."""
+    import tools.execution_bounds as eb
+    lg = _load("tools/loop_gate.py", "lg")
+    rsd = _load("tools/run_state_driver.py", "rsd"); rsd.init(tmp_path, "s")
+    n = eb.BLOCK_STREAK_HANDOFF
+    assert n >= 2
+    monkeypatch.setattr(lg.evidence_gate, "check_slice_semgrep", lambda *a, **k: _REJECT_SAST)
+    monkeypatch.setattr(lg.evidence_gate, "check_slice_orphans", lambda *a, **k: _ACCEPT)
+    kw = dict(root=tmp_path, evidence=_ev(), artifact=ART, ledger=LEDGER,
+              changed_files=["x.py"], baseline_commit="abc")  # NO max_self_heal -> config default
+    for i in range(1, n):
+        r = lg.gated_advance(**kw)
+        assert r["action"] == "self_heal", f"streak {i}: want self_heal (config n={n}), got {r['action']}"
+    r = lg.gated_advance(**kw)
+    assert r["action"] == "handoff" and r["run_state"]["block_streak"] == n
+
+
 def test_depth_block_streak_handoff_escalation(tmp_path, monkeypatch):
     """A persistent depth reject self-heals then converts to HANDOFF at the bound
     (>=, consistent with the Pillar-0 path: max_self_heal=2 → call2 handoffs)."""

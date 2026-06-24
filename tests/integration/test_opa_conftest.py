@@ -96,6 +96,12 @@ _PARITY_MODELS = {
         "in_scope": True, "status": "proven", "evidence": _ev(test_name=[])}]},
     "field_number": lambda: {"items": [{"id": "REQ-F-001", "type": "functional",
         "in_scope": True, "status": "proven", "evidence": _ev(collected_at=42)}]},
+    # Non-bool in_scope (1) on an unproven item beside a legit proven one: both twins must
+    # treat it as out-of-scope (strict ==true / is True), so NEITHER denies — the truthy-vs-
+    # strict divergence the parity fixtures were blind to (whole-branch review I5).
+    "in_scope_nonbool": lambda: {"items": [
+        {"id": "REQ-OK-001", "type": "functional", "in_scope": True, "status": "proven", "evidence": _ev()},
+        {"id": "REQ-NB-002", "type": "functional", "in_scope": 1, "status": "unproven"}]},
 }
 
 

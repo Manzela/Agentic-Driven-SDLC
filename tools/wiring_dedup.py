@@ -28,6 +28,19 @@ from typing import Any
 __all__ = ["merge"]
 
 
+def _qualname(item: dict[str, Any]):
+    """Resolve a candidate's qualname from the TOP LEVEL or from the NESTED wiring object.
+    emit_wiring_items() nests it under item['wiring']['qualname'] (no top-level key), while
+    the Semgrep rule output / hand-built items carry it top-level. Keying the merge on only
+    the top-level key silently dropped every real emit_wiring_items candidate (the merge
+    became a no-op on the real producer shape — whole-branch review I1)."""
+    qn = item.get("qualname")
+    if qn is not None:
+        return qn
+    wiring = item.get("wiring")
+    return wiring.get("qualname") if isinstance(wiring, dict) else None
+
+
 def _ast_is_orphan(item: dict[str, Any]) -> bool:
     """True when the AST candidate marks the symbol unreachable (wiring.reachable False)."""
     wiring = item.get("wiring")
@@ -94,10 +107,10 @@ def merge(
     synthesized into a full unproven WIRING item.
     """
     ast_by_qn: dict[str, dict[str, Any]] = {
-        item["qualname"]: item for item in ast_candidates if item.get("qualname") is not None
+        qn: item for item in ast_candidates if (qn := _qualname(item)) is not None
     }
     sg_by_qn: dict[str, dict[str, Any]] = {
-        item["qualname"]: item for item in semgrep_candidates if item.get("qualname") is not None
+        qn: item for item in semgrep_candidates if (qn := _qualname(item)) is not None
     }
 
     findings: list[dict[str, Any]] = []
@@ -112,6 +125,7 @@ def merge(
 
         if ast_item is not None:
             merged = copy.deepcopy(ast_item)  # deep copy: never mutate the caller's input.
+            merged["qualname"] = qualname      # surface qualname top-level (emit nests it).
             wiring = ast_item.get("wiring")
             if isinstance(wiring, dict):
                 # Top-level `reachable` reflects the AST verdict (may be True on a

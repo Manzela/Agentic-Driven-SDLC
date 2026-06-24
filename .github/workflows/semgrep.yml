@@ -47,13 +47,20 @@ jobs:
 
       # OSS, diff-aware (baseline = merge-base), custom WIRING rules + curated packs.
       # No SEMGREP_APP_TOKEN -> safe for forks (§3.6). Output SARIF for same-repo upload.
-      - name: Run Semgrep (OSS, diff-aware)
+      - name: Run Semgrep (OSS, diff-aware, ERROR-only blocking)
         run: |
+          # --severity ERROR: block ONLY on ERROR findings, matching the spec's
+          # HIGH/CRITICAL-only SAST contract (§4.1) and the local evidence_gate twin
+          # (_BLOCKING={ERROR,HIGH,CRITICAL}). Bare --error blocked on WARNING/INFO too —
+          # over-blocking legit PRs and diverging from the local gate (whole-branch I8/I9).
+          # The custom WIRING rules (severity WARNING) stay in the SARIF as ADVISORY
+          # (union-of-concerns: the AST orphan detector is the binding WIRING check).
           semgrep scan \
             --config p/security-audit \
             --config p/owasp-top-ten \
             --config tools/semgrep_rules/wiring_dead_code.yml \
             --baseline-commit "${BASELINE_COMMIT}" \
+            --severity ERROR \
             --sarif --output semgrep.sarif \
             --error
 

@@ -142,8 +142,13 @@ def deny_merge(feature_list: Dict[str, Any]) -> Dict[str, Any]:
         # Filter to in-scope items BEFORE any status/evidence check (Req 5.7),
         # mirroring evaluate_stop's in_scope_items. Out-of-scope items never
         # trigger a deny.
+        # STRICT boolean `is True` — NOT truthy — to stay logically identical to the
+        # Rego twin's `item.in_scope == true` (coverage_query.rego). A truthy check
+        # treated a non-bool in_scope (1 / 1.0) as in-scope while Rego excluded it, a
+        # twin divergence the parity test was blind to (whole-branch review I5). Schema
+        # requires in_scope:boolean, so a non-bool is invalid and both twins now ignore it.
         in_scope_items = [
-            i for i in items if isinstance(i, dict) and i.get("in_scope")
+            i for i in items if isinstance(i, dict) and i.get("in_scope") is True
         ]
 
         # Empty-coverage-model gate. Zero items / zero in-scope items is a valid

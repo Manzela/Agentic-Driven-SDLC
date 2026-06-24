@@ -113,6 +113,22 @@ def test_semgrep_dead_without_ast_is_a_finding():
         assert key in m                          # schema-required ingest fields
 
 
+def test_merge_works_on_real_emit_wiring_items_shape():
+    """I1 (whole-branch review): emit_wiring_items() nests qualname under wiring.qualname
+    (no top-level key). merge() must key on that real shape — keying on top-level qualname
+    only made the merge a no-op on every real producer candidate. An AST orphan from the
+    real producer must survive the merge with its qualname surfaced top-level."""
+    from tools.wiring_checker import analyze, emit_wiring_items
+    src = "def orphan_fn():\n    return 1\n"   # defined, never called -> AST orphan
+    ast = emit_wiring_items(analyze(["m.py"], sources={"m.py": src}))
+    assert ast and "qualname" not in ast[0] and ast[0]["wiring"]["qualname"], "real shape: nested only"
+    assert ast[0]["wiring"]["reachable"] is False
+    result = merge(ast, [])
+    assert len(result) == 1, "the real-shape AST orphan was dropped by the merge"
+    assert result[0]["qualname"] == ast[0]["wiring"]["qualname"]   # surfaced top-level
+    assert result[0]["reachable"] is False
+
+
 def test_merge_output_is_ingestible_end_to_end():
     """The merge output feeds Task-8 ingest unchanged: a dual-flagged AST+Semgrep item
     (lifecycle status preserved) AND a Semgrep-only finding both land as schema-valid

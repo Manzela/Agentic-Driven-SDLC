@@ -42,6 +42,24 @@ from tools.hook_telemetry import record_fire  # noqa: E402
 
 PROGRESS_FILE = "claude-progress.txt"
 FEATURE_LIST_FILE = "feature_list.json"
+
+# Candidate layouts — MUST mirror pre_compact_hook's _PROGRESS_CANDIDATES/_FEATURE_CANDIDATES.
+# The producer (pre_compact) resolves the durable files via these candidates; if the consumer
+# (this hook) read root-ONLY, resume_integrity_ok would be permanently False whenever the
+# files live under .kiro/ or state/ — a producer/consumer path asymmetry that defeats the
+# Property-26 round-trip for 2 of the 3 supported layouts (whole-branch review I4).
+_PROGRESS_CANDIDATES = (PROGRESS_FILE, ".kiro/claude-progress.txt", "state/claude-progress.txt")
+_FEATURE_CANDIDATES = (FEATURE_LIST_FILE, ".kiro/feature_list.json", "state/feature_list.json")
+
+
+def _first_existing(root: Path, candidates) -> Path:
+    """First candidate that exists under root, else root/candidates[0] (so an absent file
+    reads as empty consistently with the producer)."""
+    for rel in candidates:
+        p = root / rel
+        if p.is_file():
+            return p
+    return root / candidates[0]
 SETTINGS_FILE = ".claude/settings.json"
 
 # The governance events whose registration the spine self-check asserts, paired
@@ -397,8 +415,10 @@ def main() -> int:
         if not durable_hash:
             durable_hash = _read_run_state_hash(root)
         git_status = _read_git_status(root)
-        progress = _read_text(root / PROGRESS_FILE)
-        feature_list = _read_feature_list(root / FEATURE_LIST_FILE)
+        # Resolve via the SAME candidate list the producer uses, so the resume-hash inputs
+        # match across all supported layouts (root / .kiro/ / state/) — whole-branch I4.
+        progress = _read_text(_first_existing(root, _PROGRESS_CANDIDATES))
+        feature_list = _read_feature_list(_first_existing(root, _FEATURE_CANDIDATES))
         result = session_start(
             feature_list=feature_list,
             progress=progress,

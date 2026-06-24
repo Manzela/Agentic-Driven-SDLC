@@ -38,6 +38,18 @@ jobs:
           python-version: "3.12"
       - name: Install test deps (manifest is single source of truth)
         run: python -m pip install --quiet -r requirements-dev.txt
+      # Install the non-pip binary toolchain so the skip-guarded integration tests RUN in
+      # CI instead of silently skipping. Without conftest the rego⇔python twin-parity
+      # fixtures skip — and a twin divergence (non-string evidence, in_scope type) would
+      # ship GREEN through the one lane that gates merges (whole-branch review I6).
+      - name: Install conftest (OPA) for rego twin-parity tests
+        run: |
+          CONFTEST_VERSION=0.56.0
+          curl -sSL "https://github.com/open-policy-agent/conftest/releases/download/v${CONFTEST_VERSION}/conftest_${CONFTEST_VERSION}_Linux_x86_64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin conftest
+          conftest --version
+      - name: Install semgrep for the custom WIRING-rule tests
+        run: python -m pip install --quiet semgrep
       - name: Run pytest
         run: |
           if [ -d tests ]; then python -m pytest tests/ -q; else echo "no tests/ dir yet"; fi

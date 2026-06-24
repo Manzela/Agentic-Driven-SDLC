@@ -95,6 +95,9 @@ def test_semgrep_is_fork_safe_no_secrets():
     assert "SEMGREP_APP_TOKEN" not in code, "semgrep must run in OSS mode (no app token)"
     run = " ".join(str(s.get("run", "")) for s in _steps(_job(_load("semgrep.yml"), "semgrep")))
     assert "--baseline-commit" in run, "semgrep must be diff-aware (--baseline-commit)"
+    # Whole-branch I8/I9: block only on ERROR (HIGH/CRITICAL design + the local evidence_gate
+    # twin), NOT bare --error which over-blocks on WARNING/INFO and diverges from the local gate.
+    assert "--severity ERROR" in run, "semgrep must gate ERROR-only (not bare --error on any finding)"
 
 
 def test_traceability_invokes_orphan_detector_diff_aware():

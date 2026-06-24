@@ -296,6 +296,18 @@ def test_f2_non_dict_subprocess_exits_2_not_1():
     assert "Traceback" not in err
 
 
+def test_whole_branch_i10_non_dict_event_fails_closed():
+    """Whole-branch I10: a valid-JSON-but-non-dict EVENT (not tool_input) must fail-CLOSED
+    (exit 2), not crash to exit 1 (a non-blocking code = fail-OPEN on the prevention gate).
+    record_fire(event.get(...)) ran before any isinstance(event) guard."""
+    import subprocess
+    for payload in ("[]", "5", '"hi"', "true"):
+        p = subprocess.run([sys.executable, str(HOOK)], input=payload,
+                           capture_output=True, text=True, cwd=str(ROOT))
+        assert p.returncode == 2, f"event={payload!r}: want exit 2, got {p.returncode}"
+        assert "Traceback" not in p.stderr
+
+
 def test_f3_multiedit_born_proven_with_proven_anchor_blocks():
     """F3: appending a born-proven item with an old_string anchor that already
     contains status:proven (no first-match value move) must still block (T9)."""

@@ -276,14 +276,18 @@ def check_slice_semgrep(changed_files, baseline_commit) -> dict:
 
     from tools import execution_bounds as _eb
 
-    cmd = ["semgrep", "--config", "auto", "--json"]
-    # F6: honor SEMGREP_BASELINE_STRATEGY — only attach the baseline when the
-    # configured strategy enables it (anything but an explicit off/none/disabled).
-    _strategy = str(getattr(_eb, "SEMGREP_BASELINE_STRATEGY", "auto")).lower()
-    if baseline_commit and _strategy not in ("off", "none", "disabled"):
-        cmd += ["--baseline-commit", str(baseline_commit)]
-    cmd += [str(f) for f in changed_files]
+    # Build the command INSIDE the try — str(f) over changed_files, the baseline-strategy
+    # lookup, and the timeout coercion all ran OUTSIDE it before, so a pathological
+    # changed_files element (a __str__ that raises) propagated and could WEDGE the proof
+    # path instead of failing-OPEN like the sibling check_slice_orphans (whole-branch I11).
     try:
+        cmd = ["semgrep", "--config", "auto", "--json"]
+        # F6: honor SEMGREP_BASELINE_STRATEGY — only attach the baseline when the
+        # configured strategy enables it (anything but an explicit off/none/disabled).
+        _strategy = str(getattr(_eb, "SEMGREP_BASELINE_STRATEGY", "auto")).lower()
+        if baseline_commit and _strategy not in ("off", "none", "disabled"):
+            cmd += ["--baseline-commit", str(baseline_commit)]
+        cmd += [str(f) for f in changed_files]
         _timeout = int(getattr(_eb, "SEMGREP_TIMEOUT_SECONDS", 120))
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=_timeout)
     except FileNotFoundError:
