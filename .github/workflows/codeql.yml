@@ -65,8 +65,15 @@ jobs:
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
 
+      # Analyze, but DON'T auto-upload: write SARIF to a known dir and defer the upload
+      # to the same-repo-guarded step below. analyze@v3 uploads to a temp path by default
+      # (so the old `sarif_file: results.sarif` pointed at a phantom file); `output:` +
+      # `upload: false` makes the SARIF location explicit and keeps the fork guard intact.
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
+        with:
+          output: sarif-results
+          upload: false
 
       # SARIF upload: same-repo-only (§3.6 fork guard). A fork PR's read-only token
       # cannot write security-events, so skip it there rather than fail the run.
@@ -74,5 +81,5 @@ jobs:
         if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: results.sarif
+          sarif_file: sarif-results
           category: codeql-python
