@@ -40,7 +40,7 @@ to blocked, not passed (REQ-GATE-005).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 __all__ = [
     "EVIDENCE_FIELDS",
@@ -102,6 +102,86 @@ def _evidence_complete(item: Dict[str, Any]) -> bool:
     return all(_is_nonempty_str_field(evidence, field) for field in EVIDENCE_FIELDS)
 
 
+def _evidence_obj(item: Dict[str, Any]) -> Dict[str, Any]:
+    """The item's ``evidence`` mapping, or ``{}`` when absent/non-dict (Rule 3-4 input)."""
+    ev = item.get("evidence")
+    return ev if isinstance(ev, dict) else {}
+
+
+def _model_shape_denial(feature_list: Any) -> Optional[Dict[str, Any]]:
+    """Fail-CLOSED deny dict for a malformed model SHAPE (not-an-object / no ``items`` /
+    ``items`` not an array), or ``None`` when the shape is valid. Reasons are
+    verbatim-identical to the original inline checks (rego-twin / parity-oracle stable)."""
+    if not isinstance(feature_list, dict):
+        return {"deny": True, "reasons": [
+            "Merge denied: feature_list is not an object "
+            f"(got {type(feature_list).__name__}). Fail closed."]}
+    items = feature_list.get("items")
+    if items is None:
+        return {"deny": True, "reasons": [
+            "Merge denied: feature_list.json has no 'items' array. "
+            "Fail closed."]}
+    if not isinstance(items, list):
+        return {"deny": True, "reasons": [
+            "Merge denied: feature_list.json 'items' is not an array "
+            f"(got {type(items).__name__}). Fail closed."]}
+    return None
+
+
+def _deny_reason_status(item_id: Any, status: Any) -> Optional[str]:
+    """Rule 1 — status gate. Anything not EXACTLY 'proven' denies (a 'failed' in-scope
+    item blocks identically to 'unproven'). Returns the reason, or None for a proven item.
+    A non-proven item cannot also be missing-evidence, so the caller short-circuits on it."""
+    if status != "proven":
+        return (f"Merge denied: in-scope item {item_id!r} has "
+                f"status={status!r} (not 'proven').")
+    return None
+
+
+def _deny_reason_evidence(item_id: Any, item: Dict[str, Any]) -> Optional[str]:
+    """Rule 2 — evidence gate. A proven in-scope item MUST carry a complete four-field
+    Evidence_Record; returns the missing/empty-field reason, or None when complete."""
+    if _evidence_complete(item):
+        return None
+    ev_obj = _evidence_obj(item)
+    missing = [f for f in EVIDENCE_FIELDS if not _is_nonempty_str_field(ev_obj, f)]
+    return (f"Merge denied: in-scope item {item_id!r} is 'proven' but "
+            f"its Evidence_Record is missing/empty field(s): {missing}.")
+
+
+def _deny_reasons_actor_sep(item_id: Any, ev: Dict[str, Any]) -> List[str]:
+    """Rule 3 — actor-separation. A proven item's evidence must name DISTINCT
+    implementer/verifier sessions (zero-trust: an implementer may not self-verify).
+    Both ids are NORMALIZED (strip + case-fold) first so a whitespace/case near-duplicate
+    cannot masquerade as distinct, and emptiness is checked on the normalized form.
+    Mirrors the Rego ``_norm_session`` / ``_distinct_sessions`` twin. Phase A trusts the
+    ids; Phase B adds cryptographic attestation + ledger cross-check at CI."""
+    vs_norm = _norm_session(ev.get("verifier_session_id"))
+    is_norm = _norm_session(ev.get("implementer_session_id"))
+    if not vs_norm or not is_norm:
+        return [f"Merge denied: in-scope item {item_id!r} is 'proven' but its "
+                f"evidence lacks verifier_session_id / implementer_session_id."]
+    if vs_norm == is_norm:
+        return [f"Merge denied: in-scope item {item_id!r} evidence has the same "
+                f"verifier and implementer session (self-grading)."]
+    return []
+
+
+def _deny_reason_wiring_kind(item_id: Any, item: Dict[str, Any], ev: Dict[str, Any]) -> Optional[str]:
+    """Rule 4 — WIRING integration-evidence gate. A proven WIRING item MUST be proven with
+    INTEGRATION-test evidence (evidence_kind == 'integration'); a unit/behavioral/perf/a11y
+    record cannot prove a wiring obligation (Req 8.3 / Property 2). Rego twin:
+    coverage_query.rego Rule 5; the schema allOf is the write-time gate. Non-WIRING items
+    are unaffected. Returns the reason, or None."""
+    if item.get("type") != "WIRING":
+        return None
+    kind = ev.get("evidence_kind")
+    if kind != "integration":
+        return (f"Merge denied: in-scope WIRING item {item_id!r} is 'proven' but its "
+                f"Evidence_Record.evidence_kind is {kind!r} (must be 'integration').")
+    return None
+
+
 def deny_merge(feature_list: Dict[str, Any]) -> Dict[str, Any]:
     """Evaluate the zero-evidence merge gate over a ``feature_list.json`` dict.
 
@@ -109,138 +189,59 @@ def deny_merge(feature_list: Dict[str, Any]) -> Dict[str, Any]:
     least one reason was produced. Reasons are deterministic and ordered by item
     id so the output is stable across runs (mirroring Conftest's deterministic
     deny set). Fails CLOSED on any error or malformed input.
+
+    The per-item rule cascade is extracted into ``_deny_reason_*`` helpers; this
+    body is the orchestrator. The append ORDER (status → evidence → actor-sep →
+    wiring, per item, items sorted by id) and the ``continue`` after a non-proven
+    status are load-bearing — they fix the deterministic deny set the Rego twin
+    (coverage_query.rego) and the parity oracle (test_opa_conftest.py) assert.
     """
     reasons: List[str] = []
     try:
-        if not isinstance(feature_list, dict):
-            return {
-                "deny": True,
-                "reasons": [
-                    "Merge denied: feature_list is not an object "
-                    f"(got {type(feature_list).__name__}). Fail closed."
-                ],
-            }
+        shape_denial = _model_shape_denial(feature_list)
+        if shape_denial is not None:
+            return shape_denial
 
-        items = feature_list.get("items")
-        if items is None:
-            return {
-                "deny": True,
-                "reasons": [
-                    "Merge denied: feature_list.json has no 'items' array. "
-                    "Fail closed."
-                ],
-            }
-        if not isinstance(items, list):
-            return {
-                "deny": True,
-                "reasons": [
-                    "Merge denied: feature_list.json 'items' is not an array "
-                    f"(got {type(items).__name__}). Fail closed."
-                ],
-            }
-
-        # Filter to in-scope items BEFORE any status/evidence check (Req 5.7),
-        # mirroring evaluate_stop's in_scope_items. Out-of-scope items never
-        # trigger a deny.
-        # STRICT boolean `is True` — NOT truthy — to stay logically identical to the
-        # Rego twin's `item.in_scope == true` (coverage_query.rego). A truthy check
-        # treated a non-bool in_scope (1 / 1.0) as in-scope while Rego excluded it, a
-        # twin divergence the parity test was blind to (whole-branch review I5). Schema
-        # requires in_scope:boolean, so a non-bool is invalid and both twins now ignore it.
+        # Filter to in-scope items BEFORE any status/evidence check (Req 5.7). STRICT
+        # boolean `is True` — NOT truthy — to stay logically identical to the Rego twin's
+        # `item.in_scope == true` (a truthy check let a non-bool in_scope through while Rego
+        # excluded it — whole-branch review I5; schema requires in_scope:boolean anyway).
         in_scope_items = [
-            i for i in items if isinstance(i, dict) and i.get("in_scope") is True
+            i for i in feature_list.get("items") if isinstance(i, dict) and i.get("in_scope") is True
         ]
 
-        # Empty-coverage-model gate. Zero items / zero in-scope items is a valid
-        # INIT state but never a valid COMPLETE/merge state — deny so it cannot
-        # vacuously satisfy the gate (Property 22, design.md ~1615).
+        # Empty-coverage-model gate. Zero in-scope items is a valid INIT state but never a
+        # valid COMPLETE/merge state — deny so it cannot vacuously satisfy the gate (Property 22).
         if not in_scope_items:
-            return {
-                "deny": True,
-                "reasons": [
-                    "Merge denied: feature_list.json has zero in-scope items. "
-                    "A zero-item coverage model is a valid INIT state but never "
-                    "a valid COMPLETE/merge state."
-                ],
-            }
+            return {"deny": True, "reasons": [
+                "Merge denied: feature_list.json has zero in-scope items. "
+                "A zero-item coverage model is a valid INIT state but never "
+                "a valid COMPLETE/merge state."]}
 
         # Stable ordering by id so the deny set is deterministic.
         ordered = sorted(in_scope_items, key=lambda i: str(i.get("id", "")))
 
         for item in ordered:
             item_id = item.get("id", "<no-id>")
-            status = item.get("status")
-
-            # Rule 1 — status gate. Anything not EXACTLY "proven" denies; a
-            # "failed" in-scope item blocks identically to "unproven".
-            if status != "proven":
-                reasons.append(
-                    f"Merge denied: in-scope item {item_id!r} has "
-                    f"status={status!r} (not 'proven')."
-                )
-                # A non-proven item cannot also be missing-evidence (the
-                # evidence rule applies only to proven items), so continue.
-                continue
-
-            # Rule 2 — evidence gate. A proven in-scope item MUST carry a
-            # complete four-field Evidence_Record.
-            if not _evidence_complete(item):
-                ev_obj = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
-                missing = [
-                    f for f in EVIDENCE_FIELDS
-                    if not _is_nonempty_str_field(ev_obj, f)
-                ]
-                reasons.append(
-                    f"Merge denied: in-scope item {item_id!r} is 'proven' but "
-                    f"its Evidence_Record is missing/empty field(s): {missing}."
-                )
-
-            # Rule 3 — actor-separation (provenance). A proven item's evidence
-            # must name DISTINCT implementer/verifier sessions (zero-trust: an
-            # implementer may not self-verify). Phase A trusts the ids; Phase B
-            # adds cryptographic attestation + ledger cross-check at CI.
-            #
-            # The distinctness comparison NORMALIZES both ids first (strip
-            # surrounding whitespace, then case-fold) so a whitespace-padded or
-            # case-variant near-duplicate (e.g. 'i' vs ' i ', or 'I' vs 'i')
-            # cannot masquerade as a distinct verifier. Emptiness is likewise
-            # checked on the NORMALIZED form, so a whitespace-only id counts as
-            # absent. Mirrors the Rego ``_norm_session`` / ``_distinct_sessions``
-            # twin.
-            ev = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
-            vs_norm = _norm_session(ev.get("verifier_session_id"))
-            is_norm = _norm_session(ev.get("implementer_session_id"))
-            if not vs_norm or not is_norm:
-                reasons.append(f"Merge denied: in-scope item {item_id!r} is 'proven' but its "
-                               f"evidence lacks verifier_session_id / implementer_session_id.")
-            elif vs_norm == is_norm:
-                reasons.append(f"Merge denied: in-scope item {item_id!r} evidence has the same "
-                               f"verifier and implementer session (self-grading).")
-
-            # Rule 4 — WIRING integration-evidence gate. A proven WIRING item MUST be
-            # proven with INTEGRATION-test evidence (evidence_kind == "integration"); a
-            # unit/behavioral/perf/a11y record cannot prove a wiring obligation (Req 8.3
-            # / Property 2). Rego twin: coverage_query.rego Rule 5; the schema allOf is
-            # the write-time gate. Non-WIRING items are unaffected (evidence_kind is
-            # provenance for them, not a gate input).
-            if item.get("type") == "WIRING":
-                kind = ev.get("evidence_kind")
-                if kind != "integration":
-                    reasons.append(
-                        f"Merge denied: in-scope WIRING item {item_id!r} is 'proven' but its "
-                        f"Evidence_Record.evidence_kind is {kind!r} (must be 'integration')."
-                    )
+            status_reason = _deny_reason_status(item_id, item.get("status"))
+            if status_reason is not None:
+                reasons.append(status_reason)
+                continue  # a non-proven item cannot also be missing-evidence.
+            ev = _evidence_obj(item)
+            evidence_reason = _deny_reason_evidence(item_id, item)
+            if evidence_reason is not None:
+                reasons.append(evidence_reason)
+            reasons.extend(_deny_reasons_actor_sep(item_id, ev))
+            wiring_reason = _deny_reason_wiring_kind(item_id, item, ev)
+            if wiring_reason is not None:
+                reasons.append(wiring_reason)
 
         return {"deny": bool(reasons), "reasons": reasons}
 
     except Exception as exc:  # noqa: BLE001 — fail CLOSED on any error.
-        return {
-            "deny": True,
-            "reasons": [
-                f"Merge denied: coverage_gate raised "
-                f"{type(exc).__name__}: {exc}. Fail closed."
-            ],
-        }
+        return {"deny": True, "reasons": [
+            f"Merge denied: coverage_gate raised "
+            f"{type(exc).__name__}: {exc}. Fail closed."]}
 
 
 # ── CLI shell ───────────────────────────────────────────────────────────────
