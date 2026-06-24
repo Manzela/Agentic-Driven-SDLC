@@ -9,3 +9,19 @@
 jsonschema==4.26.0   # feature_list.json schema validation (schema/feature_list.schema.json)
 hypothesis==6.155.3  # property-based suite (Properties 1–32) under tests/
 pytest==9.1.0        # test runner (testpaths=["tests"], see pyproject.toml)
+# pyyaml: parse .github/workflows/*.yml in the Phase-1 CI structural oracle
+# (tests/integration/test_phase1_ci_workflows.py, tests/integration/test_opa_conftest.py)
+pyyaml==6.0.2
+
+# ── Non-pip (binary) toolchain — installed out-of-band, NOT pip-installable ──────────
+# These back skip-guarded integration tests (each skips when its binary is absent; CI
+# installs them in the relevant job). Pinned here as the single source of truth for the
+# expected versions, since they cannot live in a `pip install -r` line.
+#
+#   conftest  >= 0.45  (OPA >= 1.0)   — rego twin proof: tests/integration/test_opa_conftest.py
+#       macOS:  brew install conftest
+#       CI:     instrumenta/conftest-action or a pinned release tarball (see Task 15)
+#       verified-against: Conftest "dev" / OPA 1.15.2 (2026-06-23)
+#   semgrep   >= 1.100                — SAST + WIRING rules: tests/spine/test_semgrep_wiring_rules.py
+#       macOS:  brew install semgrep   (verified-against: 1.167.0)
+#   mypy      (optional, advisory)    — PostToolUse type leg (fail-open when absent)

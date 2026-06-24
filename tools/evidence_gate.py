@@ -26,6 +26,9 @@ CODES = (
     "SESSION_MISSING",
     "SAME_SESSION",
     "SESSION_NOT_IN_LEDGER",
+    "SAST_HIGH_CRITICAL",
+    "ORPHAN_DETECTED",
+    "ORPHAN_DANGLING_REF",
 )
 
 
@@ -223,6 +226,21 @@ _HEAL = {
         "Use the real dispatched verifier/implementer sessions; a session id not in"
         " the dispatch ledger cannot be attested."
     ),
+    "SAST_HIGH_CRITICAL": (
+        "Fix each HIGH or CRITICAL finding reported by semgrep, then re-run"
+        " 'semgrep --baseline-commit <sha>' to confirm the findings are resolved."
+    ),
+    "ORPHAN_DETECTED": (
+        "Forward orphan: reference an EXISTING requirement id (a fabricated or unknown"
+        " id is itself a dangling-ref orphan — correct it). Backward orphan: route the"
+        " missing proof to the VERIFIER, never self-grade. A new exemption outside"
+        " tools/ is reviewed and fails the gate."
+    ),
+    "ORPHAN_DANGLING_REF": (
+        "Correct the requirement id to an EXISTING id in feature_list.json, or have the"
+        " requirement SEEDED as an unproven item before the code references it. Do not"
+        " invent a trailer."
+    ),
 }
 
 
@@ -231,3 +249,185 @@ def self_heal_prompt(result: dict) -> str:
         result.get("code", ""),
         "Resolve the evidence-gate rejection before re-attempting the proven transition.",
     )
+
+
+# --------------------------------------------------------------------------- #
+# Depth pillars (Task 4 §4.1-4.2): SAST + orphans. Both fail-OPEN on a tool error
+# (a local depth pillar must never wedge the autonomous run — the CI gate is the
+# binding backstop) and trivially ACCEPT on empty changed_files. Their fail-OPEN
+# posture is DELIBERATELY separate from check_slice, which stays fail-CLOSED.
+# --------------------------------------------------------------------------- #
+
+
+def check_slice_semgrep(changed_files, baseline_commit) -> dict:
+    """SAST depth check: semgrep on changed_files, blocking severities only.
+
+    Returns {"accepted","code","reason"}. A blocking finding -> SAST_HIGH_CRITICAL;
+    clean -> OK; empty/None changed_files -> OK (skip); ANY tool error (missing
+    binary, timeout, crash, malformed JSON) -> OK + a 'warn' reason (fail-OPEN).
+    NOTE: semgrep's JSON severity for a blocking finding is "ERROR" (WARNING=medium,
+    INFO=low); HIGH/CRITICAL are also accepted for forward-compat.
+    """
+    if not changed_files:
+        return {"accepted": True, "code": "OK", "reason": "no changed files; depth pillar skips"}
+
+    import json as _json
+    import subprocess
+
+    from tools import execution_bounds as _eb
+
+    # Build the command INSIDE the try — str(f) over changed_files, the baseline-strategy
+    # lookup, and the timeout coercion all ran OUTSIDE it before, so a pathological
+    # changed_files element (a __str__ that raises) propagated and could WEDGE the proof
+    # path instead of failing-OPEN like the sibling check_slice_orphans (whole-branch I11).
+    try:
+        cmd = ["semgrep", "--config", "auto", "--json"]
+        # F6: honor SEMGREP_BASELINE_STRATEGY — only attach the baseline when the
+        # configured strategy enables it (anything but an explicit off/none/disabled).
+        _strategy = str(getattr(_eb, "SEMGREP_BASELINE_STRATEGY", "auto")).lower()
+        if baseline_commit and _strategy not in ("off", "none", "disabled"):
+            cmd += ["--baseline-commit", str(baseline_commit)]
+        cmd += [str(f) for f in changed_files]
+        _timeout = int(getattr(_eb, "SEMGREP_TIMEOUT_SECONDS", 120))
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=_timeout)
+    except FileNotFoundError:
+        return {"accepted": True, "code": "OK", "reason": "semgrep binary not found; failing open (warn)"}
+    except subprocess.TimeoutExpired:
+        return {"accepted": True, "code": "OK", "reason": "semgrep timeout; failing open (warn)"}
+    except Exception as exc:  # noqa: BLE001 — fail-OPEN on any subprocess error
+        return {"accepted": True, "code": "OK", "reason": f"semgrep error ({type(exc).__name__}); failing open (warn)"}
+
+    try:
+        data = _json.loads(result.stdout or "{}")
+    except (ValueError, _json.JSONDecodeError):
+        return {"accepted": True, "code": "OK", "reason": "semgrep output malformed; failing open (warn)"}
+
+    # F1: a well-formed-JSON-but-wrong-shape payload (`{"results": null}` or a
+    # non-list) must FAIL-OPEN like any other tool malfunction — never raise.
+    # Coerce results to a list of dicts and skip anything that is not a dict.
+    if not isinstance(data, dict):
+        return {"accepted": True, "code": "OK", "reason": "semgrep output not an object; failing open (warn)"}
+    results = data.get("results")
+    if not isinstance(results, list):
+        results = []
+
+    _BLOCKING = {"ERROR", "HIGH", "CRITICAL"}
+    blocking = [
+        f for f in results
+        if isinstance(f, dict)
+        and str((f.get("extra") or {}).get("severity", "")).upper() in _BLOCKING
+    ]
+    if blocking:
+        return {"accepted": False, "code": "SAST_HIGH_CRITICAL",
+                "reason": f"semgrep found {len(blocking)} blocking (HIGH/CRITICAL) finding(s)"}
+    return {"accepted": True, "code": "OK", "reason": "semgrep clean (no blocking findings)"}
+
+
+def check_slice_orphans(changed_files, feature_list_path, known_ids,
+                        baseline_commit=None, allowlist_dirs=None) -> dict:
+    """Orphan depth check — DELEGATES to orphan_detector.detect_orphans_diff (the
+    diff-aware, red-teamed core; §3.3-3.7) rather than re-implementing it.
+
+    Forward orphan (changed .py minus allowlist, no req-id) or backward orphan
+    (in-scope item with no artifact) -> ORPHAN_DETECTED. A unit citing an id absent
+    from a NON-EMPTY model (REQ-WIRE-* exempt) -> ORPHAN_DANGLING_REF. Empty/None
+    changed_files -> OK (skip). ANY tool/parse error -> OK + 'warn' (fail-OPEN).
+
+    allowlist_dirs=None (default) sources the forward allowlist from
+    execution_bounds.ORPHAN_ALLOWLIST_PATTERN via the core's config-default (§4.4 —
+    thresholds/config are never hardcoded here). Pass an explicit tuple ONLY to
+    override the configured pattern.
+
+    baseline_commit, when supplied, scopes the BACKWARD pass to the PR-introduced
+    model delta (the diff-aware contract, §3.3): the baseline feature_list is loaded
+    from that commit and only added/modified item ids are checked. Without it, the
+    backward pass conservatively checks ALL in-scope items (over-strict, never under).
+    """
+    if not changed_files:
+        return {"accepted": True, "code": "OK", "reason": "no changed files; depth pillar skips"}
+    try:
+        import json as _json
+        import pathlib
+        import re as _re
+
+        from tools.orphan_detector import (
+            _get_model_delta_ids,
+            _load_feature_list_from_commit,
+            detect_orphans_diff,
+        )
+
+        repo_root = pathlib.Path(feature_list_path).resolve().parent
+        impl_units = []
+        for fp in changed_files:
+            if not str(fp).endswith(".py"):
+                continue
+            full = repo_root / fp
+            if not full.exists():
+                continue
+            try:
+                impl_units.append({"file": fp, "text": full.read_text(encoding="utf-8")})
+            except (UnicodeDecodeError, OSError):
+                continue
+
+        try:
+            model = _json.loads(pathlib.Path(feature_list_path).read_text(encoding="utf-8"))
+        except (FileNotFoundError, _json.JSONDecodeError, UnicodeDecodeError):
+            model = {}
+        # Backward pass is over IN-SCOPE items only (§4.2 / Req 5.7), AND only when the
+        # model file ITSELF is among the changed files. A slice that did not touch
+        # feature_list.json introduces no model delta, hence no NEW backward orphan
+        # (diff-aware §3.3). Without this guard a docs-only change is rejected for a
+        # pre-existing unproven item it never touched — wedging the advance (red-team F3).
+        _fl_name = pathlib.Path(feature_list_path).name
+        model_changed = any(pathlib.Path(str(f)).name == _fl_name for f in changed_files)
+        requirements = (
+            [i for i in model.get("items", []) if i.get("in_scope")]
+            if model_changed else []
+        )
+
+        # F4 (defensive): the dangling cross-check's known-id universe is the UNION of
+        # the caller's known_ids AND every id already in the loaded model, so a real
+        # seeded id is never mis-flagged dangling merely because the caller omitted it.
+        # (An empty model + empty caller known_ids still yields empty -> cross-check
+        # stays skipped per §3.1.)
+        model_ids = {i.get("id") for i in model.get("items", []) if i.get("id")}
+        effective_known = set(known_ids or set()) | model_ids
+
+        # F2: when a baseline commit is supplied, scope the BACKWARD pass to the
+        # PR-introduced model delta (diff-aware §3.3) instead of all in-scope items.
+        # An unreadable baseline ({}) falls back to the conservative all-in-scope pass.
+        model_delta_ids = None
+        if baseline_commit:
+            baseline_model = _load_feature_list_from_commit(baseline_commit, str(repo_root))
+            if baseline_model:
+                model_delta_ids = _get_model_delta_ids(baseline_model, model)
+
+        # F3: allowlist_dirs=None -> "" -> the core applies the config-sourced default
+        # (execution_bounds.ORPHAN_ALLOWLIST_PATTERN); an explicit tuple overrides it.
+        allowlist_pattern = (
+            "(" + "|".join(_re.escape(d) for d in allowlist_dirs) + ").*"
+            if allowlist_dirs else ""
+        )
+        report = detect_orphans_diff(
+            impl_units=impl_units,
+            requirements=requirements,
+            known_ids=effective_known,
+            changed_files=set(changed_files),
+            baseline_commit=baseline_commit,
+            model_delta_ids=model_delta_ids,
+            allowlist_pattern=allowlist_pattern,
+        )
+
+        if report.get("dangling_refs"):
+            uid = next(iter(report["dangling_refs"]))
+            return {"accepted": False, "code": "ORPHAN_DANGLING_REF",
+                    "reason": report["dangling_refs"][uid]["message"]}
+        fo = report.get("forward_orphans", [])
+        bo = report.get("backward_orphans", [])
+        if fo or bo:
+            return {"accepted": False, "code": "ORPHAN_DETECTED",
+                    "reason": f"orphans — forward: {fo[:3]} backward: {bo[:3]}"}
+        return {"accepted": True, "code": "OK", "reason": "no forward or backward orphans"}
+    except Exception as exc:  # noqa: BLE001 — fail-OPEN on any tool/parse error
+        return {"accepted": True, "code": "OK",
+                "reason": f"orphan check failed ({type(exc).__name__}); failing open (warn)"}

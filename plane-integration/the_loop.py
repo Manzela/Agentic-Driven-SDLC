@@ -122,7 +122,7 @@ def _loop_gate():
     return m
 
 
-def gated_prove(*, issue_id, evidence, artifact, ledger, root):
+def gated_prove(*, issue_id, evidence, artifact, ledger, root, depth_feed=None):
     """Gate a proven transition: only set Done when the evidence gate ACCEPTS.
 
     On reject -> return the self-heal/HANDOFF decision; the board is NOT moved to Done.
@@ -132,9 +132,28 @@ def gated_prove(*, issue_id, evidence, artifact, ledger, root):
     This is the programmatic gate for the autonomous loop (the dispatcher calls it with
     the verifier-produced evidence + dispatch ledger); the `prove` CLI command above is
     the manual path with four-field validation. Both reach Done only through the gate.
+
+    The local depth pillars (Semgrep, orphans) RUN on the real diff: when ``depth_feed``
+    is not supplied it is computed from git (depth_feed.compute_depth_feed) and forwarded
+    to gated_advance. The feed is FAIL-SOFT — a git error yields empty changed_files and
+    the fail-OPEN pillars simply skip, so the proof path is never wedged by the feed.
     """
+    if depth_feed is None:
+        try:
+            from tools.depth_feed import compute_depth_feed
+            depth_feed = compute_depth_feed(root)
+        except Exception:  # noqa: BLE001 — a feed failure must never break the gate.
+            depth_feed = {}
+    # A non-dict feed (caller contract violation) must not break the gate either — the
+    # fail-soft promise covers the INJECTED path too (red-team F1). Coerce to {}.
+    if not isinstance(depth_feed, dict):
+        depth_feed = {}
     decision = _loop_gate().gated_advance(
-        root=root, evidence=evidence, artifact=artifact, ledger=ledger
+        root=root, evidence=evidence, artifact=artifact, ledger=ledger,
+        changed_files=depth_feed.get("changed_files"),
+        baseline_commit=depth_feed.get("baseline_commit"),
+        feature_list_path=depth_feed.get("feature_list_path"),
+        known_ids=depth_feed.get("known_ids"),
     )
     if decision["action"] == "advance":
         # Authority + gate-order BEFORE posting evidence — mirror prove()'s

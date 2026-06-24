@@ -107,16 +107,36 @@ def test_resume_integrity_ok_false_on_hash_mismatch():
 
 
 def test_resume_integrity_ok_true_on_hash_match():
+    import tools.state_integrity as si
     git_status = " M file.py\n"
     progress = "step 4 of 9"
-    correct_hash = hook.compute_resume_hash(git_status, progress)
+    feature_list = {"items": []}
+    # The baseline is built with the CANONICAL producer hash (state_integrity), the same
+    # one pre_compact writes — session_start now verifies via check_resume_integrity.
+    correct_hash = si.compute_state_hash(git_status, progress, feature_list)
     result = hook.session_start(
-        feature_list={"items": []},
+        feature_list=feature_list,
         progress=progress,
         git_status=git_status,
         durable_hash=correct_hash,
     )
     assert result["resume_integrity_ok"] is True, result
+
+
+def test_resume_integrity_uses_feature_list():
+    """The consumer hash now includes feature_list (the old one did not) — a feature_list
+    drift between checkpoint and resume flips resume_integrity_ok to False."""
+    import tools.state_integrity as si
+    gs, pr = " M f.py\n", "p"
+    fl = {"items": [{"id": "REQ-A-001", "type": "functional", "priority": 1,
+                     "dependencies": [], "acceptance_criteria": ["x"],
+                     "status": "unproven", "in_scope": True}]}
+    h = si.compute_state_hash(gs, pr, fl)
+    assert hook.session_start(feature_list=fl, progress=pr, git_status=gs,
+                              durable_hash=h)["resume_integrity_ok"] is True
+    drifted = {"items": []}  # feature_list changed -> hash must no longer match
+    assert hook.session_start(feature_list=drifted, progress=pr, git_status=gs,
+                              durable_hash=h)["resume_integrity_ok"] is False
 
 
 def test_resume_integrity_ok_true_when_durable_hash_omitted():

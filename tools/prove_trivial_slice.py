@@ -58,7 +58,14 @@ def main(html_path: str, fl_path: str) -> int:
     record["actor_agent"] = VERIFIER_ROLE
     record["verifier_session_id"] = "sess-verifier-1"
     record["implementer_session_id"] = "sess-implementer-1"
-    record["evidence_kind"] = "behavioral"
+    # This slice SERVES the app and asserts on the rendered HTML — an INTEGRATION-style
+    # test, so evidence_kind="integration" is an accurate label (was "behavioral"). The
+    # item proven here is functional, not WIRING; the point is that the reference prover
+    # demonstrates the integration-evidence pattern the WIRING gate requires (coverage_gate
+    # Rule 4 / coverage_query.rego Rule 5, Req 8.3) — a WIRING item is proven by the same
+    # served-artifact-assertion shape. Both "behavioral" and "integration" are accepted by
+    # the render-assertion verifier, so the relabel breaks no consumer.
+    record["evidence_kind"] = "integration"
 
     gate = subagent_stop.evaluate(
         record=record, output=html, resolved_actor=VERIFIER_ROLE,

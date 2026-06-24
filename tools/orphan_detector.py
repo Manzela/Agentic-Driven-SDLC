@@ -41,6 +41,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Set
 
@@ -62,6 +64,11 @@ __all__ = [
 # A unit annotated ``# orphan-exempt: <reason>`` is legitimately un-annotated
 # (helpers, generated code, config) and does NOT count as a forward orphan.
 ORPHAN_EXEMPT_MARKER = "orphan-exempt"
+
+# Reason-required exemption (§3.2, T2): a bare "# orphan-exempt" (no reason) does
+# NOT exempt — only "# orphan-exempt: <reason>" with a non-empty reason exempts.
+# This makes a self-exemption a reviewed, justified surface rather than a free pass.
+ORPHAN_EXEMPT_PATTERN = re.compile(r"#\s*orphan-exempt:\s*\S+")
 
 # Default forward-scan path excludes (tasks.md 20.1 run-scope reconciliation):
 # tests, generated/vendored dirs, package markers, and DB migrations are never
@@ -137,7 +144,9 @@ def _impl_unit_is_exempt(unit: Dict[str, Any]) -> bool:
     if reason:
         return True
     text = unit.get("text") or unit.get("source") or ""
-    return ORPHAN_EXEMPT_MARKER in text
+    # §3.2 (T2): reason REQUIRED — a bare "# orphan-exempt" does NOT exempt;
+    # only "# orphan-exempt: <reason>" with a non-empty reason exempts.
+    return bool(ORPHAN_EXEMPT_PATTERN.search(text))
 
 
 def _impl_unit_req_ids(unit: Dict[str, Any]) -> List[str]:
@@ -212,6 +221,7 @@ def _requirement_has_artifact(req: Dict[str, Any], referenced_ids: Set[str]) -> 
 def detect_orphans(
     impl_units: List[Dict[str, Any]],
     requirements: List[Dict[str, Any]],
+    known_ids: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     """Bidirectional orphan detection over already-parsed inputs.
 
@@ -242,12 +252,26 @@ def detect_orphans(
     """
     impl_units = impl_units or []
     requirements = requirements or []
+    known_ids = known_ids or set()
 
     # Forward pass: impl units with no requirement ref (excluding exempt ones).
     forward_orphans: List[str] = []
     referenced_ids: Set[str] = set()
     for unit in impl_units:
         unit_ids = _impl_unit_req_ids(unit)
+
+        # Validity cross-check (§3.1, T1): when a model is supplied (non-empty
+        # known_ids — an EMPTY model is the pre-delivery local case and skips,
+        # §3.1/§7), a reference to an id NOT in the model is a dangling-ref
+        # orphan. WIRING-minted ids (REQ-WIRE-*) are exempt — they are minted
+        # per-analysis and may not yet be in the committed model (§3.1 caveat).
+        if known_ids:
+            for req_id in unit_ids:
+                if not req_id.startswith("REQ-WIRE") and req_id not in known_ids:
+                    forward_orphans.append(
+                        f"{_impl_unit_ref(unit)} [dangling-ref: {req_id} not in model]"
+                    )
+
         referenced_ids.update(unit_ids)
         if not unit_ids and not _impl_unit_is_exempt(unit):
             forward_orphans.append(_impl_unit_ref(unit))
@@ -267,6 +291,223 @@ def detect_orphans(
         "backward_orphans": backward_orphans,
         "ok": ok,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Diff-aware layer (Task 3 §3.3-3.7): scope the forward pass to changed .py files
+# (minus the tools/ allowlist), the backward pass to feature_list.json
+# model-deltas; fail CLOSED in CI when the merge-base is unreachable, full-repo
+# fallback (+ logged reason) locally. The allowlist pattern is a REGEX
+# (ORPHAN_DETECTOR default "tools/.*"), matched with re.match (start-anchored).
+# --------------------------------------------------------------------------- #
+
+# Allowlist regex default (§3 / §4.4): forward-orphan path exemption. SOURCED from
+# execution_bounds (the config registry owns the value — thresholds-from-execution_bounds
+# invariant), with a literal fallback only if that import is unavailable.
+try:  # absolute import when ``tools`` is on sys.path / run as a script
+    from execution_bounds import ORPHAN_ALLOWLIST_PATTERN as _DEFAULT_ALLOWLIST_PATTERN
+except ImportError:  # package-style import
+    try:
+        from tools.execution_bounds import ORPHAN_ALLOWLIST_PATTERN as _DEFAULT_ALLOWLIST_PATTERN
+    except ImportError:
+        _DEFAULT_ALLOWLIST_PATTERN = "tools/.*"
+
+
+# A git ref/commit reaching the OS `git` argv MUST look like a ref/SHA: it has to
+# START with an alphanumeric and stay within a git-ref-safe charset. The leading-char
+# rule is the security-relevant one — a value beginning with '-' (e.g. `--output=…`,
+# `--upload-pack=…`) would be parsed by git as an OPTION rather than a commit, a CWE-88
+# argument-injection vector even though every call here is shell=False (list argv).
+# Baselines in practice are SHAs / branch names from --baseline-commit; anything else is
+# rejected and the helper degrades to its fail-safe default (None / [] / {}).
+_GIT_REF_RE = re.compile(r"[0-9A-Za-z][0-9A-Za-z._/-]{0,254}")
+
+
+def _get_merged_base(baseline_ref: str, cwd: str = ".") -> Optional[str]:
+    """The merge-base SHA between ``baseline_ref`` and HEAD, or None if unreachable."""
+    if not baseline_ref or not _GIT_REF_RE.fullmatch(baseline_ref):
+        return None  # CWE-88 argument-injection guard: not a legitimate git ref.
+    try:
+        result = subprocess.run(
+            ["git", "merge-base", baseline_ref, "HEAD"],
+            cwd=cwd, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:  # noqa: BLE001 — git absent/unreachable => None (caller decides)
+        pass
+    return None
+
+
+def _get_changed_files(baseline_commit: str, cwd: str = ".") -> List[str]:
+    """Relative paths changed between ``baseline_commit`` and HEAD (caller filters)."""
+    if not baseline_commit or not _GIT_REF_RE.fullmatch(baseline_commit):
+        return []  # CWE-88 argument-injection guard: not a legitimate git ref.
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", baseline_commit, "HEAD"],
+            cwd=cwd, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
+    except Exception:  # noqa: BLE001
+        pass
+    return []
+
+
+def _load_feature_list_from_commit(commit_ref: str, cwd: str = ".") -> Dict[str, Any]:
+    """Parsed feature_list.json at ``commit_ref``, or {} if absent/unparseable."""
+    if not commit_ref or not _GIT_REF_RE.fullmatch(commit_ref):
+        return {}  # CWE-88 argument-injection guard: not a legitimate git ref.
+    try:
+        result = subprocess.run(
+            ["git", "show", f"{commit_ref}:feature_list.json"],
+            cwd=cwd, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+    except Exception:  # noqa: BLE001
+        pass
+    return {}
+
+
+def _is_path_exempt(path: str, allowlist_pattern: str) -> bool:
+    """True when ``path`` matches the forward-orphan allowlist REGEX (start-anchored).
+
+    The pattern is a regex (default "tools/.*"), NOT a glob — re.match anchors at the
+    start, so "tools/.*" exempts ``tools/anything`` and nothing outside ``tools/``.
+    """
+    if not allowlist_pattern:
+        return False
+    try:
+        return bool(re.match(allowlist_pattern, path))
+    except re.error:
+        return False
+
+
+def _filter_forward_units_by_changed(
+    impl_units: List[Dict[str, Any]],
+    changed_files: Optional[Set[str]],
+    allowlist_pattern: str = "",
+) -> List[Dict[str, Any]]:
+    """Keep only units in a changed file, minus the allowlist. None => all units."""
+    if changed_files is None:
+        return impl_units
+    changed = set(changed_files)
+    filtered: List[Dict[str, Any]] = []
+    for unit in impl_units:
+        file_path = unit.get("file") or unit.get("path")
+        if not file_path or file_path not in changed:
+            continue
+        if _is_path_exempt(file_path, allowlist_pattern):
+            continue
+        filtered.append(unit)
+    return filtered
+
+
+def _get_model_delta_ids(
+    baseline_feature_list: Dict[str, Any],
+    working_feature_list: Dict[str, Any],
+) -> Set[str]:
+    """Item IDs added or modified in feature_list.json relative to the baseline."""
+    # Diff only the SEMANTIC fields (F2) — comparing whole dicts would treat any
+    # auto-updating metadata field (e.g. a timestamp) as a modification and widen the
+    # backward scope to the entire model, the explosion model-delta scoping prevents.
+    _SEMANTIC = ("id", "type", "nfr_subtype", "status", "in_scope", "evidence",
+                 "priority", "dependencies", "acceptance_criteria")
+
+    def _proj(item: Dict[str, Any]) -> Dict[str, Any]:
+        return {k: item.get(k) for k in _SEMANTIC}
+
+    baseline_ids = {
+        i.get("id"): _proj(i) for i in baseline_feature_list.get("items", []) if i.get("id")
+    }
+    delta: Set[str] = set()
+    for i in working_feature_list.get("items", []):
+        item_id = i.get("id")
+        if not item_id:
+            continue
+        if item_id not in baseline_ids or baseline_ids[item_id] != _proj(i):
+            delta.add(item_id)
+    return delta
+
+
+def detect_orphans_diff(
+    impl_units: List[Dict[str, Any]],
+    requirements: List[Dict[str, Any]],
+    known_ids: Set[str],
+    changed_files: Optional[Set[str]] = None,
+    baseline_commit: Optional[str] = None,
+    model_delta_ids: Optional[Set[str]] = None,
+    allowlist_pattern: str = "",
+    fail_closed_on_unreachable: bool = False,
+    root: str = ".",
+) -> Dict[str, Any]:
+    """Diff-aware bidirectional orphan detection (Task 3 §3.3-3.7).
+
+    Forward: scoped to ``changed_files`` (minus the ``allowlist_pattern`` regex).
+    Backward: scoped to ``model_delta_ids`` (NEVER path-exempt — a requirement still
+    needs proof). Dangling-ref: a unit citing only ids absent from ``known_ids``
+    (REQ-WIRE-* exempt) is flagged. CI (``fail_closed_on_unreachable``): if the
+    merge-base for ``baseline_commit`` is unreachable, fail CLOSED. Local: when
+    ``changed_files is None`` (no diff), fall back to full-repo + a logged reason.
+    """
+    if not allowlist_pattern:
+        allowlist_pattern = _DEFAULT_ALLOWLIST_PATTERN
+
+    # CI fail-closed: an unreachable merge-base is a misconfiguration (fetch-depth:0),
+    # never a silent full-repo widening of the gate (§3.4, closes T4).
+    if fail_closed_on_unreachable and baseline_commit and _get_merged_base(baseline_commit, root) is None:
+        return {
+            "forward_orphans": [], "backward_orphans": [], "ok": False,
+            "error": f"merge-base {baseline_commit!r} unreachable — fetch-depth:0 required "
+                     f"(CI misconfiguration, not a degrade)",
+        }
+
+    if changed_files is None:
+        # Full-repo mode (local fallback or no baseline supplied).
+        filtered_units = impl_units
+        scoped_requirements = requirements
+        fallback_reason = (
+            f"diff not computed against {baseline_commit!r}; full-repo fallback (local)"
+            if baseline_commit else None
+        )
+    else:
+        filtered_units = _filter_forward_units_by_changed(impl_units, changed_files, allowlist_pattern)
+        # Backward scope: only model-delta items (never path-exempt). None => all.
+        scoped_requirements = (
+            [r for r in requirements if r.get("id") in model_delta_ids]
+            if model_delta_ids is not None else requirements
+        )
+        fallback_reason = None
+
+    report = detect_orphans(filtered_units, scoped_requirements, known_ids)
+    if fallback_reason:
+        report["baseline_fallback_reason"] = fallback_reason
+
+    # Dangling-ref subclass: a forward unit citing an id NOT in the model (REQ-WIRE-* exempt).
+    # Skipped when the model is empty (pre-delivery local case, §3.1) — consistent with
+    # detect_orphans, which also guards the cross-check on a non-empty model.
+    dangling_refs: Dict[str, Dict[str, str]] = {}
+    if known_ids:
+        for unit in filtered_units:
+            for uid in _impl_unit_req_ids(unit):
+                if uid not in known_ids and not uid.startswith("REQ-WIRE"):
+                    dangling_refs.setdefault(uid, {
+                        "unit": _impl_unit_ref(unit),
+                        "message": f"requirement ID '{uid}' does not exist in feature_list.json",
+                    })
+    if dangling_refs:
+        report["dangling_refs"] = dangling_refs
+        report["ok"] = False
+        # De-dup (F3): detect_orphans already pushed "[dangling-ref: ...]" strings into
+        # forward_orphans; drop them so dangling_refs is the single structured source.
+        report["forward_orphans"] = [
+            fo for fo in report.get("forward_orphans", [])
+            if "[dangling-ref:" not in str(fo)
+        ]
+
+    return report
 
 
 # --------------------------------------------------------------------------- #
@@ -361,6 +602,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         default=".",
         help="Repo root to scan for implementation units (default: cwd).",
     )
+    parser.add_argument(
+        "--baseline-commit",
+        default=None,
+        help="Diff-aware mode: orphan-check ONLY the PR's changes against this base "
+             "(merge-base sha). CI fail-CLOSED if the merge-base is unreachable.",
+    )
+    parser.add_argument(
+        "--exempt-paths",
+        default=None,
+        help="Forward-orphan allowlist as a glob (e.g. 'tools/**'); a changed file under "
+             "it is exempt from the forward (no-req) orphan check. Diff-aware mode only.",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -403,9 +656,36 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     impl_units = _scan_repo_impl_units(args.root, set(DEFAULT_EXCLUDE_DIRS))
 
-    report = detect_orphans(impl_units, requirements)
+    if args.baseline_commit:
+        # Diff-aware mode (the traceability-gate CI check): orphan-check only the PR's
+        # changes vs the merge-base, CI fail-CLOSED on an unreachable base (§3.3/§3.4).
+        known_ids = {rid for r in requirements if (rid := _requirement_id(r))}
+        changed_files = set(_get_changed_files(args.baseline_commit, args.root))
+        allowlist_pattern = _exempt_glob_to_regex(args.exempt_paths) if args.exempt_paths else ""
+        # Scope the BACKWARD pass to the PR's model-delta (red-team I3): without this the
+        # backward pass checks ALL in-scope requirements, so any pre-existing un-evidenced
+        # item blocks UNRELATED PRs. An unreadable baseline model -> None -> conservative
+        # all-in-scope (the fail-closed direction), consistent with detect_orphans_diff.
+        baseline_model = _load_feature_list_from_commit(args.baseline_commit, args.root)
+        model_delta_ids = (
+            _get_model_delta_ids(baseline_model, feature_list) if baseline_model else None
+        )
+        report = detect_orphans_diff(
+            impl_units=impl_units, requirements=requirements, known_ids=known_ids,
+            changed_files=changed_files, baseline_commit=args.baseline_commit,
+            model_delta_ids=model_delta_ids, allowlist_pattern=allowlist_pattern,
+            fail_closed_on_unreachable=True, root=args.root,
+        )
+    else:
+        report = detect_orphans(impl_units, requirements)
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1
+
+
+def _exempt_glob_to_regex(glob: str) -> str:
+    """Convert a forward-orphan allowlist glob (``tools/**``) to the start-anchored regex
+    detect_orphans_diff expects (re.match): ``**`` -> ``.*``, ``*`` -> ``[^/]*``."""
+    return re.escape(glob).replace(r"\*\*", ".*").replace(r"\*", "[^/]*")
 
 
 if __name__ == "__main__":

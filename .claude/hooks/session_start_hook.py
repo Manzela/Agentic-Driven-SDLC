@@ -42,6 +42,24 @@ from tools.hook_telemetry import record_fire  # noqa: E402
 
 PROGRESS_FILE = "claude-progress.txt"
 FEATURE_LIST_FILE = "feature_list.json"
+
+# Candidate layouts — MUST mirror pre_compact_hook's _PROGRESS_CANDIDATES/_FEATURE_CANDIDATES.
+# The producer (pre_compact) resolves the durable files via these candidates; if the consumer
+# (this hook) read root-ONLY, resume_integrity_ok would be permanently False whenever the
+# files live under .kiro/ or state/ — a producer/consumer path asymmetry that defeats the
+# Property-26 round-trip for 2 of the 3 supported layouts (whole-branch review I4).
+_PROGRESS_CANDIDATES = (PROGRESS_FILE, ".kiro/claude-progress.txt", "state/claude-progress.txt")
+_FEATURE_CANDIDATES = (FEATURE_LIST_FILE, ".kiro/feature_list.json", "state/feature_list.json")
+
+
+def _first_existing(root: Path, candidates) -> Path:
+    """First candidate that exists under root, else root/candidates[0] (so an absent file
+    reads as empty consistently with the producer)."""
+    for rel in candidates:
+        p = root / rel
+        if p.is_file():
+            return p
+    return root / candidates[0]
 SETTINGS_FILE = ".claude/settings.json"
 
 # The governance events whose registration the spine self-check asserts, paired
@@ -164,17 +182,38 @@ def spine_status(
 # ── Resumed-state hash (Phase-0 shape of the Phase-2 state_integrity compute) ─
 
 def compute_resume_hash(git_status: str | None, progress: str | None) -> str:
-    """Deterministic sha256 over the resumed-state inputs `(git_status, progress)`.
+    """DEPRECATED — superseded by tools.state_integrity.compute_state_hash.
 
-    The two components are length-prefixed and joined so that no boundary
-    ambiguity exists (e.g. ("a", "bc") cannot collide with ("ab", "c")).
-    A missing component (None) is normalized to the empty string. The format is
-    `sha256:<64-hex>`, matching the Evidence_Record `output_hash` convention.
+    This Phase-0 hash framed only (git_status, progress) — it omitted feature_list and
+    used a different (length-prefixed, sha256:-tagged) encoding than the producer
+    (pre_compact) writes, so the two could NEVER match and Property 26 was neutered
+    (red-team). session_start() now verifies via state_integrity.check_resume_integrity;
+    this function is retained only for its standalone determinism test.
+
+    Deterministic sha256 over `(git_status, progress)`, length-prefixed so no boundary
+    ambiguity exists (("a","bc") cannot collide with ("ab","c")); None → "". Format
+    `sha256:<64-hex>`.
     """
     gs = "" if git_status is None else str(git_status)
     pr = "" if progress is None else str(progress)
     payload = f"{len(gs)}:{gs}{len(pr)}:{pr}".encode("utf-8")
     return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
+def _read_run_state_hash(root: Path) -> str | None:
+    """Read run_state.resume_state_hash from run_state.json (the pre_compact -> SessionStart
+    delivery channel), or None when absent/unreadable. Never raises."""
+    p = Path(root) / "run_state.json"
+    if not p.is_file():
+        return None
+    try:
+        row = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return None
+    if isinstance(row, dict):
+        h = row.get("resume_state_hash")
+        return h if h else None
+    return None
 
 
 # ── Coverage counting ───────────────────────────────────────────────────────
@@ -262,9 +301,13 @@ def session_start(
         if durable_hash is None:
             resume_integrity_ok = True
         else:
-            resume_integrity_ok = (
-                compute_resume_hash(git_status, progress) == durable_hash
-            )
+            # Verify via the SAME canonical hash the pre_compact producer writes
+            # (state_integrity over git_status + progress + feature_list) so producer
+            # and consumer agree. The old local compute_resume_hash framed a different,
+            # feature_list-less payload and could never match (red-team F1/F2/F4).
+            from tools.state_integrity import check_resume_integrity
+            resume_integrity_ok = check_resume_integrity(
+                durable_hash, git_status or "", progress or "", feature_list or {})
 
         return {
             "summary": summary,
@@ -365,9 +408,17 @@ def main() -> int:
 
     try:
         root = _project_root()
+        # Delivery channel: the pre_compact producer persists resume_state_hash into
+        # run_state.json. Read it as the baseline when the event did not carry one, so
+        # the resume-integrity loop closes WITHOUT depending on the harness threading
+        # the hash onto the SessionStart event (red-team F3).
+        if not durable_hash:
+            durable_hash = _read_run_state_hash(root)
         git_status = _read_git_status(root)
-        progress = _read_text(root / PROGRESS_FILE)
-        feature_list = _read_feature_list(root / FEATURE_LIST_FILE)
+        # Resolve via the SAME candidate list the producer uses, so the resume-hash inputs
+        # match across all supported layouts (root / .kiro/ / state/) — whole-branch I4.
+        progress = _read_text(_first_existing(root, _PROGRESS_CANDIDATES))
+        feature_list = _read_feature_list(_first_existing(root, _FEATURE_CANDIDATES))
         result = session_start(
             feature_list=feature_list,
             progress=progress,

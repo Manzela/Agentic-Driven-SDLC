@@ -15,6 +15,16 @@ layer — no self-report is accepted; the CI verdicts are the gate.
 | `Zero-evidence coverage gate (block merge on un-proven coverage)` | `.github/workflows/coverage-gate.yml` | REQ-GATE-002 / Property 22 — no merge while any in-scope item is un-proven |
 | `gitleaks secrets diff-scan (block merge on detected secret)` | `.github/workflows/secrets-scan.yml` | REQ-17.2 / Property 32 — secret in the diff blocks merge |
 | `zap-baseline` | `.github/workflows/zap-baseline.yml` | REQ-SEC-008 — OWASP ZAP baseline DAST |
+| `sast-semgrep` | `.github/workflows/semgrep.yml` | REQ-DEPTH-003 — Semgrep SAST + WIRING rules. **fork-safe** (OSS, no secrets): binds on fork PRs, the SAST backstop when CodeQL/Sonar are skipped |
+| `sast-codeql` | `.github/workflows/codeql.yml` | REQ-DEPTH-002 — CodeQL Python SAST. **same-repo-only** SARIF upload (a fork's read-only token can't write security-events) |
+| `traceability-gate` | `.github/workflows/traceability-gate.yml` | REQ-6.3 / REQ-6.2 — diff-aware orphan detection (forward/backward) + commit-trailer assertion |
+| SonarCloud (the EXACT reported check name) | SonarCloud (app-side auto-analysis; `sonar-project.properties`) | REQ-DEPTH-004 — New-Code quality gate. **same-repo-only** (SONAR_TOKEN unavailable to forks). **RT-04 — DO NOT register a guessed context.** SonarCloud sets its own check name (e.g. `SonarCloud Code Analysis` / `SonarQube Cloud Code Analysis`); read the VERBATIM string off a real PR check run and register THAT. There is NO `coverage-gate-sonar` context — registering one blocks every PR forever (perpetually pending). |
+
+The three workflow context names (`sast-codeql`, `sast-semgrep`, `traceability-gate`) are the
+job `name:` fields VERBATIM (RT-04) and are asserted by
+`tests/integration/test_phase1_ci_workflows.py`. The SonarCloud context is app-determined and
+must be confirmed from a live run before registration. CodeQL/Sonar are same-repo-only, so
+**Semgrep is the binding SAST check on fork PRs**.
 
 All checks are owned by GitHub Actions (`app_id 15368`).
 
@@ -22,12 +32,17 @@ All checks are owned by GitHub Actions (`app_id 15368`).
 
 ```json
 {
-  "required_status_checks": { "strict": false, "contexts": [ /* the 5 above */ ] },
+  "required_status_checks": { "strict": false, "contexts": [ /* the original 5 Phase-0 checks */ ] },
   "enforce_admins": false,
   "required_pull_request_reviews": null,
   "restrictions": null
 }
 ```
+
+> The Phase-1 depth gates (`sast-semgrep`, `sast-codeql`, `traceability-gate`, and the
+> SonarCloud check) are NOT yet in the live `contexts` list. Add them via the strengthening
+> block below once each has reported at least one green run (and the SonarCloud context name
+> is confirmed verbatim from a real run — never the `coverage-gate-sonar` phantom).
 
 - `strict: false` — a PR need not be up to date with `main` before merging (avoids
   forced re-runs on every intervening merge).
@@ -44,7 +59,9 @@ gh api -X PUT repos/Manzela/Agentic-Driven-SDLC/branches/main/protection --input
 { "required_status_checks": { "strict": true, "contexts": [
     "Z3 formal-verification harness (34/34)", "Property + spine test suite",
     "Zero-evidence coverage gate (block merge on un-proven coverage)",
-    "gitleaks secrets diff-scan (block merge on detected secret)", "zap-baseline" ] },
+    "gitleaks secrets diff-scan (block merge on detected secret)", "zap-baseline",
+    "sast-semgrep", "sast-codeql", "traceability-gate",
+    "<SonarCloud's exact reported check name — confirm from a live run>" ] },
   "enforce_admins": true,
   "required_pull_request_reviews": { "required_approving_review_count": 1 },
   "restrictions": null }

@@ -1,0 +1,85 @@
+name: sast-codeql
+
+# Feature: spec-to-evidence-control / Task 23 (Phase-1 verification depth).
+# REQ-DEPTH-002 (SAST: sast-codeql as a required gating check).
+# §3.6 fork guard: same-repo-only SARIF upload (a fork's read-only GITHUB_TOKEN
+#   cannot write security-events, so the upload is skipped on fork PRs).
+# §3.4 merge-base self-test: fetch-depth:0 + fail-closed on an unreachable base.
+# §3.8 nightly baseline: a scheduled run on main seeds the New-Code baseline.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, spec-reconciliation, platform-phases]
+  schedule:
+    - cron: '0 0 * * *'  # nightly 00:00 UTC — seed the New-Code baseline (§3.8)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write  # required for SARIF upload
+
+jobs:
+  codeql-analysis:
+    name: sast-codeql
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for diff-aware analysis)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history: CodeQL diff + merge-base self-test need it
+
+      # Merge-base self-test (§3.4): fail-closed if fetch-depth:0 was ignored / shallow.
+      # Fetch origin/main first so a missing remote-tracking ref on a PR checkout does
+      # not false-fail the self-test and block every PR (red-team I5).
+      - name: Merge-base reachability self-test
+        run: |
+          # Whitelist the workspace: a checkout uid != job uid (the case inside a
+          # container) makes every git op fail "dubious ownership". On a PR the base SHA
+          # is an ancestor of the merge HEAD, so use it directly (no fetch needed); fall
+          # back to fetch origin/main + merge-base for push / dispatch events (red-team I5).
+          git config --global --add safe.directory '*' 2>/dev/null || true
+          BASE="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE" ]; then
+            git fetch --no-tags --quiet origin main 2>/dev/null || true
+            BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          fi
+          if [ -z "$BASE" ]; then
+            echo "ERROR: fetch-depth:0 required — merge-base unreachable (shallow clone detected)" >&2
+            exit 1
+          fi
+          echo "merge-base: $BASE"
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          config: |
+            paths:
+              - tools
+              - verification
+            paths-ignore:
+              - tests
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      # Analyze, but DON'T auto-upload: write SARIF to a known dir and defer the upload
+      # to the same-repo-guarded step below. analyze@v3 uploads to a temp path by default
+      # (so the old `sarif_file: results.sarif` pointed at a phantom file); `output:` +
+      # `upload: false` makes the SARIF location explicit and keeps the fork guard intact.
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          output: sarif-results
+          upload: false
+
+      # SARIF upload: same-repo-only (§3.6 fork guard). A fork PR's read-only token
+      # cannot write security-events, so skip it there rather than fail the run.
+      - name: Upload CodeQL SARIF (same-repo only)
+        if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sarif-results
+          category: codeql-python

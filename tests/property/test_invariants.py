@@ -147,14 +147,16 @@ def feature_items(draw: st.DrawFn) -> dict:
     if has_evidence:
         ev = draw(complete_evidence)
         # With some probability, corrupt exactly one field to make the record
-        # incomplete (blank it or drop it) — exercising the proven-but-partial
-        # deny path.
+        # incomplete — exercising the proven-but-partial deny path. The corruption
+        # set now includes NON-STRING values (None/False/[]/number): the schema is
+        # type:string,minLength:1, so a non-string field is invalid evidence, and the
+        # twins must agree on it (red-team: the old strategy only ever blanked/dropped
+        # a field, so the rego⇔python non-string split was never generated).
         if draw(st.booleans()):
             field = draw(st.sampled_from(list(EVIDENCE_FIELDS)))
-            if draw(st.booleans()):
-                ev[field] = ""  # present-but-empty
-            else:
-                ev.pop(field, None)  # absent
+            ev[field] = draw(st.sampled_from(["", None, False, [], 0, 42]))
+            if ev[field] is None and draw(st.booleans()):
+                ev.pop(field, None)  # also exercise the fully-absent case
         item["evidence"] = ev
     return item
 
@@ -176,11 +178,9 @@ def _is_proven_with_complete_evidence(item: dict) -> bool:
         return False
     for field in EVIDENCE_FIELDS:
         val = ev.get(field)
-        if val is None:
-            return False
-        if isinstance(val, str) and val.strip() == "":
-            return False
-        if val == "" or val == []:
+        # Each field MUST be a non-empty STRING (schema type:string,minLength:1); a
+        # non-string value is invalid evidence -> incomplete (matches both gate twins).
+        if not isinstance(val, str) or val.strip() == "":
             return False
     return True
 
@@ -251,6 +251,44 @@ def test_deny_merge_allows_all_proven_and_ignores_out_of_scope(
 
     assert result["deny"] is False
     assert result["reasons"] == []
+
+
+# ── P2 — WIRING integration-evidence gate (Task 9) ───────────────────────────
+
+wiring_evidence_kinds = st.sampled_from(
+    ["unit", "integration", "behavioral", "perf", "a11y", None]
+)
+
+
+@_SETTINGS
+@given(kind=wiring_evidence_kinds, item_type=st.sampled_from(["WIRING", "functional", "NFR"]))
+def test_deny_merge_wiring_requires_integration_evidence_kind(kind, item_type) -> None:
+    """P2 (Req 8.3): a proven in-scope item carrying a COMPLETE four-field
+    Evidence_Record with DISTINCT sessions is denied for the evidence_kind reason IFF
+    it is a WIRING item whose ``evidence_kind`` is not 'integration'. A unit/behavioral/
+    etc. record cannot prove a WIRING obligation; non-WIRING items are unaffected by
+    evidence_kind (backward compat). The expected decision is computed independently."""
+    ev = {
+        "test_file": "t", "test_name": "n",
+        "output_hash": "sha256:" + "a" * 64, "collected_at": "2026-06-16T00:00:00+00:00",
+        "implementer_session_id": "sess-impl", "verifier_session_id": "sess-veri",
+    }
+    if kind is not None:
+        ev["evidence_kind"] = kind
+    item = {"id": "REQ-X-001", "type": item_type, "in_scope": True,
+            "status": "proven", "evidence": ev}
+    result = coverage_gate.deny_merge({"items": [item]})
+
+    kind_denied = any("evidence_kind" in r for r in result["reasons"])
+    should_deny_for_kind = item_type == "WIRING" and kind != "integration"
+    assert kind_denied == should_deny_for_kind, (
+        f"type={item_type} kind={kind!r}: kind-deny={kind_denied}, "
+        f"expected={should_deny_for_kind}; reasons={result['reasons']}"
+    )
+    # A WIRING item WITH integration evidence (otherwise complete) is fully mergeable;
+    # a non-WIRING item with any kind is likewise not denied on these inputs.
+    if (item_type == "WIRING" and kind == "integration") or item_type != "WIRING":
+        assert result["deny"] is False, f"unexpected deny: {result['reasons']}"
 
 
 # ── stop — stop_hook.evaluate_stop ───────────────────────────────────────────

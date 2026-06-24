@@ -137,8 +137,10 @@ def post_tool_use(event: dict, runners: dict = None) -> dict:
         feedback: list[dict] = []
         if paths:
             # Order is the design's edit-time sequence: lint, then SAST
-            # (Semgrep only), then the static wiring check (Req 8.1 trigger).
-            for runner_name in ("lint", "sast", "wiring"):
+            # (Semgrep only), the static wiring check (Req 8.1 trigger), then mypy.
+            # NOTE: this list MUST include every key _default_runners registers — a
+            # runner registered but absent here is dead code (red-team F1: 'mypy' was).
+            for runner_name in ("lint", "sast", "wiring", "mypy"):
                 feedback.extend(_safe_run(runners, runner_name, paths))
         # No changed paths → no findings, but still a well-formed non_block.
         return {"decision": "non_block", "feedback": feedback}
@@ -175,16 +177,80 @@ def _real_sast(paths: list[str]) -> list[dict]:
 
 
 def _real_wiring(paths: list[str]) -> list[dict]:
-    # Req 8.1: PostToolUse is the trigger; the wiring engine lives in tools/.
+    # Req 8.1: PostToolUse is the trigger; the wiring engine lives in tools/. Uses
+    # analyze + emit_wiring_items — the live code imported a NONEXISTENT check_wiring,
+    # so the leg silently always returned [] (RT-06). emit_wiring_items yields ingestion
+    # CoverageItems with a nested wiring:{file,line} — the WRONG shape for feedback, so we
+    # MAP wiring.file->path, wiring.line->line and synthesize a readable message rather
+    # than passing the raw dict to _normalize_findings (which would stringify it).
+    py = [p for p in paths if str(p).endswith(".py")]
+    if not py:
+        return []
     try:
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-        from tools.wiring_checker import check_wiring  # type: ignore
+        _root = str(Path(__file__).resolve().parents[2])
+        if _root not in sys.path:  # guard: don't grow sys.path on every call (F4).
+            sys.path.insert(0, _root)
+        from tools.wiring_checker import analyze, emit_wiring_items  # type: ignore
     except Exception:
         return []  # Wiring engine is a Phase-1 component; absent → no findings.
     try:
-        return _normalize_findings("wiring", check_wiring(paths))
+        # Caller-context (analyze changed files + their repo-wide callers) is DEFERRED —
+        # it needs a call-graph index; until then we analyze only the changed files, so a
+        # symbol whose only caller lives in an unanalyzed file may show as a false "dead".
+        # PostToolUse is advisory (never blocks), so this is surfaced noise, not a gate.
+        wiring_items = emit_wiring_items(analyze(py))
+    except Exception:
+        return []  # NEVER raise — advisory only.
+    feedback: list[dict] = []
+    for item in wiring_items:
+        wiring = item.get("wiring") or {}
+        if wiring.get("reachable") is not False:
+            continue  # only an UNREACHABLE symbol is a dead-code finding.
+        qualname = wiring.get("qualname") or wiring.get("symbol") or item.get("title") or "<symbol>"
+        feedback.append({
+            "source": "wiring", "severity": "warning",
+            "path": wiring.get("file", ""), "line": wiring.get("line"),
+            "rule": "wiring-unreachable",
+            "message": f"{qualname} appears unreachable (no caller in the analyzed scope) "
+                       "— wire it from a real execution path or remove it.",
+        })
+    return feedback
+
+
+def _real_mypy(paths: list[str]) -> list[dict]:
+    # Type findings on changed .py files only (advisory; CI is the gate). mypy has no
+    # stable --json, so we parse its `path:line:col: severity: message` text. Absent
+    # binary / any error → [] (fail-open; PostToolUse never blocks).
+    import re as _re
+    import shutil
+    import subprocess
+    py = [p for p in paths if str(p).endswith(".py")]
+    if not py or shutil.which("mypy") is None:
+        return []
+    try:
+        proc = subprocess.run(
+            ["mypy", "--no-error-summary", "--show-column-numbers", "--no-color-output", *py],
+            capture_output=True, text=True, timeout=60)
     except Exception:
         return []
+    findings: list[dict] = []
+    # Anchor the path to a non-whitespace start (F3) so an indented `note:` continuation
+    # line does not yield a path with leading spaces.
+    line_re = _re.compile(r"^(?P<path>\S.*?):(?P<line>\d+):(?:\d+:)?\s*(?P<sev>error|warning|note):\s*(?P<msg>.*)$")
+    _sev_map = {"error": "error", "warning": "warning", "note": "info"}
+    for raw in (proc.stdout or "").splitlines():
+        m = line_re.match(raw)
+        if not m:
+            continue
+        findings.append({
+            "source": "mypy",
+            # A mypy `note:` is informational context, NOT a diagnostic — map to "info"
+            # so 2-4 notes per error don't inflate the feedback as spurious warnings (F2).
+            "severity": _sev_map.get(m.group("sev"), "warning"),
+            "path": m.group("path"), "line": int(m.group("line")),
+            "rule": "mypy", "message": m.group("msg").strip(),
+        })
+    return findings
 
 
 def _run_subprocess(cmd, *, source, json_array=False, json_key=None) -> list[dict]:
@@ -211,7 +277,7 @@ def _run_subprocess(cmd, *, source, json_array=False, json_key=None) -> list[dic
 
 
 def _default_runners() -> dict:
-    return {"lint": _real_lint, "sast": _real_sast, "wiring": _real_wiring}
+    return {"lint": _real_lint, "sast": _real_sast, "wiring": _real_wiring, "mypy": _real_mypy}
 
 
 # Substrings that mark a runner could not run (binary or target missing), not a
@@ -272,6 +338,8 @@ def main() -> int:
     try:
         event = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
+        event = {}
+    if not isinstance(event, dict):  # valid-JSON-but-non-dict -> avoid AttributeError (whole-branch).
         event = {}
     record_fire("PostToolUse", event.get("session_id", ""))
     result = post_tool_use(event)
