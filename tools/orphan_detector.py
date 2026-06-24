@@ -313,8 +313,20 @@ except ImportError:  # package-style import
         _DEFAULT_ALLOWLIST_PATTERN = "tools/.*"
 
 
+# A git ref/commit reaching the OS `git` argv MUST look like a ref/SHA: it has to
+# START with an alphanumeric and stay within a git-ref-safe charset. The leading-char
+# rule is the security-relevant one — a value beginning with '-' (e.g. `--output=…`,
+# `--upload-pack=…`) would be parsed by git as an OPTION rather than a commit, a CWE-88
+# argument-injection vector even though every call here is shell=False (list argv).
+# Baselines in practice are SHAs / branch names from --baseline-commit; anything else is
+# rejected and the helper degrades to its fail-safe default (None / [] / {}).
+_GIT_REF_RE = re.compile(r"[0-9A-Za-z][0-9A-Za-z._/-]{0,254}")
+
+
 def _get_merged_base(baseline_ref: str, cwd: str = ".") -> Optional[str]:
     """The merge-base SHA between ``baseline_ref`` and HEAD, or None if unreachable."""
+    if not baseline_ref or not _GIT_REF_RE.fullmatch(baseline_ref):
+        return None  # CWE-88 argument-injection guard: not a legitimate git ref.
     try:
         result = subprocess.run(
             ["git", "merge-base", baseline_ref, "HEAD"],
@@ -329,6 +341,8 @@ def _get_merged_base(baseline_ref: str, cwd: str = ".") -> Optional[str]:
 
 def _get_changed_files(baseline_commit: str, cwd: str = ".") -> List[str]:
     """Relative paths changed between ``baseline_commit`` and HEAD (caller filters)."""
+    if not baseline_commit or not _GIT_REF_RE.fullmatch(baseline_commit):
+        return []  # CWE-88 argument-injection guard: not a legitimate git ref.
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", baseline_commit, "HEAD"],
@@ -343,6 +357,8 @@ def _get_changed_files(baseline_commit: str, cwd: str = ".") -> List[str]:
 
 def _load_feature_list_from_commit(commit_ref: str, cwd: str = ".") -> Dict[str, Any]:
     """Parsed feature_list.json at ``commit_ref``, or {} if absent/unparseable."""
+    if not commit_ref or not _GIT_REF_RE.fullmatch(commit_ref):
+        return {}  # CWE-88 argument-injection guard: not a legitimate git ref.
     try:
         result = subprocess.run(
             ["git", "show", f"{commit_ref}:feature_list.json"],

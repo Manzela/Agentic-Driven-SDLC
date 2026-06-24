@@ -221,3 +221,27 @@ def test_model_delta_none_checks_all_requirements():
         known_ids={"REQ-A-001", "REQ-B-002"}, changed_files={"x.py"}, model_delta_ids=None,
     )
     assert set(r["backward_orphans"]) == {"REQ-A-001", "REQ-B-002"}
+
+
+# --- security: CWE-88 argument-injection guard on the git-ref argv -----------
+def test_git_ref_guard_blocks_argument_injection(tmp_path):
+    """A --baseline-commit beginning with '-' is parsed by git as an OPTION, not a
+    commit — e.g. `git diff --output=<file>` writes an arbitrary file (proven real by
+    direct execution). The three git helpers must reject any non-ref value BEFORE it
+    reaches the git argv and degrade to their fail-safe default, writing nothing."""
+    pwn = tmp_path / "pwn_should_never_exist"
+    assert _get_changed_files(f"--output={pwn}") == []
+    assert _get_merged_base("--upload-pack=touch /tmp/x") is None
+    assert _load_feature_list_from_commit("--output=/tmp/y") == {}
+    assert not pwn.exists()  # the injection never reached git
+
+
+def test_git_ref_guard_allows_legitimate_refs():
+    """The guard must NOT over-block real baselines: full/short SHAs and branch refs
+    (incl. '/' and '-') pass; only option-shaped / empty / shell-hostile values fail."""
+    from tools.orphan_detector import _GIT_REF_RE
+    for ok in ("bc76611de7706db7ed35f6dd6fc2ac6fbef07985", "bc76611",
+               "origin/main", "HEAD", "spec/phase1-verification-depth", "v1.2.3"):
+        assert _GIT_REF_RE.fullmatch(ok), ok
+    for bad in ("", "-x", "--output=/tmp/p", "--upload-pack=sh", "a b", "a;b", "$(x)", "a|b"):
+        assert not _GIT_REF_RE.fullmatch(bad), bad
