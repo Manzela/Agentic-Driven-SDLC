@@ -641,13 +641,30 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load_model_or_error(path: str) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+def _confine_to_root(path: str, root: str) -> str:
+    """CWE-22 path-traversal guard: resolve ``path`` and confirm it stays WITHIN ``root`` (the
+    scanned repo tree), so a crafted ``--feature-list`` / ``--links`` cannot make the CLI read
+    a file outside the repo. Returns the resolved path; raises ``ValueError`` when it escapes
+    ``root``. Real CI + test usage always passes files within ``--root``, so this only rejects
+    a genuine traversal — it is a security guard, not a behavioural change for legitimate use."""
+    root_real = os.path.realpath(root)
+    resolved = os.path.realpath(path)
+    if resolved != root_real and not resolved.startswith(root_real + os.sep):
+        raise ValueError(f"path {path!r} escapes the scan root {root!r}")
+    return resolved
+
+
+def _load_model_or_error(
+    path: str, root: str
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """Load feature_list.json → ``(model, None)``, or ``(None, error_report)`` on an
-    OSError/JSONDecodeError. The error report is the COMPACT (no-indent) JSON the gate's
-    load-failure contract expects (distinct from the indented success report)."""
+    OSError/JSONDecodeError/traversal. ``path`` is confined to ``root`` first (CWE-22); a
+    traversal attempt is a load failure (fail-closed). The error report is the COMPACT
+    (no-indent) JSON the gate's load-failure contract expects (distinct from the indented
+    success report)."""
     try:
-        return _load_feature_list(path), None
-    except (OSError, json.JSONDecodeError) as exc:
+        return _load_feature_list(_confine_to_root(path, root)), None
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
         return None, {
             "forward_orphans": [],
             "backward_orphans": [],
@@ -656,12 +673,13 @@ def _load_model_or_error(path: str) -> Tuple[Optional[Dict[str, Any]], Optional[
         }
 
 
-def _fold_in_links(requirements: List[Dict[str, Any]], links_path: str) -> None:
+def _fold_in_links(requirements: List[Dict[str, Any]], links_path: str, root: str) -> None:
     """Fold an optional external links file into each requirement's ``traceability_links``
     (in place) so the backward-orphan lookup sees test/evidence links not inlined in the
-    coverage model. Absence / parse-failure is non-fatal — links are an enrichment."""
+    coverage model. ``links_path`` is confined to ``root`` (CWE-22). Absence / parse-failure /
+    traversal is non-fatal — links are an enrichment, so an out-of-root path is silently ignored."""
     try:
-        with open(links_path, "r", encoding="utf-8") as fh:
+        with open(_confine_to_root(links_path, root), "r", encoding="utf-8") as fh:
             links_doc = json.load(fh)
         links_by_req: Dict[str, List[Any]] = {}
         for link in links_doc if isinstance(links_doc, list) else links_doc.get("links", []):
@@ -674,8 +692,8 @@ def _fold_in_links(requirements: List[Dict[str, Any]], links_path: str) -> None:
                 merged = list(req.get("traceability_links", []) or [])
                 merged.extend(links_by_req[rid])
                 req["traceability_links"] = merged
-    except (OSError, json.JSONDecodeError):
-        pass  # links are an optional enrichment; absence is not fatal
+    except (OSError, json.JSONDecodeError, ValueError):
+        pass  # links are an optional enrichment; absence / traversal is not fatal
 
 
 def _run_diff_aware(
@@ -713,13 +731,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     "block the run" contract consumed by the ``traceability-gate`` CI check.
     """
     args = _build_arg_parser().parse_args(argv)
-    feature_list, error = _load_model_or_error(args.feature_list)
+    feature_list, error = _load_model_or_error(args.feature_list, args.root)
     if error is not None:
         print(json.dumps(error))   # COMPACT (no indent) — the load-failure contract.
         return 1
     requirements = _requirements_from_feature_list(feature_list)
     if args.links:
-        _fold_in_links(requirements, args.links)
+        _fold_in_links(requirements, args.links, args.root)
     impl_units = _scan_repo_impl_units(args.root, set(DEFAULT_EXCLUDE_DIRS))
     if args.baseline_commit:
         report = _run_diff_aware(args, impl_units, requirements, feature_list)

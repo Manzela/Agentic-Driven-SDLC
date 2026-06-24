@@ -120,3 +120,27 @@ def test_output_is_sorted_indented_json(tmp_path, capsys):
     fl = _write_fl(tmp_path, [{"id": "REQ-A-001", "has_artifact": True}])
     _, _, out = _run(["--feature-list", str(fl), "--root", str(tmp_path)], capsys)
     assert '"ok": true' in out and out.index('"backward_orphans"') < out.index('"forward_orphans"')
+
+
+# --- CWE-22 path-traversal guard (--feature-list / --links confined to --root) -----------
+def test_feature_list_outside_root_fails_closed(tmp_path, capsys):
+    # A --feature-list resolving OUTSIDE --root is rejected as a load failure (fail-closed).
+    (tmp_path / "root").mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text(json.dumps({"items": []}), encoding="utf-8")
+    code, report, _ = _run(
+        ["--feature-list", str(outside), "--root", str(tmp_path / "root")], capsys)
+    assert code == 1
+    assert "cannot load feature_list" in report["error"] and "escapes the scan root" in report["error"]
+
+
+def test_links_outside_root_silently_ignored(tmp_path, capsys):
+    # A --links OUTSIDE --root is ignored (links are optional) -> the backward orphan it would
+    # have resolved stays unresolved -> exit 1, same as if no --links were passed.
+    fl = _write_fl(tmp_path, [{"id": "REQ-A-001"}])
+    evil = tmp_path.parent / "evil_links.json"
+    evil.write_text(json.dumps({"links": [{"requirement_id": "REQ-A-001", "link_type": "test"}]}),
+                    encoding="utf-8")
+    code, report, _ = _run(
+        ["--feature-list", str(fl), "--root", str(tmp_path), "--links", str(evil)], capsys)
+    assert code == 1 and "REQ-A-001" in report["backward_orphans"]  # link ignored, still orphan
