@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -36,13 +37,26 @@ def _load(modpath: str, name: str):
     return m
 
 
+def _confine_to_root(path: str) -> str:
+    """CWE-22 path-traversal guard: resolve ``path`` and confirm it stays WITHIN the repo
+    ``ROOT``, so a crafted CLI arg cannot make this verifier prover READ or — critically —
+    WRITE the ``status:proven`` stamp to a file outside the repo tree. Returns the resolved
+    path; raises ``ValueError`` on escape (the caller fails closed). Same guard as
+    orphan_detector._confine_to_root."""
+    root_real = os.path.realpath(ROOT)
+    resolved = os.path.realpath(path)
+    if resolved != root_real and not resolved.startswith(root_real + os.sep):
+        raise ValueError(f"path {path!r} escapes the repo root {ROOT}")
+    return resolved
+
+
 def main(html_path: str, fl_path: str) -> int:
     evidence_collector = _load("tools/evidence_collector.py", "evidence_collector")
     coverage = _load("tools/coverage.py", "coverage")
     subagent_stop = _load(".claude/hooks/subagent_stop_hook.py", "subagent_stop_hook")
     stop_hook = _load(".claude/hooks/stop_hook.py", "stop_hook")
 
-    html = Path(html_path).read_text()
+    html = Path(_confine_to_root(html_path)).read_text()
 
     # (2) acceptance criteria on the live artifact.
     assert "Autonomous Agent" in html, "wordmark missing from served HTML"
@@ -80,12 +94,13 @@ def main(html_path: str, fl_path: str) -> int:
     # (5) transition under authority, then write.
     coverage.assert_transition("unproven", "proven")
     coverage.assert_field_authority(field="status", actor_agent=VERIFIER_ROLE, human_signed=False)
-    model = json.loads(Path(fl_path).read_text())
+    fl = _confine_to_root(fl_path)  # confine the proven-flip WRITE target to the repo (CWE-22).
+    model = json.loads(Path(fl).read_text())
     for item in model["items"]:
         if item["id"] == "HOME-RND-001":
             item["status"] = "proven"
             item["evidence"] = record
-    Path(fl_path).write_text(json.dumps(model, indent=2) + "\n")
+    Path(fl).write_text(json.dumps(model, indent=2) + "\n")
 
     # (6) Stop hook must now report COMPLETE.
     run_state = {"iteration_count": 1, "violation_count": 0, "no_progress_n": 0}
