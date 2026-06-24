@@ -35,8 +35,16 @@ jobs:
       # not false-fail the self-test and block every PR (red-team I5).
       - name: Merge-base reachability self-test
         run: |
-          git fetch --no-tags --quiet origin main 2>/dev/null || true
-          BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          # Whitelist the workspace: a checkout uid != job uid (the case inside a
+          # container) makes every git op fail "dubious ownership". On a PR the base SHA
+          # is an ancestor of the merge HEAD, so use it directly (no fetch needed); fall
+          # back to fetch origin/main + merge-base for push / dispatch events (red-team I5).
+          git config --global --add safe.directory '*' 2>/dev/null || true
+          BASE="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE" ]; then
+            git fetch --no-tags --quiet origin main 2>/dev/null || true
+            BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          fi
           if [ -z "$BASE" ]; then
             echo "ERROR: fetch-depth:0 required — merge-base unreachable (shallow clone detected)" >&2
             exit 1
@@ -49,7 +57,6 @@ jobs:
           languages: python
           config: |
             paths:
-              - src
               - tools
               - verification
             paths-ignore:

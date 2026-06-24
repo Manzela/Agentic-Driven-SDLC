@@ -9,6 +9,9 @@
 jsonschema==4.26.0   # feature_list.json schema validation (schema/feature_list.schema.json)
 hypothesis==6.155.3  # property-based suite (Properties 1–32) under tests/
 pytest==9.1.0        # test runner (testpaths=["tests"], see pyproject.toml)
+# pyyaml: parse .github/workflows/*.yml in the Phase-1 CI structural oracle
+# (tests/integration/test_phase1_ci_workflows.py, tests/integration/test_opa_conftest.py)
+pyyaml==6.0.2
 
 # ── Non-pip (binary) toolchain — installed out-of-band, NOT pip-installable ──────────
 # These back skip-guarded integration tests (each skips when its binary is absent; CI

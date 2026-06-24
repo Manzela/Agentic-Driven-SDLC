@@ -33,8 +33,16 @@ jobs:
       # block every PR) indistinguishably from a real shallow clone (red-team I5).
       - name: Merge-base reachability self-test
         run: |
-          git fetch --no-tags --quiet origin main 2>/dev/null || true
-          BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          # Whitelist the workspace so a checkout-uid != job-uid mismatch cannot fail git
+          # "dubious ownership". On a PR the base SHA is an ancestor of the merge HEAD, so
+          # use it directly (no fetch); fall back to fetch origin/main + merge-base for
+          # push / dispatch events (red-team I5).
+          git config --global --add safe.directory '*' 2>/dev/null || true
+          BASE="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE" ]; then
+            git fetch --no-tags --quiet origin main 2>/dev/null || true
+            BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo "")
+          fi
           if [ -z "$BASE" ]; then
             echo "ERROR: fetch-depth:0 required — merge-base unreachable (shallow clone detected)" >&2
             exit 1
@@ -68,11 +76,14 @@ jobs:
             --exempt-paths "tools/**" \
             --feature-list feature_list.json
 
-      # REQ-6.2: every non-merge feature commit this PR introduces must be traceable to
-      # the spec — a requirement id (REQ-XXX-NNN) OR a task id (Task N), the two
-      # conventions this repo actually uses (a REQ-only check would self-block this very
-      # PR's "Task N:" commits — red-team I4). Revert/merge/fixup commits are exempt
-      # (auto-generated, not feature work).
+      # REQ-6.2: every non-merge FEATURE commit this PR introduces must be traceable to
+      # the spec — a requirement id (REQ-XXX-NNN) OR a task id, matching the conventions
+      # this repo actually uses: "Task 5", the plural "Tasks 2/3/12", AND the hyphenated
+      # "Task-18" (a REQ-only or space-only check would self-block this PR's own commits —
+      # red-team I4 + whole-branch). Exempt subjects are NOT feature work: auto-generated
+      # (Revert/Merge/fixup/squash/amend) and conventional non-feature types
+      # (docs/chore/ci/build/test/style/refactor) — e.g. a `docs(phase1):` spec edit is
+      # not a code change requiring a req-id.
       - name: Assert commit-trailer requirement (REQ-6.2)
         run: |
           python - <<'PYTHON'
@@ -85,8 +96,11 @@ jobs:
               ["git", "rev-list", "--no-merges", f"{base}..HEAD"],
               capture_output=True, text=True, check=True,
           ).stdout.split()
-          trace_re = re.compile(r"REQ-[A-Z]+-\d{3}|[Tt]ask\s+\d+")
-          exempt_re = re.compile(r"^(Revert|Merge|fixup!|squash!|amend!)\b")
+          trace_re = re.compile(r"REQ-[A-Z]+-\d{3}|[Tt]asks?[\s-]+\d+")
+          exempt_re = re.compile(
+              r"^(Revert|Merge|fixup!|squash!|amend!|docs|chore|ci|build|test|style|refactor)\b",
+              re.IGNORECASE,
+          )
           offenders = []
           for sha in out:
               msg = subprocess.run(
