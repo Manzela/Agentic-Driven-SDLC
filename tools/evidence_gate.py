@@ -323,6 +323,59 @@ def check_slice_semgrep(changed_files, baseline_commit) -> dict:
     return {"accepted": True, "code": "OK", "reason": "semgrep clean (no blocking findings)"}
 
 
+def _build_impl_units(changed_files, repo_root) -> list:
+    """The changed ``.py`` files as impl-unit dicts ``{file, text}``; a non-.py, absent, or
+    unreadable file is skipped (the read error is swallowed per-file, not fail-open-wide)."""
+    impl_units = []
+    for fp in changed_files:
+        if not str(fp).endswith(".py"):
+            continue
+        full = repo_root / fp
+        if not full.exists():
+            continue
+        try:
+            impl_units.append({"file": fp, "text": full.read_text(encoding="utf-8")})
+        except (UnicodeDecodeError, OSError):
+            continue
+    return impl_units
+
+
+def _load_model_json(feature_list_path) -> dict:
+    """The parsed feature_list.json, or ``{}`` when absent / unparseable / undecodable."""
+    import json
+    try:
+        return json.loads(Path(feature_list_path).read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+
+
+def _resolve_model_delta(baseline_commit, repo_root, model):
+    """The PR-introduced model-delta id set for the diff-aware backward scope (F2), or None —
+    no baseline, or an unreadable baseline ({}) → None (the core then conservatively checks
+    all in-scope items, over-strict never under)."""
+    if not baseline_commit:
+        return None
+    from tools.orphan_detector import _get_model_delta_ids, _load_feature_list_from_commit
+    baseline_model = _load_feature_list_from_commit(baseline_commit, str(repo_root))
+    return _get_model_delta_ids(baseline_model, model) if baseline_model else None
+
+
+def _verdict_from_report(report) -> dict:
+    """Map an orphan report to the depth-pillar verdict: a dangling-ref →
+    ORPHAN_DANGLING_REF (first uid's message); any forward/backward orphan → ORPHAN_DETECTED
+    (the fo[:3]/bo[:3] slice); else OK."""
+    if report.get("dangling_refs"):
+        uid = next(iter(report["dangling_refs"]))
+        return {"accepted": False, "code": "ORPHAN_DANGLING_REF",
+                "reason": report["dangling_refs"][uid]["message"]}
+    fo = report.get("forward_orphans", [])
+    bo = report.get("backward_orphans", [])
+    if fo or bo:
+        return {"accepted": False, "code": "ORPHAN_DETECTED",
+                "reason": f"orphans — forward: {fo[:3]} backward: {bo[:3]}"}
+    return {"accepted": True, "code": "OK", "reason": "no forward or backward orphans"}
+
+
 def check_slice_orphans(changed_files, feature_list_path, known_ids,
                         baseline_commit=None, allowlist_dirs=None) -> dict:
     """Orphan depth check — DELEGATES to orphan_detector.detect_orphans_diff (the
@@ -346,61 +399,32 @@ def check_slice_orphans(changed_files, feature_list_path, known_ids,
     if not changed_files:
         return {"accepted": True, "code": "OK", "reason": "no changed files; depth pillar skips"}
     try:
-        import json as _json
-        import pathlib
         import re as _re
 
-        from tools.orphan_detector import (
-            _get_model_delta_ids,
-            _load_feature_list_from_commit,
-            detect_orphans_diff,
-        )
+        from tools.orphan_detector import detect_orphans_diff
 
-        repo_root = pathlib.Path(feature_list_path).resolve().parent
-        impl_units = []
-        for fp in changed_files:
-            if not str(fp).endswith(".py"):
-                continue
-            full = repo_root / fp
-            if not full.exists():
-                continue
-            try:
-                impl_units.append({"file": fp, "text": full.read_text(encoding="utf-8")})
-            except (UnicodeDecodeError, OSError):
-                continue
+        repo_root = Path(feature_list_path).resolve().parent
+        impl_units = _build_impl_units(changed_files, repo_root)
+        model = _load_model_json(feature_list_path)
 
-        try:
-            model = _json.loads(pathlib.Path(feature_list_path).read_text(encoding="utf-8"))
-        except (FileNotFoundError, _json.JSONDecodeError, UnicodeDecodeError):
-            model = {}
-        # Backward pass is over IN-SCOPE items only (§4.2 / Req 5.7), AND only when the
-        # model file ITSELF is among the changed files. A slice that did not touch
-        # feature_list.json introduces no model delta, hence no NEW backward orphan
-        # (diff-aware §3.3). Without this guard a docs-only change is rejected for a
-        # pre-existing unproven item it never touched — wedging the advance (red-team F3).
-        _fl_name = pathlib.Path(feature_list_path).name
-        model_changed = any(pathlib.Path(str(f)).name == _fl_name for f in changed_files)
+        # Backward pass is over IN-SCOPE items only (§4.2 / Req 5.7), AND only when the model
+        # file ITSELF is among the changed files. A slice that did not touch feature_list.json
+        # introduces no model delta, hence no NEW backward orphan (diff-aware §3.3) — without
+        # this a docs-only change wedges the advance on a pre-existing unproven item (F3).
+        _fl_name = Path(feature_list_path).name
+        model_changed = any(Path(str(f)).name == _fl_name for f in changed_files)
         requirements = (
             [i for i in model.get("items", []) if i.get("in_scope")]
             if model_changed else []
         )
 
-        # F4 (defensive): the dangling cross-check's known-id universe is the UNION of
-        # the caller's known_ids AND every id already in the loaded model, so a real
-        # seeded id is never mis-flagged dangling merely because the caller omitted it.
-        # (An empty model + empty caller known_ids still yields empty -> cross-check
-        # stays skipped per §3.1.)
+        # F4: the dangling cross-check's known-id universe UNIONS the caller's known_ids with
+        # every id already in the model, so a real seeded id is never mis-flagged dangling.
         model_ids = {i.get("id") for i in model.get("items", []) if i.get("id")}
         effective_known = set(known_ids or set()) | model_ids
 
-        # F2: when a baseline commit is supplied, scope the BACKWARD pass to the
-        # PR-introduced model delta (diff-aware §3.3) instead of all in-scope items.
-        # An unreadable baseline ({}) falls back to the conservative all-in-scope pass.
-        model_delta_ids = None
-        if baseline_commit:
-            baseline_model = _load_feature_list_from_commit(baseline_commit, str(repo_root))
-            if baseline_model:
-                model_delta_ids = _get_model_delta_ids(baseline_model, model)
+        # F2: with a baseline, scope the BACKWARD pass to the PR-introduced model delta.
+        model_delta_ids = _resolve_model_delta(baseline_commit, repo_root, model)
 
         # F3: allowlist_dirs=None -> "" -> the core applies the config-sourced default
         # (execution_bounds.ORPHAN_ALLOWLIST_PATTERN); an explicit tuple overrides it.
@@ -417,17 +441,7 @@ def check_slice_orphans(changed_files, feature_list_path, known_ids,
             model_delta_ids=model_delta_ids,
             allowlist_pattern=allowlist_pattern,
         )
-
-        if report.get("dangling_refs"):
-            uid = next(iter(report["dangling_refs"]))
-            return {"accepted": False, "code": "ORPHAN_DANGLING_REF",
-                    "reason": report["dangling_refs"][uid]["message"]}
-        fo = report.get("forward_orphans", [])
-        bo = report.get("backward_orphans", [])
-        if fo or bo:
-            return {"accepted": False, "code": "ORPHAN_DETECTED",
-                    "reason": f"orphans — forward: {fo[:3]} backward: {bo[:3]}"}
-        return {"accepted": True, "code": "OK", "reason": "no forward or backward orphans"}
+        return _verdict_from_report(report)
     except Exception as exc:  # noqa: BLE001 — fail-OPEN on any tool/parse error
         return {"accepted": True, "code": "OK",
                 "reason": f"orphan check failed ({type(exc).__name__}); failing open (warn)"}
