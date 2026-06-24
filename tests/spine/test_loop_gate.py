@@ -97,7 +97,7 @@ def test_pillar2_orphan_rejection_self_heals(tmp_path, monkeypatch):
     monkeypatch.setattr(lg.evidence_gate, "check_slice_semgrep", lambda *a, **k: _ACCEPT)
     monkeypatch.setattr(lg.evidence_gate, "check_slice_orphans", lambda *a, **k: _REJECT_ORPH)
     r = lg.gated_advance(root=tmp_path, evidence=_ev(), artifact=ART, ledger=LEDGER,
-                         changed_files=["test.py"], feature_list_path="/tmp/feature_list.json",
+                         changed_files=["test.py"], feature_list_path=str(tmp_path / "feature_list.json"),
                          known_ids=set(), max_self_heal=2)
     assert r["action"] == "self_heal"
     assert r["code"] == "ORPHAN_DETECTED"
@@ -113,7 +113,7 @@ def test_dual_pillar_rejection_joins_prompts(tmp_path, monkeypatch):
     monkeypatch.setattr(lg.evidence_gate, "check_slice_orphans", lambda *a, **k: _REJECT_ORPH)
     r = lg.gated_advance(root=tmp_path, evidence=_ev(), artifact=ART, ledger=LEDGER,
                          changed_files=["test.py"], baseline_commit="abc",
-                         feature_list_path="/tmp/feature_list.json", known_ids=set(), max_self_heal=2)
+                         feature_list_path=str(tmp_path / "feature_list.json"), known_ids=set(), max_self_heal=2)
     assert r["action"] == "self_heal"
     assert "semgrep found 1 HIGH issue" in r["reason"]
     assert "found unmatched references" in r["reason"]
