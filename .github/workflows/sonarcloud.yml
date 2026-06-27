@@ -1,0 +1,43 @@
+name: SonarCloud
+
+# CI-based SonarQube Cloud (SonarCloud) analysis — completes the wiring the
+# sonar-project.properties header (§3.6/§3.8) always assumed but was never run.
+#
+# WHY: under SonarCloud "Automatic Analysis" the scanner does NOT read
+# sonar-project.properties, so sonar.exclusions=tools/** (and the New-Code reference and
+# quality-gate settings) are INERT. A CI scan reads the properties file, so the
+# controlled-debt tools/** exclusion and the New-Code baseline finally take effect.
+#
+# ONE OWNER STEP REQUIRED: Automatic Analysis must be DISABLED in the SonarCloud project
+# (Administration -> Analysis Method). CI analysis and Automatic Analysis are mutually
+# exclusive — SonarCloud refuses to ingest a CI scan while Automatic Analysis is enabled.
+#
+# §3.6 same-repo-only: SONAR_TOKEN is not exposed to fork PRs, so this scan runs (and gates)
+# only on same-repo PRs; Semgrep is the fork backstop. The quality-gate verdict is published
+# by the SonarCloud GitHub App as the "SonarCloud Code Analysis" check (PR decoration),
+# which is the registered required status check and is independent of the analysis method.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  sonarcloud:
+    name: SonarCloud scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for accurate New-Code / blame)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: SonarQube Cloud scan
+        uses: SonarSource/sonarqube-scan-action@713881670b6b3676cda39549040e2d88c70d582e  # v8.2.0
+        env:
+          # The token the owner added as a repo Actions secret on 2026-06-25. Not available
+          # to fork PRs (by design) — see §3.6 above.
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
